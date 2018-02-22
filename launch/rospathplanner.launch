@@ -1,0 +1,7 @@
+<launch>
+  <arg name="mav_name"            default="fixedwing"/>
+  <group ns="$(arg mav_name)">
+    <rosparam command="load" file="$(find rosplane)/param/path_planning.yaml"  />
+    <node name="pathplanner" pkg="rosplane" type="rosplane_path_planner" output="screen"/>
+  </group>
+</launch>
