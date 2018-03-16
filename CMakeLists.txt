@@ -13,6 +13,8 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   std_srvs
+  uav_msgs
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -49,11 +51,12 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+ FILES
+ AuvsiBoundaries.msg
+ AuvsiStaticObstacle.msg
+ AuvsiMap.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -70,10 +73,12 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   rosplane_msgs#   std_msgs
-# )
+generate_messages(
+ DEPENDENCIES
+ rosplane_msgs
+ std_msgs
+ uav_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -105,9 +110,9 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+  INCLUDE_DIRS include
 #  LIBRARIES theseus
-#  CATKIN_DEPENDS roscpp rosplane_msgs rospy std_msgs std_srvs
+  CATKIN_DEPENDS roscpp rosplane_msgs rospy std_msgs std_srvs
 #  DEPENDS system_lib
 )
 
@@ -144,6 +149,7 @@ add_executable(theseus_path_planner
                src/RRT.cpp
                src/path_planner_base.cpp)
 add_dependencies(theseus_path_planner ${catkin_EXPORTED_TARGETS})
+add_dependencies(theseus_path_planner theseus_generate_messages_cpp)
 target_link_libraries(theseus_path_planner ${catkin_LIBRARIES})
 
 ## Rename C++ executable without prefix

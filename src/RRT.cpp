@@ -8,16 +8,16 @@ RRT::RRT(map_s map_in, unsigned int seed, ParamReader *input_file_in, RRT_input 
   ROS_INFO("RRT Constructor");
 	input_file = input_file_in;
 	alg_input = alg_input_in;
-	D = alg_input.D;										// Distance between each RRT waypoint
-	map = map_in;											// Get a copy of the terrain map
-	RandGen rg_in(seed);									// Make a random generator object that is seeded
-	rg = rg_in;												// Copy that random generator into the class.
-	ppSetup();												// default stuff for every algorithm that needs to be called after it recieves the map.
+	D = alg_input.D;										  // Distance between each RRT waypoint
+	map = map_in;											    // Get a copy of the terrain map
+	RandGen rg_in(seed);								  // Make a random generator object that is seeded
+	rg = rg_in;												    // Copy that random generator into the class.
+	ppSetup();												    // default stuff for every algorithm that needs to be called after it recieves the map.
 }
 RRT::~RRT()
 {
-	delete_tree();											// Delete all of those tree pointer nodes
-	std::vector<node*>().swap(root_ptrs);						// Free the memory of the vector.
+	delete_tree();											  // Delete all of those tree pointer nodes
+	std::vector<node*>().swap(root_ptrs);	// Free the memory of the vector.
 }
 bool RRT::solve_static(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)							// This function solves for a path in between the waypoinnts (2 Dimensional)
 {
@@ -42,6 +42,50 @@ bool RRT::solve_static(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Resp
 	}
 	all_wps[map.wps.size() - 1].push_back(map.wps[map.wps.size() - 1]);	// Add the final waypoint to the waypoint list.
 	compute_performance();
+
+  // Package up a message to send
+  AuvsiMap map_msg;
+  AuvsiBoundaries bounds_msg;
+  AuvsiStaticObstacle obs_msg;
+  rosplane_msgs::Waypoint wp_msg;
+
+  // waypoints
+  for (unsigned int i = 0; i < all_wps.size(); i++)
+	{
+    for (unsigned int j = 0; j < all_wps[i].size(); j++)
+		{
+      wp_msg.w[0] = all_wps[i][j].N;
+      wp_msg.w[1] = all_wps[i][j].E;
+      wp_msg.w[2] = all_wps[i][j].D;
+      map_msg.wps.push_back(wp_msg);
+    }
+  }
+  for (unsigned int i = 0; i < map.wps.size(); i++)
+	{
+    wp_msg.w[0] = map.wps[i].N;
+    wp_msg.w[1] = map.wps[i].E;
+    wp_msg.w[2] = map.wps[i].D;
+    map_msg.primary_wps.push_back(wp_msg);
+  }
+  // Boundaries
+  for (unsigned int i = 0; i < map.boundary_pts.size(); i++)
+	{
+    bounds_msg.north = map.boundary_pts[i].N;
+    bounds_msg.east  = map.boundary_pts[i].E;
+    map_msg.bds.push_back(bounds_msg);
+  }
+  // Static Obstacles
+  for (unsigned int i = 0; i < map.cylinders.size(); i++)
+  {
+    obs_msg.north  = map.cylinders[i].N;
+    obs_msg.east   = map.cylinders[i].E;
+    obs_msg.radius = map.cylinders[i].R;
+    obs_msg.height = map.cylinders[i].H;
+    map_msg.obs.push_back(obs_msg);
+  }
+  mission_map_publisher_.publish(map_msg);
+  ROS_INFO("SENT MESSAGE");
+
   res.success = true;
   return true;
 }
@@ -322,9 +366,9 @@ void RRT::initialize_tree()
 	root_in->NED = starting_point;
 	root_in->parent = NULL;								// No parent
 	root_in->distance = 0.0;							// 0 distance.
-	root_in->available_dist = 0.0;						// No available distance, (No parent assumption)
+	root_in->available_dist = 0.0;				// No available distance, (No parent assumption)
 	root_in->path_type = 0;								// straight lines for now at the primary waypoints.
-	root_in->line_start = root_in->NED;					// The line start is set to it's own location, for now.
+	root_in->line_start = root_in->NED;		// The line start is set to it's own location, for now.
 	root_ptrs.push_back(root_in);
 	for (unsigned int i = 0; i < map.wps.size() - 1; i++)
 	{
@@ -332,11 +376,14 @@ void RRT::initialize_tree()
 		root_in->NED = map.wps[i];
 		root_in->parent = NULL;								// No parent
 		root_in->distance = 0.0;							// 0 distance.
-		root_in->available_dist = 0.0;						// No available distance, (No parent assumption)
+		root_in->available_dist = 0.0;			  // No available distance, (No parent assumption)
 		root_in->path_type = 0;								// straight lines for now at the primary waypoints.
-		root_in->line_start = root_in->NED;					// The line start is set to it's own location, for now.
+		root_in->line_start = root_in->NED;		// The line start is set to it's own location, for now.
 		root_ptrs.push_back(root_in);
+    ROS_INFO("Waypoint %i, North: %f, East %f Down: %f", i, root_in->NED.N, root_in->NED.E, root_in->NED.D);
 	}
+  unsigned int i = map.wps.size() - 1;
+  ROS_INFO("Waypoint %i, North: %f, East %f Down: %f", i, map.wps[i].N, map.wps[i].E, map.wps[i].D);
 }
 bool RRT::direct_connection(unsigned int i, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool* direct_shot)
 {

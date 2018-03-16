@@ -3,6 +3,11 @@
 
 #include <ros/ros.h>
 #include <rosplane_msgs/Waypoint.h>
+#include <uav_msgs/JudgeMission.h>
+#include <theseus/AuvsiMap.h>
+#include <theseus/AuvsiStaticObstacle.h>
+#include <theseus/AuvsiBoundaries.h>
+
 #include <vector>
 
 #include <std_srvs/Trigger.h>
@@ -25,6 +30,8 @@ private:
   //************** SUBSCRIBERS AND PUBLISHERS **************//
   ros::Publisher waypoint_publisher_;
   ros::ServiceServer path_solver_service_;
+public:
+  ros::Publisher mission_map_publisher_;
   //******************** CLASS VARIABLES *******************//
   float Va_;
 

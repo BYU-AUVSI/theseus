@@ -278,8 +278,8 @@ NED_s mapper::GPS2NED(double phi, double lambda, double h)
 
 	// CONSTANTS
 	double piD180 = 3.1415926535897932 / 180.0;
-	double a = 6378137.0;						// length of Earth�s semi-major axis in meters
-	double b = 6356752.3142;					// length of Earth�s semi-minor axis in meters
+	double a = 6378137.0;						// length of Earth's semi-major axis in meters
+	double b = 6356752.3142;					// length of Earth's semi-minor axis in meters
 	double e2 = 1. - pow((b / a), 2);			// first numerical eccentricity
 	double chi = sqrt(1 - e2*sin(rPhi)*sin(rPhi));
 
@@ -299,8 +299,8 @@ NED_s mapper::GPS2NED(double phi, double lambda, double h)
 
 	// Rotate the point in ECEF to the Local NED
 	NED_s ned;
-	ned.N = (-sin(rPhi)*cos(rLam)*dx) + (-sin(rPhi)*sin(rLam)*dy) + cos(rPhi)*dz;
-	ned.E = (sin(rLam)*dx) - (cos(rLam)*dy);
+	ned.N = (-sin(rPhi)*cos(rLam)*dx) + (-sin(rPhi)*sin(rLam)*dy) +    cos(rPhi)*dz;
+	ned.E =            (sin(rLam)*dx) -            (cos(rLam)*dy)                  ;
 	ned.D = (-cos(rPhi)*cos(rLam)*dx) + (-cos(rPhi)*sin(rLam)*dy) + (-sin(rPhi)*dz);
 	return ned;
 }

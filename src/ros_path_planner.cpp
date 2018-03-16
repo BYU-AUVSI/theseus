@@ -9,8 +9,9 @@ RosPathPlanner::RosPathPlanner() :
   //********************** PARAMETERS **********************//
 
   //************** SUBSCRIBERS AND PUBLISHERS **************//
-  waypoint_publisher_  = nh_.advertise<rosplane_msgs::Waypoint>("waypoint_path", 10);
-  path_solver_service_ = nh_.advertiseService("solve_static",&theseus::RosPathPlanner::solve_static, this);
+  waypoint_publisher_    = nh_.advertise<rosplane_msgs::Waypoint>("waypoint_path", 1);
+  path_solver_service_   = nh_.advertiseService("solve_static",&theseus::RosPathPlanner::solve_static, this);
+  mission_map_publisher_ = nh_.advertise<theseus::AuvsiMap>("/auvsi_map",1);
   ROS_INFO("RosPathPlanner Constructor");
   //******************** CLASS VARIABLES *******************//
 
