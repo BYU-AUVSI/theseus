@@ -63,7 +63,7 @@ ParamReader::ParamReader() :
   if (!(ros::param::get("ppsim/nCyli",nCyli)))
     ROS_WARN("No param named 'nCyli'");
 
-	double deg2rad    = 3.141592653/180.0;
+	double deg2rad    = M_PI/180.0;
 	climb_angle       = climb_angle*deg2rad;
 	descend_angle     = descend_angle*deg2rad;
 	max_climb_angle   = max_climb_angle*deg2rad;

@@ -3,6 +3,7 @@
 
 #include <ros/ros.h>
 #include <string>
+#include <math.h>
 
 namespace theseus
 {
