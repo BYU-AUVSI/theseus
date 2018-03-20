@@ -147,7 +147,7 @@ add_executable(theseus_path_planner
                src/mapper.cpp
                src/rand_gen.cpp
                src/RRT.cpp
-               src/path_planner_base.cpp)
+               )
 add_dependencies(theseus_path_planner ${catkin_EXPORTED_TARGETS})
 add_dependencies(theseus_path_planner theseus_generate_messages_cpp)
 target_link_libraries(theseus_path_planner ${catkin_LIBRARIES})

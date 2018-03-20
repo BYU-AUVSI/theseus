@@ -9,71 +9,103 @@ from rosplane_msgs.msg import Waypoint
 from rosplane_msgs.msg import State
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.animation as animation
 import numpy as np
+import time
 
 class path_plotter:
     def __init__(self):
-        self.turn_radius = 25.0
+
+        # PLOTTING VARIABLES
+        self.plot_update_interval = 10
+        fig, ax = plt.subplots()
+        self.fig = fig
+        self.ani = animation.FuncAnimation(self.fig, self.plot_data, interval=self.plot_update_interval)
+
+        # ROS SUBSCRIPTIONS
         self.path_subscriber = rospy.Subscriber("/auvsi_map", AuvsiMap, self.pathCallback, queue_size=1)
         self.gps_subscriber  = rospy.Subscriber("/fixedwing/truth", State, self.stateCallback, queue_size=1)
 
-        self.lastE = 0.0
-        self.lastN = 0.0
-        self.theta = np.linspace(0,2.0*3.141592653,200)
-        print('PATH PLOTTER INITIALIZED')
+        # UPDATE MAP VARIABLES
+        self.update_map = False
+        self.theta = np.linspace(0,2.0*math.pi,200)
+        self.turn_radius = 25.0
+        self.map_msg = []
+
+
+        # UPDATE PLANE POSITION VARIABLES
+        self.update_plane_position = False
+        self.Es = []
+        self.Ns = []
+
+        plt.show()
+        rospy.loginfo("PATH PLOTTER INITIALIZED")
+        while not rospy.is_shutdown():
+			rospy.spin()
+        plt.close()
+
+    def plot_data(self, unkown_variable):
+        # plt.axis('equal')
+        if self.update_map:
+            # Plot Obstacles
+            numObs = len(self.map_msg.obs)
+            for x in self.map_msg.obs:
+                CE = x.east
+                CN = x.north
+                R  = x.radius
+                H  = x.height
+                plt.fill(CE + R*np.cos(self.theta), CN + R*np.sin(self.theta), "r")
+            # Plot boundaries
+            xb = []
+            yb = []
+            for x in self.map_msg.bds:
+                xb.append(x.east)
+                yb.append(x.north)
+            xb.append(xb[0])
+            yb.append(yb[0])
+            plt.plot(xb,yb)
+            # Plot Major Waypoints
+            xwps = []
+            ywps = []
+            dwps = []
+            numwp = 1
+            for x in self.map_msg.primary_wps:
+                xwps.append(x.w[1])
+                ywps.append(x.w[0])
+                dwps.append(x.w[2])
+                plt.annotate(str(numwp),[x.w[1] + 15 , x.w[0] + 15]);
+                numwp = numwp + 1
+            plt.scatter(xwps,ywps,marker="x",s=200, linewidths=4)
+            # Plot all Waypoints
+            xwpsAll = []
+            ywpsAll = []
+            dwpsAll = []
+            for x in self.map_msg.wps:
+                xwpsAll.append(x.w[1])
+                ywpsAll.append(x.w[0])
+                dwpsAll.append(x.w[2])
+
+            mav_path = self.plot_mav_path(xwps, ywps, dwps, xwpsAll, ywpsAll, dwpsAll)
+            plt.plot(mav_path[:len(mav_path)/2][0], mav_path[len(mav_path)/2:][0], linewidth=4)
+
+            self.update_map = False
+        if self.update_plane_position:
+            plt.plot(self.Es,self.Ns,'k',linewidth=2)
+            self.Es = []
+            self.Ns = []
+            self.Ds = []
+            self.update_plane_position = False
 
     def pathCallback(self, msg):
-
-        # Plot Obstacles
-        numObs = len(msg.obs)
-        for x in msg.obs:
-            CE = x.east
-            CN = x.north
-            R  = x.radius
-            H  = x.height
-            plt.fill(CE + R*np.cos(self.theta), CN + R*np.sin(self.theta), "r")
-
-        # Plot boundaries
-        xb = []
-        yb = []
-        for x in msg.bds:
-            xb.append(x.east)
-            yb.append(x.north)
-        xb.append(xb[0])
-        yb.append(yb[0])
-        plt.plot(xb,yb)
-
-        # Plot Major Waypoints
-        xwps = []
-        ywps = []
-        dwps = []
-        for x in msg.primary_wps:
-            xwps.append(x.w[1])
-            ywps.append(x.w[0])
-            dwps.append(x.w[2])
-        plt.scatter(xwps,ywps,marker="x")
-
-        # Plot all Waypoints
-        xwpsAll = []
-        ywpsAll = []
-        dwpsAll = []
-        for x in msg.wps:
-            xwpsAll.append(x.w[1])
-            ywpsAll.append(x.w[0])
-            dwpsAll.append(x.w[2])
-
-        self.plot_mav_path(xwps, ywps, dwps, xwpsAll, ywpsAll, dwpsAll)
-
-        plt.axis('equal')
-        plt.draw()
-        plt.pause(0.00001)
+        self.update_map = True
+        self.map_msg = msg
 
     def plot_mav_path(self, pxWps, pyWps, pdWps, xwpsAll, ywpsAll, dwpsAll):
         wp_index = 1
         allWPS_plus_arc = [[], [], []]
         for i in range(0,len(pxWps)):
             j = wp_index
-            while (pxWps[i] != xwpsAll[j] and pyWps[i] != ywpsAll[j] and pdWps[i] != dwpsAll[j] and j < len(xwpsAll)):
+            while (pxWps[i] != xwpsAll[j] or pyWps[i] != ywpsAll[j] or pdWps[i] != dwpsAll[j]):
                 j = j + 1
             # Figure out the points to define a fillet path
             x_path_data = xwpsAll[wp_index-1:j+1]
@@ -83,8 +115,9 @@ class path_plotter:
             allWPS_plus_arc[0] += path_data[0]
             allWPS_plus_arc[1] += path_data[1]
             allWPS_plus_arc[2] += path_data[2]
-            wp_index = j +1;
-        plt.plot(allWPS_plus_arc[0], allWPS_plus_arc[1])
+            wp_index = j + 1;
+        return [allWPS_plus_arc[0], allWPS_plus_arc[1]]
+
     def fillet_path(self, x_path_data, y_path_data, d_path_data):
         path_data_new = [[x_path_data[0]], [y_path_data[0]], [d_path_data[0]]];
         par = [None]*3
@@ -177,21 +210,11 @@ class path_plotter:
              yield i
              i += step
     def stateCallback(self, msg):
-        self.currentState = msg
-        n = self.currentState.position[0]
-        e = self.currentState.position[1]
-        d = self.currentState.position[2]
-
-        plt.plot([self.lastE, e],[self.lastN, n],'k')
-        plt.draw()
-        plt.pause(0.00001)
-        self.lastE = e
-        self.lastN = n
-
+        self.update_plane_position = True
+        self.Ns.append(msg.position[0])
+        self.Es.append(msg.position[1])
+        self.Ds.append(msg.position[2])
 
 if __name__ == '__main__':
     rospy.init_node('path_plotter_py', anonymous=True)
     gp = path_plotter()
-    plt.ion()
-    plt.show()
-    rospy.spin()

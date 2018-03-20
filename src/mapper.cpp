@@ -248,8 +248,8 @@ bool mapper::flyZoneCheckMASTER(const NED_s NED, const double radius)	// This fu
 NED_s mapper::GPS2NED_(double phi, double lambda, double h) // Supposedly this one is about 3 times faster... It may be a little less acurate, it uses a taylor series approximation.
 {
 	// Constants
-	double a = 6378137.0;				// length of Earth�s semi-major axis in meters
-	double b = 6356752.3142;			// length of Earth�s semi-minor axis in meters
+	double a = 6378137.0;				// length of Earth's semi-major axis in meters
+	double b = 6356752.3142;			// length of Earth's semi-minor axis in meters
 	double e2 = 1. - pow((b / a), 2);	// first numerical eccentricity
 	double chi = sqrt(1 - e2*sin(rPhi)*sin(rPhi));
 

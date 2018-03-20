@@ -3,5 +3,6 @@
   <group ns="$(arg mav_name)">
     <rosparam command="load" file="$(find theseus)/param/path_planning.yaml"  />
     <node name="pathplanner" pkg="theseus" type="theseus_path_planner" output="screen"/>
+    <node name="static_plotter" pkg="theseus" type="static_plotter.py" output="screen"/>
   </group>
 </launch>
