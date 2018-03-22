@@ -12,6 +12,10 @@
 
 namespace theseus
 {
+mapper::mapper()
+{
+
+}
 mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 {
 	// Keep the address of the input file class
@@ -304,4 +308,4 @@ NED_s mapper::GPS2NED(double phi, double lambda, double h)
 	ned.D = (-cos(rPhi)*cos(rLam)*dx) + (-cos(rPhi)*sin(rLam)*dy) + (-sin(rPhi)*dz);
 	return ned;
 }
-}
+} // end namespace theseus

@@ -7,13 +7,10 @@
 #include <cmath>
 #include <string>
 #include <fstream>
-
+#include <ros/ros.h>
 #include <theseus/map_s.h>
 #include <theseus/rand_gen.h>
 #include <theseus/param_reader.h>
-#include <theseus/ros_path_planner.h>
-
-#include <std_srvs/Trigger.h>
 
 // Input Options
 namespace theseus
@@ -38,28 +35,29 @@ struct RRT_input
 	}
 };
 
-// CLass Definition
-class RRT : public RosPathPlanner										// Inherit the base class, pathPlanner
+// Class Definition
+class RRT
 {
 public:
 	RRT(map_s map_in, unsigned int seed, ParamReader *input_file, RRT_input RRT_options);		// Constructor - input the terrain map and the random generator seed
-	~RRT();															// Deconstructor - deletes the tree
-	bool solve_static(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);													// Solves the static path
-  double total_path_length;							// Total path length
-  int total_nWPS;										// Total number of waypoints
+	~RRT();                        // Deconstructor - deletes the tree
+	void solve_static();  // Solves the static path
+  std::vector<std::vector<NED_s> > all_wps; // final path waypoints
 private:
-	RRT_input alg_input;												// This contains all of the options for simpleRRT
-	struct node																// This is the node struct for each spot on the tree
+	double total_path_length;      // Total path length
+  int total_nWPS;                // Total number of waypoints
+	RRT_input alg_input;           // This contains all of the options for simpleRRT
+	struct node                    // This is the node struct for each spot on the tree
 	{
-		NED_s NED;															// North, East Down of the node position
-		std::vector<node*> children;												// Vector of all of the children nodes
-		node* parent;														// Pointer to the parent of this node
-		double distance;													// Distance from this node to its parent
-		int path_type;														// Path type from the parent, 0 = straight line, 1 = fillet, 2 = dubins
-		double available_dist;												// This is the distance from the parent to this node that is linear
-		NED_s line_start;													// This is where the line starts to get to this node
+		NED_s NED;                   // North, East Down of the node position
+		std::vector<node*> children; // Vector of all of the children nodes
+		node* parent;                // Pointer to the parent of this node
+		double distance;             // Distance from this node to its parent
+		int path_type;               // Path type from the parent, 0 = straight line, 1 = fillet, 2 = dubins
+		double available_dist;       // This is the distance from the parent to this node that is linear
+		NED_s line_start;            // This is where the line starts to get to this node
 	};
-	double D;																// If used, this is the distance the algorithm uses between each node
+	double D;                      // If used, this is the distance the algorithm uses between each node
 	std::vector<std::vector<NED_s> > line_starts;										// Line starts for every waypoint
 	node* find_closest_node(node* nin, NED_s P, node* minNode, double* minD)// This recursive function return the closes node to the input point P, for some reason it wouldn't go in the cpp...
 	{// nin is the node to measure, P is the point, minNode is the closes found node so far, minD is where to store the minimum distance
@@ -77,7 +75,6 @@ private:
 		}
 		return minNode;														// Return the closest node
 	}
-  void sendROSmessage();
 	void delete_tree();														// Delete the entire tree
 	void delete_node(node*);												// Recursively delete the nodes
 	std::vector<node*> root_ptrs;												// Vector of all roots, each element is the start of the tree to reach the next primary waypoint
@@ -97,7 +94,6 @@ private:
   bool lineAndPoint2d(NED_s ls, NED_s le, double MinMax[], double Mandb[], NED_s p, double r);	// Function called by the LINE flyZoneCheck(NED,NED,radius)
 	bool line_intersects_arc(double Ni, double Ei, NED_s cp, NED_s ps, NED_s pe, bool ccw);			// This function finds if the line intersects the arc or not.
   ParamReader *input_file;								// address of the input file
-	std::vector<std::vector<NED_s> > all_wps;						// final path waypoints,
 	std::vector<double> path_distances;						// Distances for the final path.
 	map_s map;											// This is the terrain map that contains the boundary and obstacle information (static)
 	void setup_flyZoneCheck();							// Function that does calculations on the boundary lines in preparation to flyZoneCheck()

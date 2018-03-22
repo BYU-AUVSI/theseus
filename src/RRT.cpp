@@ -28,7 +28,7 @@ RRT::~RRT()
 	delete_tree();											  // Delete all of those tree pointer nodes
 	std::vector<node*>().swap(root_ptrs);	// Free the memory of the vector.
 }
-bool RRT::solve_static(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)							// This function solves for a path in between the waypoinnts (2 Dimensional)
+void RRT::solve_static()							// This function solves for a path in between the waypoinnts (2 Dimensional)
 {
 	initialize_tree();
 	NED_s second2last_post_smoothed;
@@ -51,54 +51,6 @@ bool RRT::solve_static(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Resp
 	}
 	all_wps[map.wps.size() - 1].push_back(map.wps[map.wps.size() - 1]);	// Add the final waypoint to the waypoint list.
 	compute_performance();
-  sendROSmessage();
-  res.success = true;
-  return true;
-}
-void RRT::sendROSmessage()
-{
-  // Package up a message to send
-  AuvsiMap map_msg;
-  AuvsiBoundaries bounds_msg;
-  AuvsiStaticObstacle obs_msg;
-  rosplane_msgs::Waypoint wp_msg;
-
-  // waypoints
-  for (unsigned int i = 0; i < all_wps.size(); i++)
-	{
-    for (unsigned int j = 0; j < all_wps[i].size(); j++)
-		{
-      wp_msg.w[0] = all_wps[i][j].N;
-      wp_msg.w[1] = all_wps[i][j].E;
-      wp_msg.w[2] = all_wps[i][j].D;
-      map_msg.wps.push_back(wp_msg);
-    }
-  }
-  for (unsigned int i = 0; i < map.wps.size(); i++)
-	{
-    wp_msg.w[0] = map.wps[i].N;
-    wp_msg.w[1] = map.wps[i].E;
-    wp_msg.w[2] = map.wps[i].D;
-    map_msg.primary_wps.push_back(wp_msg);
-  }
-  // Boundaries
-  for (unsigned int i = 0; i < map.boundary_pts.size(); i++)
-	{
-    bounds_msg.north = map.boundary_pts[i].N;
-    bounds_msg.east  = map.boundary_pts[i].E;
-    map_msg.bds.push_back(bounds_msg);
-  }
-  // Static Obstacles
-  for (unsigned int i = 0; i < map.cylinders.size(); i++)
-  {
-    obs_msg.north  = map.cylinders[i].N;
-    obs_msg.east   = map.cylinders[i].E;
-    obs_msg.radius = map.cylinders[i].R;
-    obs_msg.height = map.cylinders[i].H;
-    map_msg.obs.push_back(obs_msg);
-  }
-  mission_map_publisher_.publish(map_msg);
-  ROS_INFO("SENT MESSAGE");
 }
 bool RRT::check_direct_fan(NED_s second_wp, NED_s primary_wp, NED_s coming_from, node* next_root, NED_s* cea_out, double* din, double* anglin)
 {

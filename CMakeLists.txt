@@ -10,10 +10,10 @@ project(theseus)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rosplane_msgs
-  rospy
   std_msgs
   std_srvs
   uav_msgs
+  visualization_msgs
   message_generation
 )
 
@@ -76,6 +76,7 @@ add_message_files(
 generate_messages(
  DEPENDENCIES
  rosplane_msgs
+ visualization_msgs
  std_msgs
  uav_msgs
 )
@@ -112,7 +113,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES theseus
-  CATKIN_DEPENDS roscpp rosplane_msgs rospy std_msgs std_srvs
+  CATKIN_DEPENDS roscpp rosplane_msgs std_msgs std_srvs
 #  DEPENDS system_lib
 )
 

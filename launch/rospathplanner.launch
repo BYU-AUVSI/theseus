@@ -1,8 +1,7 @@
 <launch>
-  <arg name="mav_name" default="fixedwing"/>
-  <group ns="$(arg mav_name)">
+  <group ns="theseus">
     <rosparam command="load" file="$(find theseus)/param/path_planning.yaml"  />
     <node name="pathplanner" pkg="theseus" type="theseus_path_planner" output="screen"/>
-    <node name="static_plotter" pkg="theseus" type="static_plotter.py" output="screen"/>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find theseus)/viz/path_planner.rviz" required="true"/>
   </group>
 </launch>

@@ -22,6 +22,7 @@ class mapper
 {
 public:
 	// Functions
+  mapper();
 	mapper(unsigned int seed, ParamReader *input_file);		// default constructor (uses the competition boundaries) with random obstacles.
 	~mapper();
 
