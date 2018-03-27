@@ -8,39 +8,42 @@ RosPathPlanner::RosPathPlanner() :
   //********************** PARAMETERS **********************//
 
   //************** SUBSCRIBERS AND PUBLISHERS **************//
-  state_subscriber_      = nh_.subscribe("/fixedwing/state",1,&theseus::RosPathPlanner::state_callback, this);
+  state_subscriber_      = nh_.subscribe("/state",1,&theseus::RosPathPlanner::state_callback, this);
   waypoint_publisher_    = nh_.advertise<rosplane_msgs::Waypoint>("/fixedwing/waypoint_path", 1);
   path_solver_service_   = nh_.advertiseService("solve_static",&theseus::RosPathPlanner::solve_static, this);
   new_map_service_       = nh_.advertiseService("new_map",&theseus::RosPathPlanner::new_map, this);
   mission_map_publisher_ = nh_.advertise<theseus::AuvsiMap>("/auvsi_map",1);
   marker_pub_            = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 1);
   ROS_INFO("RosPathPlanner Constructor");
+
   //******************** CLASS VARIABLES *******************//
   RandGen rg_in(input_file_.seed);
-	rg_      = rg_in;												    // Copy that random generator into the class.
+	rg_                          = rg_in;												    // Copy that random generator into the class.
   mapper myWorld(rg_.UINT(), &input_file_);
-  myWorld_ = myWorld;
-  state_id_ = 0;
-  last_odom_index_ = 0;
-  odom_mkr_.header.frame_id = "/local_ENU";
-  odom_mkr_.ns              = "plane_odom";
-  odom_mkr_.type            = visualization_msgs::Marker::LINE_STRIP;
-  odom_mkr_.action = visualization_msgs::Marker::ADD;
+  myWorld_                     = myWorld;
+  state_id_                    = 0;
+  last_odom_index_             = 0;
+  odom_mkr_.header.frame_id    = "/local_ENU";
+  odom_mkr_.ns                 = "plane_odom";
+  odom_mkr_.type               = visualization_msgs::Marker::LINE_STRIP;
+  odom_mkr_.action             = visualization_msgs::Marker::ADD;
   odom_mkr_.pose.orientation.x = 0.0;
   odom_mkr_.pose.orientation.y = 0.0;
   odom_mkr_.pose.orientation.z = 0.0;
   odom_mkr_.pose.orientation.w = 1.0;
-  odom_mkr_.color.r          = 0.0f;
-  odom_mkr_.color.g          = 1.0f;
-  odom_mkr_.color.b          = 0.0f;
-  odom_mkr_.color.a          = 1.0;
-  odom_mkr_.lifetime         = ros::Duration();
-  odom_mkr_.scale.x          =  15.0; // line width
+  odom_mkr_.color.r            = 0.0f;
+  odom_mkr_.color.g            = 1.0f;
+  odom_mkr_.color.b            = 0.0f;
+  odom_mkr_.color.a            = 1.0;
+  odom_mkr_.lifetime           = ros::Duration();
+  odom_mkr_.scale.x            = 15.0; // line width
 
   //***************** CALLBACKS AND TIMERS *****************//
   update_viz_timer_ = nh_.createWallTimer(ros::WallDuration(1.0/5.0), &RosPathPlanner::updateViz, this);
-  //********************** FUNCTIONS ***********************//
 
+  //********************** FUNCTIONS ***********************//
+  RRT rrt_obj(myWorld_.map, input_file_.seed, &input_file_, rrt_i_);
+  rrt_obj_ = rrt_obj;
 }
 RosPathPlanner::~RosPathPlanner()
 {
@@ -50,12 +53,12 @@ bool RosPathPlanner::new_map(std_srvs::Trigger::Request &req, std_srvs::Trigger:
 {
   mapper myWorld(rg_.UINT(), &input_file_);
   myWorld_ = myWorld;
+  rrt_obj_.new_map(myWorld_.map);
   res.success = true;
   return true;
 }
 bool RosPathPlanner::solve_static(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
 {
-  RRT rrt_obj_(myWorld_.map, input_file_.seed, &input_file_, rrt_i_);
   rrt_obj_.solve_static();
 
   visualization_msgs::Marker obs_mkr, planned_path_mkr, pWPS_mkr, aWPS_mkr, bds_mkr;

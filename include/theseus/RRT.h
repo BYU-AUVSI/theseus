@@ -26,12 +26,12 @@ struct RRT_input
 	int path_type;        // Path type from the parent, 0 = straight line, 1 = fillet, 2 = dubins
 	RRT_input()           // Struct constructor, pust the default values here.
 	{
-		D = 25;
-		uniform2P = false;
-		gaussianD = false;
-		gaussianSTD = 15;
+		D              = 25;
+		uniform2P      = false;
+		gaussianD      = false;
+		gaussianSTD    = 15;
 		connect_to_end = true;
-		path_type = 1;
+		path_type      = 1;
 	}
 };
 
@@ -40,9 +40,12 @@ class RRT
 {
 public:
 	RRT(map_s map_in, unsigned int seed, ParamReader *input_file, RRT_input RRT_options);		// Constructor - input the terrain map and the random generator seed
-	~RRT();                        // Deconstructor - deletes the tree
-	void solve_static();  // Solves the static path
+	RRT();
+  ~RRT();                        // Deconstructor - deletes the tree
+	void solve_static();           // Solves the static path
   std::vector<std::vector<NED_s> > all_wps; // final path waypoints
+  void new_map(map_s map_in);   // creates a new map
+  void new_seed(unsigned int seed);
 private:
 	double total_path_length;      // Total path length
   int total_nWPS;                // Total number of waypoints
@@ -90,7 +93,8 @@ private:
 	void develop_tree(unsigned int i, bool reached_next_wp, node* second2last, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle); // Develops the tree
 	void smoother(bool skip_smoother, unsigned int i, double* distance_in, double* fillet_angle, NED_s* second2last_post_smoothed, bool direct_shot);
 	void calc_path_distance(unsigned int i);
-
+  void clear_for_new_path();
+  void clear_for_new_map();
   bool lineAndPoint2d(NED_s ls, NED_s le, double MinMax[], double Mandb[], NED_s p, double r);	// Function called by the LINE flyZoneCheck(NED,NED,radius)
 	bool line_intersects_arc(double Ni, double Ei, NED_s cp, NED_s ps, NED_s pe, bool ccw);			// This function finds if the line intersects the arc or not.
   ParamReader *input_file;								// address of the input file

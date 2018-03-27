@@ -52,6 +52,7 @@ public:
   RandGen rg_;
   ParamReader input_file_;
 private:
+  RRT rrt_obj_;
   int state_id_;
   long unsigned int last_odom_index_;
   visualization_msgs::Marker odom_mkr_;

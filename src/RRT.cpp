@@ -5,14 +5,18 @@ namespace theseus
 RRT::RRT(map_s map_in, unsigned int seed, ParamReader *input_file_in, RRT_input alg_input_in) // Setup the object
 {
 
-  ROS_INFO("RRT Constructor");
+  ROS_INFO("RRT Param Constructor");
 	input_file = input_file_in;
-	alg_input = alg_input_in;
-	D = alg_input.D;										  // Distance between each RRT waypoint
-	map = map_in;											    // Get a copy of the terrain map
-	RandGen rg_in(seed);								  // Make a random generator object that is seeded
-	rg = rg_in;												    // Copy that random generator into the class.
-	ppSetup();												    // default stuff for every algorithm that needs to be called after it recieves the map.
+	alg_input  = alg_input_in;
+	D          = alg_input.D;	    // Distance between each RRT waypoint
+	map        = map_in;          // Get a copy of the terrain map
+	RandGen rg_in(seed);          // Make a random generator object that is seeded
+	rg         = rg_in;           // Copy that random generator into the class.
+	ppSetup();                    // default stuff for every algorithm that needs to be called after it recieves the map.
+}
+RRT::RRT()
+{
+  ROS_INFO("RRT DEFAULT Constructor");  
 }
 RRT::~RRT()
 {
@@ -28,8 +32,9 @@ RRT::~RRT()
 	delete_tree();											  // Delete all of those tree pointer nodes
 	std::vector<node*>().swap(root_ptrs);	// Free the memory of the vector.
 }
-void RRT::solve_static()							// This function solves for a path in between the waypoinnts (2 Dimensional)
+void RRT::solve_static()                // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
+  clear_for_new_path();
 	initialize_tree();
 	NED_s second2last_post_smoothed;
 	second2last_post_smoothed.N = root_ptrs[0]->NED.N - cos(input_file->chi0);
@@ -42,15 +47,43 @@ void RRT::solve_static()							// This function solves for a path in between the
 		node *second2last = root_ptrs[i];					// This will be set as the second to last waypoint
 		double distance_in, fillet_angle;
 		bool direct_shot = false;
-		bool direct_connect = direct_connection(i, &second2last_post_smoothed, &distance_in, &fillet_angle, &direct_shot);		//******* IMPORTANT
+		bool direct_connect = direct_connection(i, &second2last_post_smoothed, &distance_in, &fillet_angle, &direct_shot);  //******* IMPORTANT
 		if (direct_connect)
 			second2last = closest_node;
-		develop_tree(i, direct_connect,second2last,&second2last_post_smoothed,&distance_in,&fillet_angle);						//******* IMPORTANT
-		smoother(direct_connect, i, &distance_in, &fillet_angle, &second2last_post_smoothed, direct_shot);						//******* IMPORTANT
+		develop_tree(i, direct_connect,second2last,&second2last_post_smoothed,&distance_in,&fillet_angle);                  //******* IMPORTANT
+		smoother(direct_connect, i, &distance_in, &fillet_angle, &second2last_post_smoothed, direct_shot);                  //******* IMPORTANT
 		calc_path_distance(i);
 	}
 	all_wps[map.wps.size() - 1].push_back(map.wps[map.wps.size() - 1]);	// Add the final waypoint to the waypoint list.
 	compute_performance();
+}
+void RRT::clear_for_new_path()
+{
+  for (long unsigned int i = 0; i < all_wps.size(); i++)
+    all_wps[i].clear();
+  std::vector<double>().swap(path_distances);
+  delete_tree();											  // Delete all of those tree pointer nodes
+  std::vector<node*>().swap(root_ptrs);	// Free the memory of the vector.
+}
+void RRT::clear_for_new_map()
+{
+  for (unsigned int i = 0; i < lineMinMax.size(); i++)
+    std::vector<double>().swap(lineMinMax[i]);
+  std::vector<std::vector<double> >().swap(lineMinMax);
+  for (unsigned int i = 0; i < line_Mandb.size(); i++)
+    std::vector<double>().swap(line_Mandb[i]);
+  std::vector<std::vector<double> >().swap(line_Mandb);
+}
+void RRT::new_map(map_s map_in)
+{
+  clear_for_new_map();
+  map        = map_in;          // Get a copy of the terrain map
+  ppSetup();                    // default stuff for every algorithm that needs to be called after it recieves the map.
+}
+void RRT::new_seed(unsigned int seed)
+{
+  RandGen rg_in(seed);          // Make a random generator object that is seeded
+	rg         = rg_in;           // Copy that random generator into the class.
 }
 bool RRT::check_direct_fan(NED_s second_wp, NED_s primary_wp, NED_s coming_from, node* next_root, NED_s* cea_out, double* din, double* anglin)
 {
@@ -783,22 +816,22 @@ void RRT::ppSetup()
 			setFirstValues = false;
 		}
 	}
-	clearance = input_file->clearance;		 // Clearance for the path (m)
+	clearance    = input_file->clearance;		 // Clearance for the path (m)
 	minFlyHeight = input_file->minFlyHeight; // 30.48 m = 100 ft. // This still needs to add in the take off altitude
 	maxFlyHeight = input_file->maxFlyHeight; // 228.6 m = 750 ft. // This still needs to add in the take off altitude
-	iters_limit = input_file->iters_limit;
-	taking_off = (input_file->N0 < input_file->minFlyHeight);
+	iters_limit  = input_file->iters_limit;
+	taking_off   = (input_file->N0 < input_file->minFlyHeight);
 	// Also do the all of the calculations on the boundary lines.
 	setup_flyZoneCheck();
 }
 void RRT::setup_flyZoneCheck()				// This function sets up alll of the stuff needed for the flyZoneCheck functions - mostly calculates the y = mx + b for each boundary line
 {
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv These lines are used to prep the flyZoneCheck() algorithm
-	std::vector<double> NminNmaxEminEmax;				// Yeah, this is a riduculous name...
-	std::vector<double> mb;								// Vector of slope and intercepts
-	nBPts = map.boundary_pts.size();				// Number of Boundary Points
+	std::vector<double> NminNmaxEminEmax;       // Yeah, this is a riduculous name...
+	std::vector<double> mb;                     // Vector of slope and intercepts
+	nBPts = map.boundary_pts.size();            // Number of Boundary Points
 	double m, b, w, m_w;
-	for (unsigned int i = 0; i < nBPts; i++)		// Loop through all points
+	for (unsigned int i = 0; i < nBPts; i++)    // Loop through all points
 	{
 		// Find the min and max of North and East coordinates on the line connecting two points.
 		NminNmaxEminEmax.push_back(std::min(map.boundary_pts[i].N, map.boundary_pts[(i + 1) % nBPts].N));
