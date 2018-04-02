@@ -9,6 +9,7 @@ RosPathPlanner::RosPathPlanner() :
 
   //************** SUBSCRIBERS AND PUBLISHERS **************//
   recieved_state_        = false;
+  has_map_               = false;
   state_subscriber_      = nh_.subscribe("/state",1,&theseus::RosPathPlanner::state_callback, this);
   waypoint_publisher_    = nh_.advertise<rosplane_msgs::Waypoint>("/waypoint_path", 1);
   path_solver_service_   = nh_.advertiseService("solve_static",&theseus::RosPathPlanner::solve_static, this);
@@ -21,8 +22,8 @@ RosPathPlanner::RosPathPlanner() :
   //******************** CLASS VARIABLES *******************//
   RandGen rg_in(input_file_.seed);
 	rg_                          = rg_in;												    // Copy that random generator into the class.
-  mapper myWorld(rg_.UINT(), &input_file_);
-  myWorld_                     = myWorld;
+  //mapper myWorld(rg_.UINT(), &input_file_);
+  //myWorld_                     = myWorld;
   odom_mkr_.header.frame_id    = "/local_ENU";
   odom_mkr_.ns                 = "plane_odom";
   odom_mkr_.type               = visualization_msgs::Marker::POINTS;
@@ -45,6 +46,9 @@ RosPathPlanner::RosPathPlanner() :
   //********************** FUNCTIONS ***********************//
   RRT rrt_obj(myWorld_.map, input_file_.seed, &input_file_, rrt_i_);
   rrt_obj_ = rrt_obj;
+
+  gps_converter_.set_reference(38.14326388888889, 76.43075, 6.701);
+  recieved_state_ = true;
 }
 RosPathPlanner::~RosPathPlanner()
 {

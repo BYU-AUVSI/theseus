@@ -63,6 +63,7 @@ private:
   float odometry_[3];
   visualization_msgs::Marker odom_mkr_;
   bool recieved_state_;
+  bool has_map_;
   //***************** CALLBACKS AND TIMERS *****************//
   ros::WallTimer update_viz_timer_;
   void updateViz(const ros::WallTimerEvent&);
