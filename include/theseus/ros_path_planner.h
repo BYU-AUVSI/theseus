@@ -6,6 +6,8 @@
 #include <rosplane_msgs/Waypoint.h>
 #include <rosplane_msgs/State.h>
 #include <uav_msgs/JudgeMission.h>
+#include <uav_msgs/GeneratePath.h>
+#include <uav_msgs/UploadPath.h>
 #include <theseus/AuvsiMap.h>
 #include <theseus/AuvsiStaticObstacle.h>
 #include <theseus/AuvsiBoundaries.h>
@@ -17,6 +19,7 @@
 #include <theseus/mapper.h>
 #include <theseus/rand_gen.h>
 #include <theseus/param_reader.h>
+#include <theseus/gps_struct.h>
 
 
 namespace theseus
@@ -31,11 +34,13 @@ private:
   ros::NodeHandle nh_;         // public node handle for publishing, subscribing
 
   //************** SUBSCRIBERS AND PUBLISHERS **************//
+  ros::ServiceServer plan_mission_service_;
   ros::Subscriber state_subscriber_;
   ros::Publisher waypoint_publisher_;
   ros::Publisher marker_pub_;
   ros::ServiceServer path_solver_service_;
   ros::ServiceServer new_map_service_;
+  ros::ServiceServer send_wps_service_;
   RRT_input rrt_i_;
   mapper myWorld_;
   std::vector<std::vector<double> > fillet_mav_path(std::vector<double>, std::vector<double>, std::vector<double>,\
@@ -47,23 +52,28 @@ private:
   void state_callback(const rosplane_msgs::State &msg);
 public:
   ros::Publisher mission_map_publisher_;
+
   //******************** CLASS VARIABLES *******************//
   float Va_;
   RandGen rg_;
   ParamReader input_file_;
 private:
+  gps_struct gps_converter_;
   RRT rrt_obj_;
-  int state_id_;
-  long unsigned int last_odom_index_;
+  float odometry_[3];
   visualization_msgs::Marker odom_mkr_;
+  bool recieved_state_;
   //***************** CALLBACKS AND TIMERS *****************//
-  std::vector<std::vector<double> > odometry_;
   ros::WallTimer update_viz_timer_;
   void updateViz(const ros::WallTimerEvent&);
+  bool sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res);
+
   //********************** FUNCTIONS ***********************//
 public:
   bool solve_static(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
-  bool new_map(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool new_random_map(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
+  void displayPath();
 };// end class PathPlanner
 } // end namespace rosplane
 

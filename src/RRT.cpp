@@ -16,7 +16,7 @@ RRT::RRT(map_s map_in, unsigned int seed, ParamReader *input_file_in, RRT_input 
 }
 RRT::RRT()
 {
-  ROS_INFO("RRT DEFAULT Constructor");  
+  ROS_INFO("RRT DEFAULT Constructor");
 }
 RRT::~RRT()
 {
@@ -32,10 +32,10 @@ RRT::~RRT()
 	delete_tree();											  // Delete all of those tree pointer nodes
 	std::vector<node*>().swap(root_ptrs);	// Free the memory of the vector.
 }
-void RRT::solve_static()                // This function solves for a path in between the waypoinnts (2 Dimensional)
+void RRT::solve_static(NED_s pos)                // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
   clear_for_new_path();
-	initialize_tree();
+	initialize_tree(pos);
 	NED_s second2last_post_smoothed;
 	second2last_post_smoothed.N = root_ptrs[0]->NED.N - cos(input_file->chi0);
 	second2last_post_smoothed.E = root_ptrs[0]->NED.E - sin(input_file->chi0);
@@ -350,31 +350,31 @@ bool RRT::check_fillet(NED_s par, NED_s mid, NED_s nex, double avail_dis, double
 	*cangle = 2.0*atan(distance_in / turn_radius);
 	return found_feasible_link;
 }
-void RRT::initialize_tree()
+void RRT::initialize_tree(NED_s pos)
 {
 	// Set up all of the roots
-	node *root_in = new node;							// Starting position of the tree (and the waypoint beginning)
+	node *root_in = new node;             // Starting position of the tree (and the waypoint beginning)
 	NED_s starting_point;
-	starting_point.N = input_file->N0;
-	starting_point.E = input_file->E0;
-	starting_point.D = input_file->D0;
+	starting_point.N = pos.N;
+	starting_point.E = pos.E;
+	starting_point.D = pos.D;
 
 	root_in->NED = starting_point;
-	root_in->parent = NULL;								// No parent
-	root_in->distance = 0.0;							// 0 distance.
-	root_in->available_dist = 0.0;				// No available distance, (No parent assumption)
-	root_in->path_type = 0;								// straight lines for now at the primary waypoints.
-	root_in->line_start = root_in->NED;		// The line start is set to it's own location, for now.
+	root_in->parent = NULL;               // No parent
+	root_in->distance = 0.0;              // 0 distance.
+	root_in->available_dist = 0.0;        // No available distance, (No parent assumption)
+	root_in->path_type = 0;               // straight lines for now at the primary waypoints.
+	root_in->line_start = root_in->NED;   // The line start is set to it's own location, for now.
 	root_ptrs.push_back(root_in);
 	for (unsigned int i = 0; i < map.wps.size() - 1; i++)
 	{
-		node *root_in = new node;							// Starting position of the tree (and the waypoint beginning)
+		node *root_in = new node;           // Starting position of the tree (and the waypoint beginning)
 		root_in->NED = map.wps[i];
-		root_in->parent = NULL;								// No parent
-		root_in->distance = 0.0;							// 0 distance.
-		root_in->available_dist = 0.0;			  // No available distance, (No parent assumption)
-		root_in->path_type = 0;								// straight lines for now at the primary waypoints.
-		root_in->line_start = root_in->NED;		// The line start is set to it's own location, for now.
+		root_in->parent = NULL;             // No parent
+		root_in->distance = 0.0;            // 0 distance.
+		root_in->available_dist = 0.0;      // No available distance, (No parent assumption)
+		root_in->path_type = 0;             // straight lines for now at the primary waypoints.
+		root_in->line_start = root_in->NED; // The line start is set to it's own location, for now.
 		root_ptrs.push_back(root_in);
     ROS_INFO("Waypoint %i, North: %f, East %f Down: %f", i, root_in->NED.N, root_in->NED.E, root_in->NED.D);
 	}
@@ -820,8 +820,8 @@ void RRT::ppSetup()
 	minFlyHeight = input_file->minFlyHeight; // 30.48 m = 100 ft. // This still needs to add in the take off altitude
 	maxFlyHeight = input_file->maxFlyHeight; // 228.6 m = 750 ft. // This still needs to add in the take off altitude
 	iters_limit  = input_file->iters_limit;
-	taking_off   = (input_file->N0 < input_file->minFlyHeight);
-	// Also do the all of the calculations on the boundary lines.
+	taking_off   = (-input_file->D0 < input_file->minFlyHeight);
+	// Also do all of the calculations on the boundary lines.
 	setup_flyZoneCheck();
 }
 void RRT::setup_flyZoneCheck()				// This function sets up alll of the stuff needed for the flyZoneCheck functions - mostly calculates the y = mx + b for each boundary line

@@ -8,11 +8,13 @@ RosPathPlanner::RosPathPlanner() :
   //********************** PARAMETERS **********************//
 
   //************** SUBSCRIBERS AND PUBLISHERS **************//
+  recieved_state_        = false;
   state_subscriber_      = nh_.subscribe("/state",1,&theseus::RosPathPlanner::state_callback, this);
-  waypoint_publisher_    = nh_.advertise<rosplane_msgs::Waypoint>("/fixedwing/waypoint_path", 1);
+  waypoint_publisher_    = nh_.advertise<rosplane_msgs::Waypoint>("/waypoint_path", 1);
   path_solver_service_   = nh_.advertiseService("solve_static",&theseus::RosPathPlanner::solve_static, this);
-  new_map_service_       = nh_.advertiseService("new_map",&theseus::RosPathPlanner::new_map, this);
-  mission_map_publisher_ = nh_.advertise<theseus::AuvsiMap>("/auvsi_map",1);
+  new_map_service_       = nh_.advertiseService("new_random_map",&theseus::RosPathPlanner::new_random_map, this);
+  plan_mission_service_  = nh_.advertiseService("plan_mission",&theseus::RosPathPlanner::planMission, this);
+  send_wps_service_      = nh_.advertiseService("send_waypoints",&theseus::RosPathPlanner::sendWaypoints, this);
   marker_pub_            = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 1);
   ROS_INFO("RosPathPlanner Constructor");
 
@@ -21,11 +23,9 @@ RosPathPlanner::RosPathPlanner() :
 	rg_                          = rg_in;												    // Copy that random generator into the class.
   mapper myWorld(rg_.UINT(), &input_file_);
   myWorld_                     = myWorld;
-  state_id_                    = 0;
-  last_odom_index_             = 0;
   odom_mkr_.header.frame_id    = "/local_ENU";
   odom_mkr_.ns                 = "plane_odom";
-  odom_mkr_.type               = visualization_msgs::Marker::LINE_STRIP;
+  odom_mkr_.type               = visualization_msgs::Marker::POINTS;
   odom_mkr_.action             = visualization_msgs::Marker::ADD;
   odom_mkr_.pose.orientation.x = 0.0;
   odom_mkr_.pose.orientation.y = 0.0;
@@ -36,7 +36,8 @@ RosPathPlanner::RosPathPlanner() :
   odom_mkr_.color.b            = 0.0f;
   odom_mkr_.color.a            = 1.0;
   odom_mkr_.lifetime           = ros::Duration();
-  odom_mkr_.scale.x            = 15.0; // line width
+  odom_mkr_.scale.x            = 15.0; // point width
+  odom_mkr_.scale.y            = 15.0; // point width
 
   //***************** CALLBACKS AND TIMERS *****************//
   update_viz_timer_ = nh_.createWallTimer(ros::WallDuration(1.0/5.0), &RosPathPlanner::updateViz, this);
@@ -49,18 +50,96 @@ RosPathPlanner::~RosPathPlanner()
 {
 
 }
-bool RosPathPlanner::new_map(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
+bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res)
+{
+  if (recieved_state_ == false)
+  {
+    ROS_ERROR("PATH PLANNER HAS NOT RECIEVED AN INITIAL STATE");
+    return false;
+  }
+  int num_waypoints  = req.mission.waypoints.size();
+  int num_boundaries = req.mission.boundaries.size();
+  int num_obstacles  = req.mission.stationary_obstacles.size();
+
+  map_s mission_map;
+  double lat, lon, alt, N, E, D, cyl_h, cyl_r;
+  NED_s ned;
+  cyl_s cyl;
+  for (int i = 0; i < num_waypoints; i++)
+  {
+    lat = req.mission.waypoints[i].point.latitude;
+    lon = req.mission.waypoints[i].point.longitude;
+    alt = req.mission.waypoints[i].point.altitude;
+    gps_converter_.gps2ned(lat, lon, alt, N, E, D);
+    ned.N = N;
+    ned.E = E;
+    ned.D = D;
+    mission_map.wps.push_back(ned);
+  }
+  for (int i = 0; i < num_boundaries; i++)
+  {
+    lat = req.mission.boundaries[i].point.latitude;
+    lon = req.mission.boundaries[i].point.longitude;
+    alt = req.mission.boundaries[i].point.altitude;
+    gps_converter_.gps2ned(lat, lon, alt, N, E, D);
+    ned.N = N;
+    ned.E = E;
+    ned.D = 0.0;
+    mission_map.boundary_pts.push_back(ned);
+  }
+  for (int i = 0; i < num_obstacles; i++)
+  {
+    lat   = req.mission.stationary_obstacles[i].point.latitude;
+    lon   = req.mission.stationary_obstacles[i].point.longitude;
+    alt   = req.mission.stationary_obstacles[i].point.altitude;
+    cyl_h = req.mission.stationary_obstacles[i].cylinder_height;
+    cyl_r = req.mission.stationary_obstacles[i].cylinder_radius;
+    gps_converter_.gps2ned(lat, lon, alt, N, E, D);
+    cyl.N = N;
+    cyl.E = E;
+    cyl.R = cyl_r;
+    cyl.H = cyl_h;
+    mission_map.wps.push_back(ned);
+  }
+  rrt_obj_.new_map(mission_map);
+  ROS_INFO("RECIEVED JUDGES MAP");
+  NED_s pos;
+  pos.N =  odometry_[1];
+  pos.E =  odometry_[0];
+  pos.D = -odometry_[2];
+
+  rrt_obj_.solve_static(pos);
+  displayPath();
+  return true;
+}
+bool RosPathPlanner::new_random_map(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
   mapper myWorld(rg_.UINT(), &input_file_);
   myWorld_ = myWorld;
   rrt_obj_.new_map(myWorld_.map);
+  ROS_INFO("RECIEVED NEW RANDOM MAP");
   res.success = true;
   return true;
 }
 bool RosPathPlanner::solve_static(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
 {
-  rrt_obj_.solve_static();
-
+  if (recieved_state_ == false)
+  {
+    ROS_ERROR("PATH PLANNER HAS NOT RECIEVED AN INITIAL STATE");
+    res.success = false;
+    return false;
+  }
+  NED_s pos;
+  pos.N =  odometry_[1];
+  pos.E =  odometry_[0];
+  pos.D = -odometry_[2];
+  rrt_obj_.solve_static(pos);
+  displayPath();
+  res.success = true;
+  return true;
+}
+void RosPathPlanner::displayPath()
+{
   visualization_msgs::Marker obs_mkr, planned_path_mkr, pWPS_mkr, aWPS_mkr, bds_mkr;
   // Set the frame ID and timestamp.  See the TF tutorials for information on these.
   obs_mkr.header.frame_id = planned_path_mkr.header.frame_id = pWPS_mkr.header.frame_id = "/local_ENU";
@@ -91,26 +170,26 @@ bool RosPathPlanner::solve_static(std_srvs::Trigger::Request &req, std_srvs::Tri
   obs_mkr.pose.orientation.w  = planned_path_mkr.pose.orientation.w = 1.0;
   pWPS_mkr.pose.orientation.w = aWPS_mkr.pose.orientation.w         = bds_mkr.pose.orientation.w = 1.0;
   // Set the color -- be sure to set alpha to something non-zero!
-  obs_mkr.color.r          = 1.0f;
-  obs_mkr.color.g          = 0.0f;
-  obs_mkr.color.b          = 0.0f;
-  obs_mkr.color.a          = 0.9;
-  planned_path_mkr.color.r = 0.0f;
-  planned_path_mkr.color.g = 0.0f;
-  planned_path_mkr.color.b = 1.0f;
-  planned_path_mkr.color.a = 1.0;
-  pWPS_mkr.color.r         = 1.0f;
-  pWPS_mkr.color.g         = 1.0f;
-  pWPS_mkr.color.b         = 0.0f;
-  pWPS_mkr.color.a         = 1.0;
-  aWPS_mkr.color.r         = 0.0f;
-  aWPS_mkr.color.g         = 0.0f;
-  aWPS_mkr.color.b         = 1.0f;
-  aWPS_mkr.color.a         = 1.0;
-  bds_mkr.color.r          = 1.0f;
-  bds_mkr.color.g          = 0.0f;
-  bds_mkr.color.b          = 0.0f;
-  bds_mkr.color.a          = 1.0;
+  obs_mkr.color.r             = 1.0f;
+  obs_mkr.color.g             = 0.0f;
+  obs_mkr.color.b             = 0.0f;
+  obs_mkr.color.a             = 0.9;
+  planned_path_mkr.color.r    = 0.0f;
+  planned_path_mkr.color.g    = 0.0f;
+  planned_path_mkr.color.b    = 1.0f;
+  planned_path_mkr.color.a    = 1.0;
+  pWPS_mkr.color.r            = 1.0f;
+  pWPS_mkr.color.g            = 1.0f;
+  pWPS_mkr.color.b            = 0.0f;
+  pWPS_mkr.color.a            = 1.0;
+  aWPS_mkr.color.r            = 0.0f;
+  aWPS_mkr.color.g            = 0.0f;
+  aWPS_mkr.color.b            = 1.0f;
+  aWPS_mkr.color.a            = 1.0;
+  bds_mkr.color.r             = 1.0f;
+  bds_mkr.color.g             = 0.0f;
+  bds_mkr.color.b             = 0.0f;
+  bds_mkr.color.a             = 1.0;
   obs_mkr.lifetime = planned_path_mkr.lifetime = pWPS_mkr.lifetime = ros::Duration();
   aWPS_mkr.lifetime = bds_mkr.lifetime  = ros::Duration();
 
@@ -119,8 +198,8 @@ bool RosPathPlanner::solve_static(std_srvs::Trigger::Request &req, std_srvs::Tri
   for (long unsigned int i = 0; i <  myWorld_.map.cylinders.size(); i++)
   {
     obs_mkr.id = id++;
-    obs_mkr.pose.position.x    = myWorld_.map.cylinders[i].E; // Center X position
-    obs_mkr.pose.position.y    = myWorld_.map.cylinders[i].N; // Center Y position
+    obs_mkr.pose.position.x    = myWorld_.map.cylinders[i].E;     // Center X position
+    obs_mkr.pose.position.y    = myWorld_.map.cylinders[i].N;     // Center Y position
     obs_mkr.pose.position.z    = myWorld_.map.cylinders[i].H/2.0; // Center Z position
     // Set the scale of the obs_mkr -- 1x1x1 here means 1m on a side
     obs_mkr.scale.x = myWorld_.map.cylinders[i].R*2.0; // Diameter in x direction
@@ -130,7 +209,7 @@ bool RosPathPlanner::solve_static(std_srvs::Trigger::Request &req, std_srvs::Tri
     while (marker_pub_.getNumSubscribers() < 1)
     {
       if (!ros::ok())
-        return 0;
+        return;
       ROS_WARN_ONCE("Please create a subscriber to the marker");
       sleep(1);
     }
@@ -231,7 +310,6 @@ bool RosPathPlanner::solve_static(std_srvs::Trigger::Request &req, std_srvs::Tri
   }
   marker_pub_.publish(planned_path_mkr);
   sleep(0.01);
-
   for (long unsigned int i = 0; i < rrt_obj_.all_wps.size(); i++)
   {
     for (long unsigned int j = 0; j < rrt_obj_.all_wps[i].size(); j++)
@@ -241,15 +319,24 @@ bool RosPathPlanner::solve_static(std_srvs::Trigger::Request &req, std_srvs::Tri
       p.x =  rrt_obj_.all_wps[i][j].E;
       p.z = -rrt_obj_.all_wps[i][j].D;
       aWPS_mkr.points.push_back(p);
+      ros::Duration(0.01).sleep();
+    }
+  }
+}
+bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res)
+{
+  for (long unsigned int i = 0; i < rrt_obj_.all_wps.size(); i++)
+  {
+    for (long unsigned int j = 0; j < rrt_obj_.all_wps[i].size(); j++)
+    {
       ros::Duration(0.5).sleep();
-
       rosplane_msgs::Waypoint new_waypoint;
 
       new_waypoint.w[0] = rrt_obj_.all_wps[i][j].N;
       new_waypoint.w[1] = rrt_obj_.all_wps[i][j].E;
       new_waypoint.w[2] = rrt_obj_.all_wps[i][j].D;
 
-      new_waypoint.Va_d = 23.0;
+      new_waypoint.Va_d = 20.0;
       if (i == 0 && j == 0)
         new_waypoint.set_current = true;
       else
@@ -258,7 +345,6 @@ bool RosPathPlanner::solve_static(std_srvs::Trigger::Request &req, std_srvs::Tri
       waypoint_publisher_.publish(new_waypoint);
     }
   }
-
   res.success = true;
   return true;
 }
@@ -326,7 +412,9 @@ std::vector<std::vector<double> > RosPathPlanner::fillet_path(std::vector<double
       if (a_dot_b_D_AB <= -1 && a_dot_b_D_AB > -1-0.001)
           a_dot_b_D_AB = -1 + 0.0000001;
       double Fangle = acos(a_dot_b_D_AB);
-      double distance_in = input_file_.turn_radius / tan(Fangle / 2.0); // Notice this equation was written incorrectly in the UAV book //sqrt(turn_radius*turn_radius / sin(Fangle / 2.0) / sin(Fangle / 2.0) - turn_radius*turn_radius);
+      double distance_in = input_file_.turn_radius / tan(Fangle / 2.0);
+       // Notice this equation was written incorrectly in the UAV book
+       //sqrt(turn_radius*turn_radius / sin(Fangle / 2.0) / sin(Fangle / 2.0) - turn_radius*turn_radius);
       double theta = atan2(nex[0] - mid[0], nex[1] - mid[1]);
       pe[0] = (mid[0]) + sin(theta)*distance_in;
       pe[1] = (mid[1]) + cos(theta)*distance_in;
@@ -426,30 +514,25 @@ std::vector<std::vector<double > > RosPathPlanner::arc(double N, double E, doubl
 }
 void RosPathPlanner::state_callback(const rosplane_msgs::State &msg)
 {
-  float x =  msg.position[1];
-  float y =  msg.position[0];
-  float z = -msg.position[2];
-  std::vector<double> point;
-  point.push_back(x);
-  point.push_back(y);
-  point.push_back(z);
-  odometry_.push_back(point);
+  if (recieved_state_ == false)
+  {
+    gps_converter_.set_reference(msg.initial_lat, msg.initial_lon, msg.initial_alt);
+    ROS_INFO("REFERENCE POINT SET");
+    recieved_state_ = true;
+  }
+  odometry_[0] =  msg.position[1];
+  odometry_[1] =  msg.position[0];
+  odometry_[2] = -msg.position[2];
 }
 void RosPathPlanner::updateViz(const ros::WallTimerEvent&)
 {
   odom_mkr_.header.stamp = ros::Time::now();
-  odom_mkr_.id           =  state_id_++;
-  long unsigned int next_odom_index = odometry_.size();
-  for (long unsigned int i = last_odom_index_; i < next_odom_index; i++)
-  {
-    geometry_msgs::Point p;
-    p.x = odometry_[i][0];
-    p.y = odometry_[i][1];
-    p.z = odometry_[i][2];
-    odom_mkr_.points.push_back(p);
-  }
+  geometry_msgs::Point p;
+  p.x = odometry_[0];
+  p.y = odometry_[1];
+  p.z = odometry_[2];
+  odom_mkr_.points.push_back(p);
   marker_pub_.publish(odom_mkr_);
-  last_odom_index_ = next_odom_index;
 }
 } // end namespace rosplane
 

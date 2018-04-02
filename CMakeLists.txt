@@ -113,7 +113,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES theseus
-  CATKIN_DEPENDS roscpp rosplane_msgs std_msgs std_srvs
+  CATKIN_DEPENDS roscpp rosplane_msgs std_msgs std_srvs uav_msgs
 #  DEPENDS system_lib
 )
 
@@ -195,6 +195,12 @@ target_link_libraries(theseus_path_planner ${catkin_LIBRARIES})
 #   FILES_MATCHING PATTERN "*.h"
 #   PATTERN ".svn" EXCLUDE
 # )
+## Mark cpp header files for installation
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "gps_struct.h"
+  PATTERN ".svn" EXCLUDE
+)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
