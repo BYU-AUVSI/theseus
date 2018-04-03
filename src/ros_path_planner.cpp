@@ -10,10 +10,10 @@ RosPathPlanner::RosPathPlanner() :
   //************** SUBSCRIBERS AND PUBLISHERS **************//
   recieved_state_        = false;
   has_map_               = false;
-  state_subscriber_      = nh_.subscribe("/state",1,&theseus::RosPathPlanner::state_callback, this);
+  state_subscriber_      = nh_.subscribe("/state",1,&theseus::RosPathPlanner::stateCallback, this);
   waypoint_publisher_    = nh_.advertise<rosplane_msgs::Waypoint>("/waypoint_path", 1);
   path_solver_service_   = nh_.advertiseService("solve_static",&theseus::RosPathPlanner::solveStatic, this);
-  new_map_service_       = nh_.advertiseService("new_random_map",&theseus::RosPathPlanner::new_random_map, this);
+  new_map_service_       = nh_.advertiseService("new_random_map",&theseus::RosPathPlanner::newRandomMap, this);
   plan_mission_service_  = nh_.advertiseService("plan_mission",&theseus::RosPathPlanner::planMission, this);
   send_wps_service_      = nh_.advertiseService("send_waypoints",&theseus::RosPathPlanner::sendWaypoints, this);
   marker_pub_            = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 1);
@@ -45,15 +45,23 @@ RosPathPlanner::RosPathPlanner() :
   rrt_obj_ = rrt_obj;
 
   bool testing;
-  nh_.param<bool>("testing", testing, false);
+  nh_.param<bool>("testing/init_references", testing, false);
   if (testing)
   {
+    double lat_ref, lon_ref, h_ref;
+    float N_init, E_init, D_init;
+    nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
+    nh_.param<double>("lon_ref", lon_ref, -76.43075);
+    nh_.param<double>("h_ref", h_ref, 6.701);
+    nh_.param<float>("N_init", N_init, 0.0);
+    nh_.param<float>("E_init", E_init, 0.0);
+    nh_.param<float>("D_init", D_init, 0.0);
     ROS_WARN("testing = true, initializing reference and initial position");
-    gps_converter_.set_reference(38.14326388888889, -76.43075, 6.701); // TEMP TODO
+    gps_converter_.set_reference(lat_ref, lon_ref, h_ref);
     recieved_state_ = true;
-    odometry_[0] = 0.0;
-    odometry_[1] = 0.0;
-    odometry_[2] = 0.0;
+    odometry_[0]    = N_init;
+    odometry_[1]    = E_init;
+    odometry_[2]    = D_init;
   }
 }
 RosPathPlanner::~RosPathPlanner()
@@ -94,7 +102,7 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
     gps_converter_.gps2ned(lat, lon, alt, N, E, D);
     ned.N = N;
     ned.E = E;
-    ned.D = 0.0;
+    ned.D = D;
     mission_map.boundary_pts.push_back(ned);
   }
   for (int i = 0; i < num_obstacles; i++)
@@ -109,7 +117,7 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
     cyl.E = E;
     cyl.R = cyl_r;
     cyl.H = cyl_h;
-    mission_map.wps.push_back(ned);
+    mission_map.cylinders.push_back(cyl);
   }
   rrt_obj_.newMap(mission_map);
   has_map_ = true;
@@ -123,7 +131,7 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
   displayPath();
   return true;
 }
-bool RosPathPlanner::new_random_map(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
+bool RosPathPlanner::newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
   mapper myWorld(rg_.UINT(), &input_file_);
   myWorld_ = myWorld;
@@ -223,7 +231,7 @@ void RosPathPlanner::displayMap()
       sleep(1);
     }
     marker_pub_.publish(obs_mkr);
-    sleep(0.01); // apparently needs a small delay otherwise rviz can't keep up?
+    sleep(0.05); // apparently needs a small delay otherwise rviz can't keep up?
   }
 
   // primary waypoints
@@ -240,7 +248,7 @@ void RosPathPlanner::displayMap()
     pWPS_mkr.points.push_back(p);
   }
   marker_pub_.publish(pWPS_mkr);
-  sleep(0.01);
+  sleep(0.05);
 
   // Boundaries
   bds_mkr.header.stamp = ros::Time::now();
@@ -264,7 +272,7 @@ void RosPathPlanner::displayMap()
   p0.z = 0.0;
   bds_mkr.points.push_back(p0);
   marker_pub_.publish(bds_mkr);
-  sleep(0.01);
+  sleep(0.05);
 }
 void RosPathPlanner::displayPath()
 {
@@ -323,7 +331,7 @@ void RosPathPlanner::displayPath()
       }
     }
     marker_pub_.publish(aWPS_mkr);
-    sleep(0.01);
+    sleep(0.05);
   }
 
   // Plot desired path
@@ -346,7 +354,7 @@ void RosPathPlanner::displayPath()
     ywps.push_back(myWorld_.map.wps[i].N);
     dwps.push_back(myWorld_.map.wps[i].D);
   }
-  std::vector<std::vector<double> > mav_path = fillet_mav_path(xwps, ywps, dwps, xwpsAll, ywpsAll, dwpsAll);
+  std::vector<std::vector<double> > mav_path = filletMavPath(xwps, ywps, dwps, xwpsAll, ywpsAll, dwpsAll);
   for (long unsigned int i = 0; i < mav_path.size(); i++)
   {
     geometry_msgs::Point p;
@@ -356,7 +364,7 @@ void RosPathPlanner::displayPath()
     planned_path_mkr.points.push_back(p);
   }
   marker_pub_.publish(planned_path_mkr);
-  sleep(0.01);
+  sleep(0.05);
   for (long unsigned int i = 0; i < rrt_obj_.all_wps_.size(); i++)
   {
     for (long unsigned int j = 0; j < rrt_obj_.all_wps_[i].size(); j++)
@@ -366,7 +374,7 @@ void RosPathPlanner::displayPath()
       p.x =  rrt_obj_.all_wps_[i][j].E;
       p.z = -rrt_obj_.all_wps_[i][j].D;
       aWPS_mkr.points.push_back(p);
-      ros::Duration(0.01).sleep();
+      ros::Duration(0.05).sleep();
     }
   }
 }
@@ -383,7 +391,7 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
       new_waypoint.w[1] = rrt_obj_.all_wps_[i][j].E;
       new_waypoint.w[2] = rrt_obj_.all_wps_[i][j].D;
 
-      new_waypoint.Va_d = 20.0;
+      new_waypoint.Va_d = 20.0; // TODO find a good initial spot for this Va
       if (i == 0 && j == 0)
         new_waypoint.set_current = true;
       else
@@ -395,7 +403,7 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
   res.success = true;
   return true;
 }
-std::vector<std::vector<double> > RosPathPlanner::fillet_mav_path(std::vector<double> xwps,   std::vector<double> ywps,\
+std::vector<std::vector<double> > RosPathPlanner::filletMavPath(std::vector<double> xwps,   std::vector<double> ywps,\
                                                                   std::vector<double> dwps,std::vector<double> xwpsAll,\
                                                                std::vector<double> ywpsAll, std::vector<double> dwpsAll)
 {
@@ -414,7 +422,7 @@ std::vector<std::vector<double> > RosPathPlanner::fillet_mav_path(std::vector<do
       y_path_data.push_back(ywpsAll[k]);
       d_path_data.push_back(dwpsAll[k]);
     }
-    std::vector<std::vector<double> > path_data = fillet_path(x_path_data, y_path_data, d_path_data);
+    std::vector<std::vector<double> > path_data = filletPath(x_path_data, y_path_data, d_path_data);
     for (int k = 0; k < path_data.size(); k++)
     {
       allWPS_plus_arc.push_back(path_data[k]);
@@ -423,7 +431,7 @@ std::vector<std::vector<double> > RosPathPlanner::fillet_mav_path(std::vector<do
   }
   return allWPS_plus_arc;
 }
-std::vector<std::vector<double> > RosPathPlanner::fillet_path(std::vector<double> x_path_data,\
+std::vector<std::vector<double> > RosPathPlanner::filletPath(std::vector<double> x_path_data,\
                                                               std::vector<double> y_path_data,\
                                                               std::vector<double> d_path_data)
 {
@@ -559,7 +567,7 @@ std::vector<std::vector<double > > RosPathPlanner::arc(double N, double E, doubl
   NcEc.push_back(Ec);
   return NcEc;
 }
-void RosPathPlanner::state_callback(const rosplane_msgs::State &msg)
+void RosPathPlanner::stateCallback(const rosplane_msgs::State &msg)
 {
   if (recieved_state_ == false)
   {

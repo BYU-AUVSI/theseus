@@ -13,7 +13,7 @@
 #include <theseus/AuvsiBoundaries.h>
 #include <theseus/RRT.h>
 #include <vector>
-#include <cmath>
+#include <math.h>
 #include <algorithm>
 #include <std_srvs/Trigger.h>
 #include <theseus/mapper.h>
@@ -43,13 +43,13 @@ private:
   ros::ServiceServer send_wps_service_;
   RRT_input rrt_i_;
   mapper myWorld_;
-  std::vector<std::vector<double> > fillet_mav_path(std::vector<double>, std::vector<double>, std::vector<double>,\
+  std::vector<std::vector<double> > filletMavPath(std::vector<double>, std::vector<double>, std::vector<double>,\
                                                std::vector<double>, std::vector<double>, std::vector<double>);
- std::vector<std::vector<double> > fillet_path(std::vector<double> x_path_data,\
+ std::vector<std::vector<double> > filletPath(std::vector<double> x_path_data,\
                                                           std::vector<double> y_path_data,\
                                                           std::vector<double> d_path_data);
   std::vector<std::vector<double > > arc(double N, double E, double r, double aS, double aE);
-  void state_callback(const rosplane_msgs::State &msg);
+  void stateCallback(const rosplane_msgs::State &msg);
 public:
   ros::Publisher mission_map_publisher_;
 
@@ -72,7 +72,7 @@ private:
   //********************** FUNCTIONS ***********************//
 public:
   bool solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
-  bool new_random_map(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
   void displayPath();
   void displayMap();

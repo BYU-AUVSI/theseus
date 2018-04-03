@@ -30,12 +30,15 @@ RRT::~RRT()
 	deleteTree();                          // Delete all of those tree pointer nodes
 	std::vector<node*>().swap(root_ptrs_); // Free the memory of the vector.
 }
-void RRT::solveStatic(NED_s pos)        // This function solves for a path in between the waypoinnts (2 Dimensional)
+void RRT::solveStatic(NED_s pos)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
   ROS_WARN("STARTING SOLVER");
   clearForNewPath();
 	initializeTree(pos);
   taking_off_ = (-pos.D < input_file_->minFlyHeight);
+  if (flyZoneCheck(pos, 5.0) == false)
+    ROS_FATAL("Initial Starting position violates a boundary or an obstacle");
+
 	NED_s second2last_post_smoothed;
 	second2last_post_smoothed.N = root_ptrs_[0]->NED.N - cos(input_file_->chi0);
 	second2last_post_smoothed.E = root_ptrs_[0]->NED.E - sin(input_file_->chi0);
