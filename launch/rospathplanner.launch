@@ -1,6 +1,7 @@
 <launch>
   <group ns="theseus">
     <rosparam command="load" file="$(find theseus)/param/path_planning.yaml"  />
+    <param name="testing" value="true"/>
     <node name="pathplanner" pkg="theseus" type="theseus_path_planner" output="screen"/>
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find theseus)/viz/path_planner.rviz" required="true"/>
   </group>

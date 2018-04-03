@@ -71,10 +71,11 @@ private:
 
   //********************** FUNCTIONS ***********************//
 public:
-  bool solve_static(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool new_random_map(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
   void displayPath();
+  void displayMap();
 };// end class PathPlanner
 } // end namespace rosplane
 

@@ -27,7 +27,7 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 
 	// Some settings for Generating the Map
 	waypoint_clearance = input_file->waypoint_clearance;// (m) This is the minimum clearance that each waypoint has with other obstacles... Just to make things reasonable.
-	is3D = input_file->is3D;							// This make the board 3D, which pretty much just means the cylinders have a specific height and waypoints can be above them.
+	is3D               = input_file->is3D;              // This make the board 3D, which pretty much just means the cylinders have a specific height and waypoints can be above them.
 
 														// Set up some competition constants
 	minCylRadius = input_file->minCylRadius; // 9.144 m = 30 ft.
@@ -41,14 +41,14 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 	// Get the NED coordinate frame set up
 
 	// Get the Reference Angles
-	double piD180 = 3.1415926535897932 / 180.0;
-	double a = 6378137.0;						// length of Earth�s semi-major axis in meters
-	double be = 6356752.3142;					// length of Earth�s semi-minor axis in meters
-	double e2 = 1. - pow((be / a), 2);			// first numerical eccentricity
+	double piD180 = M_PI/ 180.0;
+	double a = 6378137.0;              // length of Earth�s semi-major axis in meters
+	double be = 6356752.3142;          // length of Earth�s semi-minor axis in meters
+	double e2 = 1.0 - pow((be / a), 2); // first numerical eccentricity
 
 	rPhi = (strtod(input_file->latitude0.substr(1, 2).c_str(), NULL) + strtod((input_file->latitude0.substr(4, 2)).c_str(),NULL) / 60.0 + strtod(input_file->latitude0.substr(7, 5).c_str(), NULL) / 3600.0)*piD180;
 	rLam = (strtod(input_file->longitude0.substr(2, 3).c_str(), NULL) + strtod(input_file->longitude0.substr(5, 2).c_str(),NULL) / 60.0 + strtod(input_file->longitude0.substr(8, 5).c_str(), NULL) / 3600.0)*piD180;
-	rH = input_file->height0;
+	rH   = input_file->height0;
 
 	// Convert the angles into Earth Centered Earth Fixed Reference Frame
 	double chi = sqrt(1 - e2*sin(rPhi)*sin(rPhi));
@@ -57,23 +57,35 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 	zr = (a*(1 - e2) / chi + rH)*sin(rPhi);
 
 
-	std::ifstream boundaries_in_file;				// The file that recieves boundaries
-	boundaries_in_file.open(input_file->boundaries_in_file.c_str());
-	if (!boundaries_in_file)
-    ROS_ERROR("Could not open the boundaries file.");
+
+	// std::ifstream boundaries_in_file;				// The file that recieves boundaries
+	// boundaries_in_file.open(input_file->boundaries_in_file.c_str());
+	// if (!boundaries_in_file)
+    // ROS_ERROR("Could not open the boundaries file.");
 	NED_s boundary_point;
 	bool setFirstValues = true;
-	std::string LATITUDE;	// North
-	std::string LONGITUDE;	// West
+	std::string LATITUDE;	  // North
+	std::string LONGITUDE;  // West
 	double phi, lambda;
-	while (boundaries_in_file.eof() == false)
-	{
-		boundaries_in_file >> LATITUDE >> LONGITUDE;
-		phi = strtod(LATITUDE.substr(1, 2).c_str(), NULL) + strtod(LATITUDE.substr(4, 2).c_str(), NULL) / 60.0 + strtod(LATITUDE.substr(7, 5).c_str(), NULL) / 3600.0;
-		lambda = strtod(LONGITUDE.substr(2, 3).c_str(), NULL) + strtod(LONGITUDE.substr(5, 2).c_str(), NULL) / 60.0 + strtod(LONGITUDE.substr(8, 5).c_str(), NULL) / 3600.0;
 
-		boundary_point = GPS2NED(phi, lambda, rH);
 
+	// while (boundaries_in_file.eof() == false)
+	// {
+	// 	boundaries_in_file >> LATITUDE >> LONGITUDE;
+	// 	phi = strtod(LATITUDE.substr(1, 2).c_str(), NULL) + strtod(LATITUDE.substr(4, 2).c_str(), NULL) / 60.0 + strtod(LATITUDE.substr(7, 5).c_str(), NULL) / 3600.0;
+	// 	lambda = strtod(LONGITUDE.substr(2, 3).c_str(), NULL) + strtod(LONGITUDE.substr(5, 2).c_str(), NULL) / 60.0 + strtod(LONGITUDE.substr(8, 5).c_str(), NULL) / 3600.0;
+  double default_boundaries_lat[12] = {38.146269444444442, 38.151624999999996, 38.151888888888891, 38.150594444444444,\
+                                       38.147566666666670, 38.144666666666666, 38.143255555555555, 38.140463888888888,\
+                                       38.140719444444443, 38.143761111111111, 38.147347222222223, 38.146130555555558};
+  double default_boundaries_lon[12] = {76.428163888888889, 76.428683333333339, 76.431466666666665, 76.435361111111121,\
+                                       76.432341666666673, 76.432947222222225, 76.434766666666675, 76.432636111111123,\
+                                       76.426013888888889, 76.421205555555559, 76.423211111111115, 76.426652777777790};
+
+  for (int i = 0; i < 12; i++)
+  {
+    phi            = default_boundaries_lat[i];
+    lambda         = default_boundaries_lon[i];
+    boundary_point = GPS2NED(phi, lambda, rH);
 		if (setFirstValues == false)
 		{
 			maxNorth = (boundary_point.N > maxNorth) ? boundary_point.N : maxNorth; // if new N is greater than maxN, set maxN = new N
@@ -89,18 +101,17 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 			minEast = boundary_point.E;
 			setFirstValues = false;
 		}
-
 		map.boundary_pts.push_back(boundary_point);	// This line puts the boundary points into the map member.
 	}
-	boundaries_in_file.close();
+	// boundaries_in_file.close();
 
 	// Set up flyZoneCheck()
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv These lines are used to prep the flyZoneCheck() algorithm
-	std::vector<double> NminNmaxEminEmax;				// Yeah, this is a riduculous name...
-	std::vector<double> mb;								// Vector of slope and intercepts
-	nBPts = map.boundary_pts.size();				// Number of Boundary Points
+	std::vector<double> NminNmaxEminEmax; // Yeah, this is a riduculous name...
+	std::vector<double> mb;               // Vector of slope and intercepts
+	nBPts = map.boundary_pts.size();      // Number of Boundary Points
 	double m, b, w, m_w;
-	for (unsigned int i = 0; i < nBPts; i++)		// Loop through all points
+	for (unsigned int i = 0; i < nBPts; i++)   // Loop through all points
 	{
 		// Find the min and max of North and East coordinates on the line connecting two points.
 		NminNmaxEminEmax.push_back(std::min(map.boundary_pts[i].N, map.boundary_pts[(i + 1) % nBPts].N));
@@ -148,7 +159,7 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 		// Put the cylinder into the terrain map
 		map.cylinders.push_back(cyl);
 	}
-	int numWps = input_file->numWps;												// This is the number of Primary Waypoints
+	int numWps = input_file->numWps; // This is the number of Primary Waypoints
 	NED_s wp;
 	// Randomly generate some waypoints
 	for (int i = 0; i < numWps; i++)
