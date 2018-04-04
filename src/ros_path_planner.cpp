@@ -120,6 +120,8 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
     cyl.H = cyl_h;
     mission_map.cylinders.push_back(cyl);
   }
+
+  myWorld_.map = mission_map;
   rrt_obj_.newMap(mission_map);
   has_map_ = true;
   ROS_INFO("RECIEVED JUDGES MAP");
