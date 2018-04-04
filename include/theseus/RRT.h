@@ -42,7 +42,7 @@ public:
 	RRT(map_s map_in, unsigned int seed, ParamReader *input_file_in, RRT_input RRT_options);		// Constructor - input the terrain map and the random generator seed
 	RRT();
   ~RRT();  // Deconstructor - deletes the tree
-	void solveStatic(NED_s pos);             // Solves the static path
+	void solveStatic(NED_s pos, float chi0);             // Solves the static path
   void newMap(map_s map_in);               // creates a new map
   void newSeed(unsigned int seed);
   std::vector<std::vector<NED_s> > all_wps_; // final path waypoints
@@ -64,14 +64,14 @@ private:
 		for (unsigned int i = 0; i < nin->children.size(); i++) // For all of the children figure out their distances
 		{
 			distance = sqrt(pow(P.N - nin->children[i]->NED.N, 2) + pow(P.E - nin->children[i]->NED.E, 2) + pow(P.D - nin->children[i]->NED.D, 2));	// Calculate the distance to the node
-			if (distance < *minD)           // If we found a better distance, update it
+			if (distance < *minD)          // If we found a better distance, update it
 			{
-				minNode = nin->children[i];   // reset the minNode
-				*minD = distance;             // reset the minimum distance
+				minNode = nin->children[i];  // reset the minNode
+				*minD = distance;            // reset the minimum distance
 			}
 			minNode = findClosestNode(nin->children[i], P, minNode, minD);// Recursion for each child
 		}
-		return minNode;                   // Return the closest node
+		return minNode;                  // Return the closest node
 	}
 	void deleteTree();                 // Delete the entire tree
 	void deleteNode(node*);            // Recursively delete the nodes
@@ -95,8 +95,9 @@ private:
   bool flyZoneCheck(const NED_s ps, const NED_s pe, const double r);   // Checks to see if a LINE is at least radius away from an obstacle.
   bool flyZoneCheck(const NED_s ps, const NED_s pe, const double aradius, const NED_s cp, const double r, const bool ccw);  // Checks to see if an ARC is at least radius away from an obstacle.
   bool flyZoneCheck(const NED_s NED, const double r); // Checks to see if a POINT is at least radius away from an obstacle.
-  void computePerformance();                         // After an algorithm runs this computes some basic performance stats.
-  void ppSetup();                                     // This sets up some preliminary things like the below doubles
+  void computePerformance();                     // After an algorithm runs this computes some basic performance stats.
+  void ppSetup();                                // This sets up some preliminary things like the below doubles
+  void printRRTSetup();                          // used for debugging
   double D_;                                     // If used, this is the distance the algorithm uses between each node
 	std::vector<std::vector<NED_s> > line_starts_; // Line starts for every waypoint
 	RRT_input alg_input_;                          // This contains all of the options for simpleRRT

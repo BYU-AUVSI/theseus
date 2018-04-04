@@ -33,14 +33,13 @@ public:
 	int iters_limit;
 
 	// Map Settings
-	double N0;
-	double E0;
-	double D0;
-	double chi0;
-	std::string boundaries_in_file;
-	std::string latitude0;
-	std::string longitude0;
-	double height0;
+  double lat_ref;
+  double lon_ref;
+  double h_ref;
+  float N_init;
+  float E_init;
+  float D_init;
+  bool chi0;
 	bool   is3D;
 	double minCylRadius;
 	double maxCylRadius;

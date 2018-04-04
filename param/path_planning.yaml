@@ -11,15 +11,11 @@ pp:
   simulating: true           # This determines if to make a map or pull from the judges server.
 ppsim:
   # Map Settings
-  numWps: 5                  # Number of waypoints to plan.
+  numWps: 2                  # Number of waypoints to plan.
   N0: 0.0                    # initial starting place for the plane, North in NED
   E0: 0.0                    # initial starting place for the plane, East in NED
   D0: 0.0                    # initial starting place for the plane, Down in NED
   chi0: 0.0                  # initial starting heading for the plane, degrees clockwise from N
-  boundaries_in_file: competition_boundaries.txt
-  latitude0: N38-08-35.75    # 0 point for the latitude. Please follow format Nxx-xx-xx.xx
-  longitude0: W076-25-50.70  # 0 point for the longitude. Please follow format Wxxx-xx-xx.xx
-  height0: 6.7056            # 0 height at the runway, 22 feet.
   is3D: true                 # false = 2 dimensions, true = 3 dimensions
   minCylRadius: 9.144        # 9.144 m = 30 ft.
   maxCylRadius: 91.44        # 91.44 m = 300 ft.

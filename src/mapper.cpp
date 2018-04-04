@@ -42,13 +42,13 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 
 	// Get the Reference Angles
 	double piD180 = M_PI/ 180.0;
-	double a = 6378137.0;              // length of Earth�s semi-major axis in meters
-	double be = 6356752.3142;          // length of Earth�s semi-minor axis in meters
+	double a = 6378137.0;              // length of Earth's semi-major axis in meters
+	double be = 6356752.3142;          // length of Earth's semi-minor axis in meters
 	double e2 = 1.0 - pow((be / a), 2); // first numerical eccentricity
 
-	rPhi = (strtod(input_file->latitude0.substr(1, 2).c_str(), NULL) + strtod((input_file->latitude0.substr(4, 2)).c_str(),NULL) / 60.0 + strtod(input_file->latitude0.substr(7, 5).c_str(), NULL) / 3600.0)*piD180;
-	rLam = (strtod(input_file->longitude0.substr(2, 3).c_str(), NULL) + strtod(input_file->longitude0.substr(5, 2).c_str(),NULL) / 60.0 + strtod(input_file->longitude0.substr(8, 5).c_str(), NULL) / 3600.0)*piD180;
-	rH   = input_file->height0;
+	rPhi = input_file->lat_ref;
+  rLam = input_file->lon_ref;
+  rH   = input_file->h_ref;
 
 	// Convert the angles into Earth Centered Earth Fixed Reference Frame
 	double chi = sqrt(1 - e2*sin(rPhi)*sin(rPhi));
@@ -145,7 +145,7 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 		cyl.E = rg.randLin()*(maxEast - minEast) + minEast;
 		cyl.R = rg.randLin()*(maxCylRadius - minCylRadius) + minCylRadius;
 		// Check to see if it can fit there
-		while (flyZoneCheck(cyl) == false || sqrt(pow(input_file->N0 - cyl.N, 2.0) + pow(input_file->E0 - cyl.E, 2.0)) < cyl.R + input_file->waypoint_clearance)
+		while (flyZoneCheck(cyl) == false || sqrt(pow(input_file->N_init - cyl.N, 2.0) + pow(input_file->E_init - cyl.E, 2.0)) < cyl.R + input_file->waypoint_clearance)
 		{
 			cyl.N = rg.randLin()*(maxNorth - minNorth) + minNorth;
 			cyl.E = rg.randLin()*(maxEast - minEast) + minEast;

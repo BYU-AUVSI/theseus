@@ -21,7 +21,6 @@
 #include <theseus/param_reader.h>
 #include <theseus/gps_struct.h>
 
-
 namespace theseus
 {
 class RosPathPlanner
@@ -42,12 +41,12 @@ private:
   ros::ServiceServer new_map_service_;
   ros::ServiceServer send_wps_service_;
   RRT_input rrt_i_;
-  mapper myWorld_;
+  map_s myWorld_;
   std::vector<std::vector<double> > filletMavPath(std::vector<double>, std::vector<double>, std::vector<double>,\
-                                               std::vector<double>, std::vector<double>, std::vector<double>);
+                                                  std::vector<double>, std::vector<double>, std::vector<double>);
  std::vector<std::vector<double> > filletPath(std::vector<double> x_path_data,\
-                                                          std::vector<double> y_path_data,\
-                                                          std::vector<double> d_path_data);
+                                              std::vector<double> y_path_data,\
+                                              std::vector<double> d_path_data);
   std::vector<std::vector<double > > arc(double N, double E, double r, double aS, double aE);
   void stateCallback(const rosplane_msgs::State &msg);
 public:
@@ -61,6 +60,7 @@ private:
   gps_struct gps_converter_;
   RRT rrt_obj_;
   float odometry_[3];
+  float chi0_;
   visualization_msgs::Marker odom_mkr_;
   bool recieved_state_;
   bool has_map_;

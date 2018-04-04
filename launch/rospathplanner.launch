@@ -9,7 +9,8 @@
     <param name="testing/N_init" value="0.0"/>
     <param name="testing/E_init" value="0.0"/>
     <param name="testing/D_init" value="0.0"/>
-    <!-- <remap from="/waypoint_path" to="/fixedwing/waypoint_path"/> -->
+    <remap from="/waypoint_path" to="/fixedwing/waypoint_path"/>
+    <remap from="/state" to="/fixedwing/state"/>
     <node name="pathplanner" pkg="theseus" type="theseus_path_planner" output="screen"/>
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find theseus)/viz/path_planner.rviz" required="true"/>
   </group>

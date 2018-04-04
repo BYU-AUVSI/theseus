@@ -28,22 +28,6 @@ ParamReader::ParamReader() :
 
   if (!(ros::param::get("ppsim/numWps",numWps)))
     ROS_WARN("No param named 'numWps'");
-  if (!(ros::param::get("ppsim/N0",N0)))
-    ROS_WARN("No param named 'N0'");
-  if (!(ros::param::get("ppsim/E0",E0)))
-    ROS_WARN("No param named 'E0'");
-  if (!(ros::param::get("ppsim/D0",D0)))
-    ROS_WARN("No param named 'D0'");
-  if (!(ros::param::get("ppsim/chi0",chi0)))
-    ROS_WARN("No param named 'chi0'");
-  if (!(ros::param::get("ppsim/boundaries_in_file",boundaries_in_file)))
-    ROS_WARN("No param named 'boundaries_in_file'");
-  if (!(ros::param::get("ppsim/latitude0",latitude0)))
-    ROS_WARN("No param named 'latitude0'");
-  if (!(ros::param::get("ppsim/longitude0",longitude0)))
-    ROS_WARN("No param named 'longitude0'");
-  if (!(ros::param::get("ppsim/height0",height0)))
-    ROS_WARN("No param named 'height0'");
   if (!(ros::param::get("ppsim/is3D",is3D)))
     ROS_WARN("No param named 'is3D'");
   if (!(ros::param::get("ppsim/minCylRadius",minCylRadius)))
@@ -62,13 +46,24 @@ ParamReader::ParamReader() :
     ROS_WARN("No param named 'waypoint_clearance'");
   if (!(ros::param::get("ppsim/nCyli",nCyli)))
     ROS_WARN("No param named 'nCyli'");
+  bool testing;
+  nh_.param<bool>("testing/init_references", testing, false);
+  if (testing)
+  {
+    nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
+    nh_.param<double>("lon_ref", lon_ref, -76.43075);
+    nh_.param<double>("h_ref", h_ref, 6.701);
+    nh_.param<float>("N_init", N_init, 0.0);
+    nh_.param<float>("E_init", E_init, 0.0);
+    nh_.param<float>("D_init", D_init, 0.0);
+    chi0 = 0.0;
+  }
 
 	double deg2rad    = M_PI/180.0;
 	climb_angle       = climb_angle*deg2rad;
 	descend_angle     = descend_angle*deg2rad;
 	max_climb_angle   = max_climb_angle*deg2rad;
 	max_descend_angle = max_descend_angle*deg2rad;
-	chi0              = chi0*deg2rad;
 }
 ParamReader::~ParamReader()
 {

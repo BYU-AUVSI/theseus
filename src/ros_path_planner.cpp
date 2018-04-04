@@ -41,7 +41,7 @@ RosPathPlanner::RosPathPlanner() :
   update_viz_timer_ = nh_.createWallTimer(ros::WallDuration(1.0/5.0), &RosPathPlanner::updateViz, this);
 
   //********************** FUNCTIONS ***********************//
-  RRT rrt_obj(myWorld_.map, input_file_.seed, &input_file_, rrt_i_);
+  RRT rrt_obj(myWorld_, input_file_.seed, &input_file_, rrt_i_);
   rrt_obj_ = rrt_obj;
 
   bool testing;
@@ -62,6 +62,7 @@ RosPathPlanner::RosPathPlanner() :
     odometry_[0]    = N_init;
     odometry_[1]    = E_init;
     odometry_[2]    = D_init;
+    chi0_           = 0.0;
   }
 }
 RosPathPlanner::~RosPathPlanner()
@@ -127,15 +128,15 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
   displayMap();
-  rrt_obj_.solveStatic(pos);
+  rrt_obj_.solveStatic(pos, chi0_);
   displayPath();
   return true;
 }
 bool RosPathPlanner::newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
   mapper myWorld(rg_.UINT(), &input_file_);
-  myWorld_ = myWorld;
-  rrt_obj_.newMap(myWorld_.map);
+  myWorld_ = myWorld.map;
+  rrt_obj_.newMap(myWorld_);
   has_map_ = true;
   ROS_INFO("RECIEVED NEW RANDOM MAP");
   displayMap();
@@ -155,8 +156,8 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
     ROS_ERROR("PATH PLANNER HAS NO MAP.");
     ROS_ERROR("Generating random map.");
     mapper myWorld(rg_.UINT(), &input_file_);
-    myWorld_ = myWorld;
-    rrt_obj_.newMap(myWorld_.map);
+    myWorld_ = myWorld.map;
+    rrt_obj_.newMap(myWorld_);
     has_map_ = true;
   }
   displayMap();
@@ -164,8 +165,10 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   pos.N =  odometry_[1];
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
-  rrt_obj_.solveStatic(pos);
+  rrt_obj_.solveStatic(pos, chi0_);
+  ROS_INFO("solved the path. displaying path");
   displayPath();
+  ROS_INFO("returning");
   res.success = true;
   return true;
 }
@@ -212,16 +215,16 @@ void RosPathPlanner::displayMap()
 
   int id = 0;
   obs_mkr.header.stamp = ros::Time::now();
-  for (long unsigned int i = 0; i <  myWorld_.map.cylinders.size(); i++)
+  for (long unsigned int i = 0; i <  myWorld_.cylinders.size(); i++)
   {
     obs_mkr.id = id++;
-    obs_mkr.pose.position.x    = myWorld_.map.cylinders[i].E;     // Center X position
-    obs_mkr.pose.position.y    = myWorld_.map.cylinders[i].N;     // Center Y position
-    obs_mkr.pose.position.z    = myWorld_.map.cylinders[i].H/2.0; // Center Z position
+    obs_mkr.pose.position.x    = myWorld_.cylinders[i].E;     // Center X position
+    obs_mkr.pose.position.y    = myWorld_.cylinders[i].N;     // Center Y position
+    obs_mkr.pose.position.z    = myWorld_.cylinders[i].H/2.0; // Center Z position
     // Set the scale of the obs_mkr -- 1x1x1 here means 1m on a side
-    obs_mkr.scale.x = myWorld_.map.cylinders[i].R*2.0; // Diameter in x direction
-    obs_mkr.scale.y = myWorld_.map.cylinders[i].R*2.0; // Diameter in y direction
-    obs_mkr.scale.z = myWorld_.map.cylinders[i].H;     // Height
+    obs_mkr.scale.x = myWorld_.cylinders[i].R*2.0; // Diameter in x direction
+    obs_mkr.scale.y = myWorld_.cylinders[i].R*2.0; // Diameter in y direction
+    obs_mkr.scale.z = myWorld_.cylinders[i].H;     // Height
     // Publish the obs_mkr
     while (marker_pub_.getNumSubscribers() < 1)
     {
@@ -239,12 +242,12 @@ void RosPathPlanner::displayMap()
   pWPS_mkr.id           =  0;
   pWPS_mkr.scale.x      =  25.0; // point width
   pWPS_mkr.scale.y      =  25.0; // point height
-  for (long unsigned int i = 0; i < myWorld_.map.wps.size(); i++)
+  for (long unsigned int i = 0; i < myWorld_.wps.size(); i++)
   {
     geometry_msgs::Point p;
-    p.y =  myWorld_.map.wps[i].N;
-    p.x =  myWorld_.map.wps[i].E;
-    p.z = -myWorld_.map.wps[i].D;
+    p.y =  myWorld_.wps[i].N;
+    p.x =  myWorld_.wps[i].E;
+    p.z = -myWorld_.wps[i].D;
     pWPS_mkr.points.push_back(p);
   }
   marker_pub_.publish(pWPS_mkr);
@@ -254,21 +257,21 @@ void RosPathPlanner::displayMap()
   bds_mkr.header.stamp = ros::Time::now();
   bds_mkr.id           =  0;
   bds_mkr.scale.x      =  15.0; // line width
-  for (long unsigned int i = 0; i < myWorld_.map.boundary_pts.size(); i++)
+  for (long unsigned int i = 0; i < myWorld_.boundary_pts.size(); i++)
   {
     geometry_msgs::Point p;
-    p.y = myWorld_.map.boundary_pts[i].N;
-    p.x = myWorld_.map.boundary_pts[i].E;
+    p.y = myWorld_.boundary_pts[i].N;
+    p.x = myWorld_.boundary_pts[i].E;
     p.z = 0.0;
     bds_mkr.points.push_back(p);
   }
   geometry_msgs::Point p0;
-  p0.y = myWorld_.map.boundary_pts[0].N;
-  p0.x = myWorld_.map.boundary_pts[0].E;
+  p0.y = myWorld_.boundary_pts[0].N;
+  p0.x = myWorld_.boundary_pts[0].E;
   p0.z = 0.0;
   bds_mkr.points.push_back(p0);
-  p0.y = myWorld_.map.boundary_pts[1].N;
-  p0.x = myWorld_.map.boundary_pts[1].E;
+  p0.y = myWorld_.boundary_pts[1].N;
+  p0.x = myWorld_.boundary_pts[1].E;
   p0.z = 0.0;
   bds_mkr.points.push_back(p0);
   marker_pub_.publish(bds_mkr);
@@ -348,11 +351,11 @@ void RosPathPlanner::displayPath()
       dwpsAll.push_back(rrt_obj_.all_wps_[i][j].D);
     }
   }
-  for (long unsigned int i = 0; i < myWorld_.map.wps.size(); i++)
+  for (long unsigned int i = 0; i < myWorld_.wps.size(); i++)
   {
-    xwps.push_back(myWorld_.map.wps[i].E);
-    ywps.push_back(myWorld_.map.wps[i].N);
-    dwps.push_back(myWorld_.map.wps[i].D);
+    xwps.push_back(myWorld_.wps[i].E);
+    ywps.push_back(myWorld_.wps[i].N);
+    dwps.push_back(myWorld_.wps[i].D);
   }
   std::vector<std::vector<double> > mav_path = filletMavPath(xwps, ywps, dwps, xwpsAll, ywpsAll, dwpsAll);
   for (long unsigned int i = 0; i < mav_path.size(); i++)
@@ -391,7 +394,7 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
       new_waypoint.w[1] = rrt_obj_.all_wps_[i][j].E;
       new_waypoint.w[2] = rrt_obj_.all_wps_[i][j].D;
 
-      new_waypoint.Va_d = 20.0; // TODO find a good initial spot for this Va
+      new_waypoint.Va_d = 16.0; // TODO find a good initial spot for this Va
       if (i == 0 && j == 0)
         new_waypoint.set_current = true;
       else
@@ -578,6 +581,7 @@ void RosPathPlanner::stateCallback(const rosplane_msgs::State &msg)
   odometry_[0] =  msg.position[1];
   odometry_[1] =  msg.position[0];
   odometry_[2] = -msg.position[2];
+  chi0_        =  msg.chi;
 }
 void RosPathPlanner::updateViz(const ros::WallTimerEvent&)
 {
