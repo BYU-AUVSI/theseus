@@ -5,14 +5,13 @@
 #ifndef MAPPER_H
 #define MAPPER_H
 
-#include <fstream>
 #include <vector>
 #include <algorithm>
 #include <math.h>
-#include <string>
 #include <stdlib.h>
 
 #include <theseus/map_s.h>
+#include <theseus/gps_struct.h>
 #include <theseus/rand_gen.h>
 #include <theseus/param_reader.h>
 
@@ -34,10 +33,8 @@ private:
 	bool flyZoneCheckMASTER(const NED_s, double radius);  // This is the main flyZoneCheck for the mapper class.
 	bool flyZoneCheck(const cyl_s cyl);                   // Return false if the cylinder intersect with other obstacles - calls flyZoneCheckMASTER()
 	bool flyZoneCheck(const NED_s NED, double radius);    // Return false if the point gets within radius of an obstacle - calls flyZoneCheckMASTER()
-	NED_s GPS2NED_(double phi, double lambda, double h);  // Converts GPS angles to local NED coordinates. For the cometition these two functions differ by about 1 cm and 10 cm at the most.
-	NED_s GPS2NED(double phi, double lambda, double h);   // Converts GPS angles to local NED coordinates, more accurate but slower.
-
-	// Members
+	void tempGPS_converter(double lat, double lon, double h);
+  // Members
 	ParamReader *input_file;                        // Input Parameters File Variables
 	RandGen rg;                                     // This is the random generator
 	std::vector<std::vector<double> > lineMinMax;   // (N x 4) vector containing the (min N, max N, min E, max E) for each boundary line
@@ -56,12 +53,6 @@ private:
 	double maxCylHeight;                            // Maximum Cylinder Height in meters
 	double waypoint_clearance;                      // The radius away from any obstacle that the waypoints are placed
 	bool   is3D;                                    // If true, the board is 3D (cylinders have height) if false board is 2D (cylinders have height = to maxFlyHeight)
-	double rPhi;                                    // Reference Phi, Latitude reference angle (radians)
-	double rLam;                                    // Reference Lambd, Longitude reference angle (radians)
-	double rH;                                      // Reference Height from mean sea level, meters
-	double xr;                                      // Reference point in ECEF
-	double yr;                                      // Reference point in ECEF
-	double zr;                                      // Reference point in ECEF
 };
 }
 #endif

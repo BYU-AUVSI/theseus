@@ -97,7 +97,7 @@ private:
   bool flyZoneCheck(const NED_s NED, const double r); // Checks to see if a POINT is at least radius away from an obstacle.
   void computePerformance();                     // After an algorithm runs this computes some basic performance stats.
   void ppSetup();                                // This sets up some preliminary things like the below doubles
-  void printRRTSetup();                          // used for debugging
+  void printRRTSetup(NED_s pos, float chi0);     // used for debugging
   double D_;                                     // If used, this is the distance the algorithm uses between each node
 	std::vector<std::vector<NED_s> > line_starts_; // Line starts for every waypoint
 	RRT_input alg_input_;                          // This contains all of the options for simpleRRT

@@ -121,7 +121,7 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
     mission_map.cylinders.push_back(cyl);
   }
 
-  myWorld_.map = mission_map;
+  myWorld_ = mission_map;
   rrt_obj_.newMap(mission_map);
   has_map_ = true;
   ROS_INFO("RECIEVED JUDGES MAP");
@@ -176,7 +176,7 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
 }
 void RosPathPlanner::displayMap()
 {
-
+  ROS_INFO("Displaying Map");
   visualization_msgs::Marker obs_mkr, pWPS_mkr, bds_mkr, clear_mkr;
   clear_mkr.action = visualization_msgs::Marker::DELETEALL;
   marker_pub_.publish(clear_mkr);
@@ -217,6 +217,7 @@ void RosPathPlanner::displayMap()
 
   int id = 0;
   obs_mkr.header.stamp = ros::Time::now();
+  ROS_INFO("Number of Cylinders: %lu", myWorld_.cylinders.size());
   for (long unsigned int i = 0; i <  myWorld_.cylinders.size(); i++)
   {
     obs_mkr.id = id++;
@@ -244,6 +245,7 @@ void RosPathPlanner::displayMap()
   pWPS_mkr.id           =  0;
   pWPS_mkr.scale.x      =  25.0; // point width
   pWPS_mkr.scale.y      =  25.0; // point height
+  ROS_INFO("Number of Waypoints: %lu", myWorld_.wps.size());
   for (long unsigned int i = 0; i < myWorld_.wps.size(); i++)
   {
     geometry_msgs::Point p;
@@ -259,6 +261,7 @@ void RosPathPlanner::displayMap()
   bds_mkr.header.stamp = ros::Time::now();
   bds_mkr.id           =  0;
   bds_mkr.scale.x      =  15.0; // line width
+  ROS_INFO("Number of Boundary Points: %lu",  myWorld_.boundary_pts.size());
   for (long unsigned int i = 0; i < myWorld_.boundary_pts.size(); i++)
   {
     geometry_msgs::Point p;

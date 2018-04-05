@@ -11,7 +11,7 @@ pp:
   simulating: true           # This determines if to make a map or pull from the judges server.
 ppsim:
   # Map Settings
-  numWps: 2                  # Number of waypoints to plan.
+  numWps: 4                  # Number of waypoints to plan.
   N0: 0.0                    # initial starting place for the plane, North in NED
   E0: 0.0                    # initial starting place for the plane, East in NED
   D0: 0.0                    # initial starting place for the plane, Down in NED

@@ -3,6 +3,8 @@
 
 #include <math.h>
 
+// #include <stdio.h>
+
 namespace theseus
 {
   struct gps_struct
@@ -77,6 +79,7 @@ namespace theseus
       N               = R_[0][0]*dx + R_[0][1]*dy + R_[0][2]*dz;
       E               = R_[1][0]*dx + R_[1][1]*dy + R_[1][2]*dz;
       D               = R_[2][0]*dx + R_[2][1]*dy + R_[2][2]*dz;
+      // printf("north: %f east %f down %f\n", N, E, D);
     }
     void ned2gps(double N, double E, double D, double& lat_N, double& lon_E, double& h_M)
     {

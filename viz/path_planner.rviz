@@ -62,7 +62,6 @@ Visualization Manager:
       Namespaces:
         boundaries: true
         plane_odom: true
-        planned_path: true
         primary_wps: true
         static_obstacle: true
       Queue Size: 100
@@ -83,7 +82,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1099.20947
+      Distance: 1705.33484
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1

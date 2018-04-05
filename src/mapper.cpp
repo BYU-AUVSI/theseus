@@ -39,71 +39,45 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 
 	// Pull in the competition boundaries
 	// Get the NED coordinate frame set up
-
-	// Get the Reference Angles
-	double piD180 = M_PI/ 180.0;
-	double a = 6378137.0;              // length of Earth's semi-major axis in meters
-	double be = 6356752.3142;          // length of Earth's semi-minor axis in meters
-	double e2 = 1.0 - pow((be / a), 2); // first numerical eccentricity
-
+  double rPhi, rLam, rH;
 	rPhi = input_file->lat_ref;
   rLam = input_file->lon_ref;
   rH   = input_file->h_ref;
+  gps_struct gps_converter;
+  gps_converter.set_reference(rPhi, rLam, rH);
 
-	// Convert the angles into Earth Centered Earth Fixed Reference Frame
-	double chi = sqrt(1 - e2*sin(rPhi)*sin(rPhi));
-	xr = (a / chi + rH)* cos(rPhi)*cos(rLam);
-	yr = (a / chi + rH)* cos(rPhi)*sin(rLam);
-	zr = (a*(1 - e2) / chi + rH)*sin(rPhi);
-
-
-
-	// std::ifstream boundaries_in_file;				// The file that recieves boundaries
-	// boundaries_in_file.open(input_file->boundaries_in_file.c_str());
-	// if (!boundaries_in_file)
-    // ROS_ERROR("Could not open the boundaries file.");
 	NED_s boundary_point;
 	bool setFirstValues = true;
-	std::string LATITUDE;	  // North
-	std::string LONGITUDE;  // West
 	double phi, lambda;
-
-
-	// while (boundaries_in_file.eof() == false)
-	// {
-	// 	boundaries_in_file >> LATITUDE >> LONGITUDE;
-	// 	phi = strtod(LATITUDE.substr(1, 2).c_str(), NULL) + strtod(LATITUDE.substr(4, 2).c_str(), NULL) / 60.0 + strtod(LATITUDE.substr(7, 5).c_str(), NULL) / 3600.0;
-	// 	lambda = strtod(LONGITUDE.substr(2, 3).c_str(), NULL) + strtod(LONGITUDE.substr(5, 2).c_str(), NULL) / 60.0 + strtod(LONGITUDE.substr(8, 5).c_str(), NULL) / 3600.0;
   double default_boundaries_lat[12] = {38.146269444444442, 38.151624999999996, 38.151888888888891, 38.150594444444444,\
                                        38.147566666666670, 38.144666666666666, 38.143255555555555, 38.140463888888888,\
                                        38.140719444444443, 38.143761111111111, 38.147347222222223, 38.146130555555558};
-  double default_boundaries_lon[12] = {76.428163888888889, 76.428683333333339, 76.431466666666665, 76.435361111111121,\
-                                       76.432341666666673, 76.432947222222225, 76.434766666666675, 76.432636111111123,\
-                                       76.426013888888889, 76.421205555555559, 76.423211111111115, 76.426652777777790};
+  double default_boundaries_lon[12] = {-76.42816388888888, -76.42868333333333, -76.43146666666666, -76.43536111111112,\
+                                       -76.43234166666667, -76.43294722222222, -76.43476666666667, -76.43263611111112,\
+                                       -76.42601388888888, -76.42120555555555, -76.42321111111111, -76.42665277777779};
 
   for (int i = 0; i < 12; i++)
   {
     phi            = default_boundaries_lat[i];
     lambda         = default_boundaries_lon[i];
-    boundary_point = GPS2NED(phi, lambda, rH);
+    gps_converter.gps2ned(phi, lambda, rH, boundary_point.N, boundary_point.E, boundary_point.D);
 		if (setFirstValues == false)
 		{
 			maxNorth = (boundary_point.N > maxNorth) ? boundary_point.N : maxNorth; // if new N is greater than maxN, set maxN = new N
 			minNorth = (boundary_point.N < minNorth) ? boundary_point.N : minNorth;
-			maxEast = (boundary_point.E > maxEast) ? boundary_point.E : maxEast;
-			minEast = (boundary_point.E < minEast) ? boundary_point.E : minEast;
+			maxEast  = (boundary_point.E > maxEast) ? boundary_point.E : maxEast;
+			minEast  = (boundary_point.E < minEast) ? boundary_point.E : minEast;
 		}
 		else
 		{
 			maxNorth = boundary_point.N;
 			minNorth = boundary_point.N;
-			maxEast = boundary_point.E;
-			minEast = boundary_point.E;
+			maxEast  = boundary_point.E;
+			minEast  = boundary_point.E;
 			setFirstValues = false;
 		}
 		map.boundary_pts.push_back(boundary_point);	// This line puts the boundary points into the map member.
 	}
-	// boundaries_in_file.close();
 
 	// Set up flyZoneCheck()
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv These lines are used to prep the flyZoneCheck() algorithm
@@ -208,7 +182,6 @@ bool mapper::flyZoneCheck(const NED_s NED, const double radius)			// Returns tru
 {
 	return flyZoneCheckMASTER(NED, radius);
 }
-
 bool mapper::flyZoneCheckMASTER(const NED_s NED, const double radius)	// This function sees if the point NED, is at least radius away from any obstacle
 {
 	// First, Check Within the Boundaries
@@ -259,64 +232,5 @@ bool mapper::flyZoneCheckMASTER(const NED_s NED, const double radius)	// This fu
 		if (sqrt(pow(NED.N - map.cylinders[i].N, 2) + pow(NED.E - map.cylinders[i].E, 2)) < map.cylinders[i].R + radius && -NED.D - radius < map.cylinders[i].H)
 			return false;
 	return true; // The coordinate is in the safe zone if it got to here!
-}
-NED_s mapper::GPS2NED_(double phi, double lambda, double h) // Supposedly this one is about 3 times faster... It may be a little less acurate, it uses a taylor series approximation.
-{
-	// Constants
-	double a = 6378137.0;				// length of Earth's semi-major axis in meters
-	double b = 6356752.3142;			// length of Earth's semi-minor axis in meters
-	double e2 = 1. - pow((b / a), 2);	// first numerical eccentricity
-	double chi = sqrt(1 - e2*sin(rPhi)*sin(rPhi));
-
-	// Delta Angles
-	double dphi = rPhi - phi*3.1415926535897932 / 180.0;
-	double dlam = rLam - lambda*3.1415926535897932 / 180.0;
-	double dh = rH - h;
-
-	// Taylor Series Approximation and Rotation
-	NED_s ned;
-	ned.N = -(a*(1. - e2) / pow(chi, 3) + h)*dphi - 1.5*a*cos(rPhi)*sin(rPhi)*e2*pow(dphi, 2) - dh*dphi*pow(sin(rPhi), 2) - .5*sin(rPhi)*cos(rPhi)*(a / chi + rH)*pow(dlam, 2);
-	ned.E = (a / chi + rH)*cos(rPhi)*dlam - (a*(1 - e2) / pow(chi, 3) + rH)*sin(rPhi)*dphi*dlam + cos(rPhi)*dlam*dh;
-	ned.D = -dh + .5*a*(1. - 1.5*e2*pow(cos(rPhi), 2) + 0.5*e2 + h / a)*pow(dphi, 2) + 0.5*(a*cos(rPhi)*cos(rPhi) / chi - rH*cos(rPhi)*cos(rPhi))*pow(dlam, 2);
-	return ned;
-}
-NED_s mapper::GPS2NED(double phi, double lambda, double h)
-{
-	// send in phi (latitude) as an angle in degrees ex.38.14626
-	// send in lambda (longitude) as an angle in degrees ex. 76.42816
-	// both of those are converted into radians
-	// send in h as a altitude (mean sea level) provo = about 1500, maryland = 6.7056
-
-	// rLam is the reference longitude (in RADIANS)
-	// rPhi is the reference latitude (in RADIANS)
-	// The reference angles define where the 0,0,0 point is in the local NED coordinates
-
-	// CONSTANTS
-	double piD180 = 3.1415926535897932 / 180.0;
-	double a = 6378137.0;						// length of Earth's semi-major axis in meters
-	double b = 6356752.3142;					// length of Earth's semi-minor axis in meters
-	double e2 = 1. - pow((b / a), 2);			// first numerical eccentricity
-	double chi = sqrt(1 - e2*sin(rPhi)*sin(rPhi));
-
-	// Convert the incoming angles to radians
-	phi = phi*piD180;
-	lambda = lambda*piD180;
-
-	// Convert the angles into Earth Centered Earth Fixed Reference Frame
-	double x = (a / chi + h)* cos(phi)*cos(lambda);
-	double y = (a / chi + h)* cos(phi)*sin(lambda);
-	double z = (a*(1 - e2) / chi + h)*sin(phi);
-
-	// Find the difference between the point x, y, z to the reference point in ECEF
-	double dx = x - xr;
-	double dy = y - yr;
-	double dz = z - zr;
-
-	// Rotate the point in ECEF to the Local NED
-	NED_s ned;
-	ned.N = (-sin(rPhi)*cos(rLam)*dx) + (-sin(rPhi)*sin(rLam)*dy) +    cos(rPhi)*dz;
-	ned.E =            (sin(rLam)*dx) -            (cos(rLam)*dy)                  ;
-	ned.D = (-cos(rPhi)*cos(rLam)*dx) + (-cos(rPhi)*sin(rLam)*dy) + (-sin(rPhi)*dz);
-	return ned;
 }
 } // end namespace theseus

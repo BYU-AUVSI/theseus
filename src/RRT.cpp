@@ -38,7 +38,7 @@ void RRT::solveStatic(NED_s pos, float chi0)         // This function solves for
   taking_off_ = (-pos.D < input_file_->minFlyHeight);
   if (flyZoneCheck(pos, 5.0) == false)
     ROS_FATAL("Initial Starting position violates a boundary or an obstacle");
-  printRRTSetup();
+  printRRTSetup(pos, chi0);
 	NED_s second2last_post_smoothed;
 	second2last_post_smoothed.N = root_ptrs_[0]->NED.N - cos(chi0);
 	second2last_post_smoothed.E = root_ptrs_[0]->NED.E - sin(chi0);
@@ -59,6 +59,27 @@ void RRT::solveStatic(NED_s pos, float chi0)         // This function solves for
 	}
 	all_wps_[map_.wps.size() - 1].push_back(map_.wps[map_.wps.size() - 1]);	// Add the final waypoint to the waypoint list.
 	computePerformance();
+}
+void RRT::printRRTSetup(NED_s pos, float chi0)
+{
+  // Print initial position
+  ROS_INFO("Initial North: %f, Initial East: %f, Initial Down: %f", pos.N, pos.E, pos.D);
+
+  ROS_INFO("Number of Boundary Points: %lu",  map_.boundary_pts.size());
+  for (long unsigned int i = 0; i < map_.boundary_pts.size(); i++)
+  {
+    ROS_INFO("Boundary: %lu, North: %f, East: %f, Down: %f", i, map_.boundary_pts[i].N, map_.boundary_pts[i].E, map_.boundary_pts[i].D);
+  }
+  ROS_INFO("Number of Waypoints: %lu", map_.wps.size());
+  for (long unsigned int i = 0; i < map_.wps.size(); i++)
+  {
+    ROS_INFO("WP: %lu, North: %f, East: %f, Down: %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
+  }
+  ROS_INFO("Number of Cylinders: %lu", map_.cylinders.size());
+  for (long unsigned int i = 0; i <  map_.cylinders.size(); i++)
+  {
+    ROS_INFO("Cylinder: %lu, North: %f, East: %f, Radius: %f, Height: %f", i, map_.cylinders[i].N, map_.cylinders[i].E, map_.cylinders[i].R,  map_.cylinders[i].H);
+  }
 }
 void RRT::clearForNewPath()
 {
