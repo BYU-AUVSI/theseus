@@ -373,18 +373,6 @@ void RosPathPlanner::displayPath()
   }
   marker_pub_.publish(planned_path_mkr);
   sleep(0.05);
-  for (long unsigned int i = 0; i < rrt_obj_.all_wps_.size(); i++)
-  {
-    for (long unsigned int j = 0; j < rrt_obj_.all_wps_[i].size(); j++)
-    {
-      geometry_msgs::Point p;
-      p.y =  rrt_obj_.all_wps_[i][j].N;
-      p.x =  rrt_obj_.all_wps_[i][j].E;
-      p.z = -rrt_obj_.all_wps_[i][j].D;
-      aWPS_mkr.points.push_back(p);
-      ros::Duration(0.05).sleep();
-    }
-  }
 }
 bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res)
 {

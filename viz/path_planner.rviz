@@ -62,6 +62,7 @@ Visualization Manager:
       Namespaces:
         boundaries: true
         plane_odom: true
+        planned_path: true
         primary_wps: true
         static_obstacle: true
       Queue Size: 100
@@ -82,25 +83,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1705.33484
+      Distance: 2141.14771
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 242.099609
-        Y: 218.249725
-        Z: -64.0878067
+        X: 216.420273
+        Y: 211.473999
+        Z: -82.8933334
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.874796867
+      Pitch: 1.2197963
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 5.16549635
+      Yaw: 4.765522
     Saved: ~
 Window Geometry:
   Displays:

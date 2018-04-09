@@ -79,6 +79,16 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 		map.boundary_pts.push_back(boundary_point);	// This line puts the boundary points into the map member.
 	}
 
+  // gps_converter.set_reference(rPhi, rLam, rH);
+  // for (int i = 0; i < 12; i++)
+  // {
+  //   float N, E, D;
+  //   phi            = default_boundaries_lat[i];
+  //   lambda         = default_boundaries_lon[i];
+  //   gps_converter.ned2gps(phi, lambda, rH, N, boundary_point.E, boundary_point.D);
+	// }
+  // gps_converter.set_reference(rPhi, rLam, rH);
+
 	// Set up flyZoneCheck()
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv These lines are used to prep the flyZoneCheck() algorithm
 	std::vector<double> NminNmaxEminEmax; // Yeah, this is a riduculous name...
