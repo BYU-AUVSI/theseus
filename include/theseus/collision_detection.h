@@ -2,7 +2,10 @@
 #define COLLISION_DETECTION_H
 
 #include <vector>
+#include <algorithm>
+
 #include <theseus/map_s.h>
+#include <theseus/fillet_s.h>
 #include <theseus/param_reader.h>
 
 namespace theseus
@@ -13,6 +16,7 @@ namespace theseus
     CollisionDetection();
     ~CollisionDetection();
     bool CollisionDetection::collisionFillet(NED_s w_im1, NED_s  w_i, NED_s w_ip1, float clearance);
+    bool CollisionDetection::collisionFillet(fillet_s fil);
     bool CollisionDetection::collisionPoint(NED_s point, float clearance);
     void newMap(map_s map_in);
   private:
@@ -29,10 +33,14 @@ namespace theseus
   	double minEast_;                               // Minimum East  coordinate inside the boundaries
   	double minFlyHeight_;                          // Minimum Fly Height (positive value)
   	double maxFlyHeight_;                          // Maximum Fly Height (positive value)
+
+
     bool CollisionDetection::collisionLine(NED_s point_s, NED_s point_e, float clearance);
-    bool CollisionDetection::collisionArc(NED_s);
+    bool CollisionDetection::collisionArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance);
     bool CollisionDetection::collisionClimbAngle(NED_s point_s, NED_s point_e);
-    FilletProperties CollisionDetection::grabFilletProperties(NED_s w_im1, NED_s w_i, NED_s w_ip1);
+
+    bool lineAndPoint2d(NED_s ls, NED_s le, double MinMax[], double Mandb[], NED_s p, double r);
+    bool lineIntersectsArc(double Ni, double Ei, NED_s cp, NED_s ps, NED_s pe, bool ccw);
 
     // Debug print functions
     void printBoundsObstacles();

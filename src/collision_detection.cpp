@@ -16,30 +16,510 @@ CollisionDetection::~CollisionDetection()
     std::vector<double>().swap(line_Mandb_[i]);
   std::vector<std::vector<double> >().swap(line_Mandb_);
 }
-bool CollisionDetection::collisionFillet(NED_s w_im1, NED_s w_i, NED_s w_ip1, float clearance)
+bool CollisionDetection::collisionFillet(NED_s w_im1, NED_s w_i, NED_s w_ip1, float, R, float clearance)
 {
-
+  fillet_s fil;
+  bool good_fillet = fil.calculate(w_im1, w_i, w_ip1, R);
+  if (good_fillet)
+    return collisionFillet(fil, clearance);
+  else
+    return false;
+}
+bool CollisionDetection::collisionFillet(fillet_s fil, float clearance)
+{
+  // check for a collision on the first line, the arc and the second line
+  bool first_line, middle_arc, second_line;
+  first_line  = collisionLine(fil.w_im1, fil.z1, clearance);
+  middle_arc  = collisionArc(fil.z1, fil.z2, fil.R, fil.c, fil.lambda, clearance);
+  second_line = collisionLine(fil.z2, fil.w_ip1, clearance);
+  if (first_line && middle_arc && second_line)
+    return true;
+  else
+    return false;
 }
 bool CollisionDetection::collisionPoint(NED_s point, float clearance)
 {
+  float r = clearance;
+  // This is a more simple version of the collision****() that just checks if the point point is at least radius away from any obstacle.
+	// First, Check Within the Boundaries
+	bool withinBoundaries;
+	// Look at the Point in Polygon Algorithm
+	// Focus on rays South.
+	int crossed_lines = 0;							// This is a counter of the number of lines that the point is NORTH of.
+	double bt, Ei, Ni, de1, de2, shortest_distance;
+	for (unsigned int i = 0; i < nBPts_; i++)
+	{
+		// Find out if the line is either North or South of the line
+		if (point.E >= lineMinMax_[i][2] && point.E < lineMinMax_[i][3]) // Only one equal sign solves both the above/ below a vertice problem and the vertical line problem
+		{
+			if (point.N > line_Mandb_[i][0] * point.E + line_Mandb_[i][1])
+				crossed_lines++;
+			else if (point.N == line_Mandb_[i][0] * point.E + line_Mandb_[i][1])	// On the rare chance that the point is ON the line
+				return false;
+		}
+		// Check to see if it is too close to the boundary lines
+		if (point.E >= lineMinMax_[i][2] - radius && point.E < lineMinMax_[i][3] + radius && point.N >= lineMinMax_[i][0] - radius && point.N < lineMinMax_[i][1] + radius)
+		{
+			bt = point.N - line_Mandb_[i][2] * point.E;
+			Ei = (bt - line_Mandb_[i][1]) / line_Mandb_[i][3];
+			Ni = line_Mandb_[i][2] * Ei + bt;
+			// 3 cases first point, second point, or on the line.
+			// If the intersection is on the line, dl is the shortest distance
+			// Otherwise it is one of the endpoints.
+			if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
+				shortest_distance = sqrtf(powf(Ni - point.N, 2.0f) + powf(Ei - point.E, 2.0f));
+			else
+			{
+				de1 = sqrtf(powf(map_.boundary_pts[i].N - point.N, 2.0f) + powf(map_.boundary_pts[i].E - point.E, 2.0f));
+				de2 = sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - point.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - point.E, 2.0f));
+				shortest_distance = std::min(de1, de2);
+			}
+			if (shortest_distance < radius)
+				return false;
+		}
+	}
+	withinBoundaries = crossed_lines % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
+	if (withinBoundaries == false)
+		return false;
+	// Check to see if the point is within the right fly altitudes
+	if (taking_off_ == false)
+		if (-point.D < minFlyHeight_ + radius || -point.D > maxFlyHeight_ - radius)
+			return false;
 
+	// Second, Check for Cylinders
+	// Check if the point falls into the volume of the cylinder
+	for (unsigned int i = 0; i < map_.cylinders.size(); i++)
+		if (sqrtf(powf(point.N - map_.cylinders[i].N, 2.0f) + powf(point.E - map_.cylinders[i].E, 2.0f)) < map_.cylinders[i].R + radius && -point.D - radius < map_.cylinders[i].H)
+			return false;
+	return true; // The coordinate is in the safe zone if it got to here!
 }
-bool CollisionDetection::collisionLine(NED_s point_s, NED_s point_e, float clearance)
+bool CollisionDetection::collisionLine(NED_s ps, NED_s pe, float clearance)
 {
+  // Determines if a line conn ps and pe gets within clearance of any obstacle or boundary
+	// Preliminary Calculations about the line connecting ps and pe
+  double pathMinMax[4];
+	double path_Mandb[4];
+	pathMinMax[0] = std::min(ps.N, pe.N);
+	pathMinMax[1] = std::max(ps.N, pe.N);
+	pathMinMax[2] = std::min(ps.E, pe.E);
+	pathMinMax[3] = std::max(ps.E, pe.E);
+	path_Mandb[0] = (pe.N - ps.N) / (pe.E - ps.E);
+	path_Mandb[1] = pe.N - path_Mandb[0] * pe.E;
+	path_Mandb[2] = -1.0 / path_Mandb[0];
+	path_Mandb[3] = path_Mandb[0] - path_Mandb[2];
+	double Ei, Ni;
 
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Boundary Lines vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	bool withinBoundaries_ps, withinBoundaries_pe;
+	int crossed_lines_ps(0), crossed_lines_pe(0);	// This is a counter of the number of lines that the point is NORTH of.
+	for (unsigned int i = 0; i < nBPts_; i++)
+	{
+		// vvvvvvvvvvvvvvvv Ray Casting, count how many crosses south vvvvvvvvvvvvvvvv
+		if (ps.E >= lineMinMax_[i][2] && ps.E < lineMinMax_[i][3])
+		{
+			if (ps.N > line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
+				crossed_lines_ps++;
+			else if (ps.N == line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
+        return false;
+		}
+		if (pe.E >= lineMinMax_[i][2] && pe.E < lineMinMax_[i][3])
+		{
+			if (pe.N > line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
+				crossed_lines_pe++;
+			else if (pe.N == line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
+        return false;
+		}
+		// ^^^^^^^^^^^^^^^^ Ray Casting, count how many crosses south ^^^^^^^^^^^^^^^^
+
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvv Check if any point on the line gets too close to the boundary vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		// Check distance between each endpoint
+		if (sqrtf(powf(ps.N - map_.boundary_pts[i].N, 2.0f) + powf(ps.E - map_.boundary_pts[i].E, 2.0f) < clearance))
+      return false;
+		if (sqrtf(powf(pe.N - map_.boundary_pts[i].N, 2.0f) + powf(pe.E - map_.boundary_pts[i].E, 2.0f) < clearance))
+      return false;
+		// Check if they intersect
+		if (line_Mandb_[i][0] != path_Mandb[0])
+		{
+			Ei = (path_Mandb[1] - line_Mandb_[i][1]) / (line_Mandb_[i][0] - path_Mandb[0]);
+			Ni = line_Mandb_[i][0] * Ei + line_Mandb_[i][1];
+			if (Ni > pathMinMax[0] && Ni < pathMinMax[1])
+				if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1])
+          return false;
+		}
+		// Check distance from bl to each path end point
+		bool lp_cleared;
+		double lMinMax[4], l_Mandb[4];
+		lMinMax[0] = lineMinMax_[i][0];
+		lMinMax[1] = lineMinMax_[i][1];
+		lMinMax[2] = lineMinMax_[i][2];
+		lMinMax[3] = lineMinMax_[i][3];
+		l_Mandb[0] = line_Mandb_[i][0];
+		l_Mandb[1] = line_Mandb_[i][1];
+		l_Mandb[2] = line_Mandb_[i][2];
+		l_Mandb[3] = line_Mandb_[i][3];
+		lp_cleared = lineAndPoint2d(map_.boundary_pts[i], map_.boundary_pts[(i + 1) % nBPts_], lMinMax, l_Mandb, ps, clearance);
+		if (lp_cleared == false)
+      return false;
+		lp_cleared = lineAndPoint2d(map_.boundary_pts[i], map_.boundary_pts[(i + 1) % nBPts_], lMinMax, l_Mandb, pe, clearance);
+		if (lp_cleared == false)
+      return false;
+		// Check distance from pl to each boundary end point
+		lp_cleared = lineAndPoint2d(ps, pe, pathMinMax, path_Mandb, map_.boundary_pts[i], clearance);
+		if (lp_cleared == false)
+      return false;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check if any point on the line gets too close to the boundary ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	}
+
+	// vvvvvvvvvvvvvvvv Finish up checking if the end points were both inside the boundary (ray casting) vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	withinBoundaries_ps = crossed_lines_ps % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
+	withinBoundaries_pe = crossed_lines_pe % 2;
+	if (withinBoundaries_ps == false || withinBoundaries_pe == false)
+    return false;
+	// ^^^^^^^^^^^^^^^^ Finish up checking if the end points were both inside the boundary (ray casting) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+	// vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
+	if (taking_off_ == false)
+	{
+		if (-ps.D < minFlyHeight_ + clearance || -ps.D > maxFlyHeight_ - clearance)
+      return false;
+		if (-pe.D < minFlyHeight_ + clearance || -pe.D > maxFlyHeight_ - clearance)
+      return false;
+	}
+	// vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
+
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Boundary Lines ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Cylinder Obstacles vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	bool clearThisCylinder;
+	NED_s cylinderPoint;
+	for (unsigned int i = 0; i < map_.cylinders.size(); i++)
+	{
+		cylinderPoint.N = map_.cylinders[i].N;
+		cylinderPoint.E = map_.cylinders[i].E;
+		cylinderPoint.D = -map_.cylinders[i].H;
+		clearThisCylinder = lineAndPoint2d(ps, pe, pathMinMax, path_Mandb, cylinderPoint, map_.cylinders[i].R + clearance);
+
+		// Note that if the above is true, this check does not need to be performed.
+		if (clearThisCylinder == false)
+		{
+			double dD = (pe.D - ps.D) / sqrtf(powf(ps.N - pe.N, 2.0f) + powf(ps.E - pe.E, 2.0f));
+			double bt = cylinderPoint.N - path_Mandb[2] * cylinderPoint.E;
+			Ei = (bt - path_Mandb[1]) / (path_Mandb[3]);
+			Ni = path_Mandb[2] * Ei + bt;
+			double bigLength = sqrtf(powf(map_.cylinders[i].R + r, 2.0f) - powf(Ni - cylinderPoint.N, 2.0f) - powf(Ei - cylinderPoint.E, 2.0f)); // What is bigLength????
+			double d2cyl;
+			// Check to see if the path is above the cylinder height or into the cylinder
+			if (sqrtf(powf(ps.N - cylinderPoint.N, 2.0f) + powf(ps.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance && sqrtf(powf(pe.N - cylinderPoint.N, 2.0f) + powf(pe.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance)
+			{// if BOTH of the endpoints is within the 2d cylinder
+				if (-ps.D < map_.cylinders[i].H + clearance)
+          return false;
+				if (-ps.D < map_.cylinders[i].H + clearance)
+          return false;
+			}
+			else
+			{// if at least one waypoint is outside of the 2d cylinder
+				if (sqrtf(powf(ps.N - cylinderPoint.N, 2.0f) + powf(ps.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance)
+				{// if the starting point is within the 2d cylinder
+					if (-ps.D < map_.cylinders[i].H + clearance)
+            return false;
+					// else (check to see if the line that intersects the cylinder is in or out)
+					double smallLength = sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
+					if (Ni > pathMinMax[0] && Ni < pathMinMax[1] && Ei > pathMinMax[2] && Ei < pathMinMax[3])
+						d2cyl = bigLength + smallLength;
+					else
+						d2cyl = bigLength - smallLength;
+					if (-(dD*d2cyl + ps.D) < map_.cylinders[i].H + clearance)
+            return false;
+				}
+				else if (sqrtf(powf(pe.N - cylinderPoint.N, 2.0f) + powf(pe.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance)
+				{// if the ending point is within the 2d cylinder
+					if (-pe.D < map_.cylinders[i].H + clearance)
+            return false;
+					// else check to see if the line that intersects the cylinder is in or out
+					double smallLength = sqrtf(powf(Ni - pe.N, 2.0f) + powf(Ei - pe.E, 2.0f));
+					if (Ni > pathMinMax[0] && Ni < pathMinMax[1] && Ei > pathMinMax[2] && Ei < pathMinMax[3])
+						d2cyl = bigLength + smallLength;
+					else
+						d2cyl = bigLength - smallLength;
+					if (-(-dD*d2cyl + pe.D) < map_.cylinders[i].H + clearance)
+            return false;
+				}
+				// Now check the two intersection points
+				else
+				{
+					// Calculate the intersection point of the line and the perpendicular line connecting the point
+					double d_from_cyl2inter = sqrtf(powf(cylinderPoint.N - Ni, 2.0f) + powf(cylinderPoint.E - Ei, 2.0f));
+					double daway_from_int = sqrtf(powf(clearance + map_.cylinders[i].R, 2.0f) - powf(d_from_cyl2inter, 2.0f)); // WHAT IS THIS?
+
+					// Now test the height at int +- daway_from_int;
+					double land_D_ps2i = sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
+					double deltaD = dD*sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
+
+					double Di = ps.D + dD*sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
+
+					double height1 = -(Di + dD*daway_from_int);
+					double height2 = -(Di - dD*daway_from_int);
+
+					if (-(Di + dD*daway_from_int) < map_.cylinders[i].H + clearance)
+            return false;
+					if (-(Di - dD*daway_from_int) < map_.cylinders[i].H + clearance)
+            return false;
+					if (-Di < map_.cylinders[i].H + clearance)
+            return false;
+				}
+			}
+			clearThisCylinder = true;
+		}
+		if (clearThisCylinder == false)
+      return false;
+	}
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Cylinder Obstacles ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  return true; // The line is in the safe zone if it got to here!
 }
-bool CollisionDetection::collisionArc(NED_s)
+bool CollisionDetection::collisionArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance)
 {
+  float r  = clearance;
+  bool ccw = lambda < 0 ? true : false;
+  float aradius = R;
 
+  // Determines if arc gets within r of an obstacle
+  // Preliminary Calculations about the arc connecting ps and pe
+  double Ei, Ni;
+  //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+  //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Boundary Lines vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+  bool withinBoundaries_ps, withinBoundaries_pe;
+  int crossed_lines_ps(0), crossed_lines_pe(0);	// This is a counter of the number of lines that the point is NORTH of.
+  for (unsigned int i = 0; i < nBPts_; i++)
+  {
+  	// vvvvvvvvvvvvvvvv Ray Casting, count how many crosses south vvvvvvvvvvvvvvvv
+  	if (ps.E >= lineMinMax_[i][2] && ps.E < lineMinMax_[i][3])
+  	{
+  		if (ps.N > line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
+  			crossed_lines_ps++;
+  		else if (ps.N == line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
+  			return false;
+  	}
+  	if (pe.E >= lineMinMax_[i][2] && pe.E < lineMinMax_[i][3])
+  	{
+  		if (pe.N > line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
+  			crossed_lines_pe++;
+  		else if (pe.N == line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
+  			return false;
+  	}
+  	// ^^^^^^^^^^^^^^^^ Ray Casting, count how many crosses south ^^^^^^^^^^^^^^^^
+
+  	//vvvvvvvvvvvvvvvvvvvvvvvvvvvv Check if any point on the line gets too close to the boundary vvvvvvvvvvvvvvvvvvvvvvvvvvvv
+  	if (cp.E >= lineMinMax_[i][2] - r - aradius && cp.E <= lineMinMax_[i][3] + r + aradius && cp.N >= lineMinMax_[i][0] - r - aradius && cp.N <= lineMinMax_[i][1] + r + aradius)
+  	{
+  		double bt;
+  		// Calculate the intersection point of the line and the perpendicular line connecting the point
+  		bt = cp.N - line_Mandb_[i][2] * cp.E;
+  		Ei = (bt - line_Mandb_[i][1]) / (line_Mandb_[i][3]);
+  		Ni = line_Mandb_[i][2] * Ei + bt;
+  		if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
+  		{
+  			// a dot b = A*B*cos(theta)
+  			if (lineIntersectsArc(Ni, Ei, cp, ps, pe, ccw))
+  			{
+  				if (sqrtf(powf(Ni - cp.N, 2.0f) + powf(Ei - cp.E, 2.0f)) - aradius < r)
+  				{
+  					return false;
+  				}
+  			}
+  			else
+  			{
+  				bt = ps.N - line_Mandb_[i][2] * ps.E;
+  				Ei = (bt - line_Mandb_[i][1]) / (line_Mandb_[i][3]);
+  				Ni = line_Mandb_[i][2] * Ei + bt;
+  				if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
+  				{
+  					if (sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f)) < r)
+  					{
+  						return false;
+  					}
+  				}
+  				else if (sqrtf(powf(map_.boundary_pts[i].N - ps.N, 2.0f) + powf(map_.boundary_pts[i].E - ps.E, 2.0f)) < r)
+  				{
+  					return false;
+  				}
+  				else if (sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - ps.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - ps.E, 2.0f)) < r) { return false; }
+  				bt = pe.N - line_Mandb_[i][2] * pe.E;
+  				Ei = (bt - line_Mandb_[i][1]) / (line_Mandb_[i][3]);
+  				Ni = line_Mandb_[i][2] * Ei + bt;
+  				if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
+  				{
+  					if (sqrtf(powf(Ni - pe.N, 2.0f) + powf(Ei - pe.E, 2.0f)) < r)
+  					{
+  						return false;
+  					}
+  				}
+  				else if (sqrtf(powf(map_.boundary_pts[i].N - pe.N, 2.0f) + powf(map_.boundary_pts[i].E - pe.E, 2.0f)) < r)
+  				{
+  					return false;
+  				}
+  				//else if (sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - pe.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - pe.E, 2.0f)) < r) { return false; }
+  			}
+  		}
+  		else
+  		{
+  			if (lineIntersectsArc(map_.boundary_pts[i].N, map_.boundary_pts[i].E, cp, ps, pe, ccw))
+  			{
+  				if (sqrtf(powf(map_.boundary_pts[i].N - cp.N, 2.0f) + powf(map_.boundary_pts[i].E - cp.E, 2.0f)) - aradius < r)
+  				{
+  					return false;
+  				}
+  			}
+  			//if (lineIntersectsArc(map_.boundary_pts[(i + 1) % nBPts_].N, map_.boundary_pts[(i + 1) % nBPts_].E, cp, ps, pe, ccw))
+  			//{
+  			//	if (sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - cp.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - cp.E, 2.0f)) - aradius < r) { return false; }
+  			//}
+  			if (sqrtf(powf(map_.boundary_pts[i].N - ps.N, 2.0f) + powf(map_.boundary_pts[i].E - ps.E, 2.0f)) - aradius < r)
+  			{
+  				return false;
+  			}
+  			if (sqrtf(powf(map_.boundary_pts[i].N - pe.N, 2.0f) + powf(map_.boundary_pts[i].E - pe.E, 2.0f)) - aradius < r)
+  			{
+  				return false;
+  			}
+  			//if (sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - ps.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - ps.E, 2.0f)) - aradius < r) { return false; }
+  			//if (sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - pe.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - pe.E, 2.0f)) - aradius < r) { return false; }
+  		}
+  	}
+  	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check if any point on the line gets too close to the boundary ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  }
+  // vvvvvvvvvvvvvvvv Finish up checking if the end points were both inside the boundary (ray casting) vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+  withinBoundaries_ps = crossed_lines_ps % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
+  withinBoundaries_pe = crossed_lines_pe % 2;
+  if (withinBoundaries_ps == false || withinBoundaries_pe == false)
+  	return false;
+  // ^^^^^^^^^^^^^^^^ Finish up checking if the end points were both inside the boundary (ray casting) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  // vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
+  if (is3D_ && taking_off_ == false)
+  {
+  	if (-ps.D < minFlyHeight_ + r || -ps.D > maxFlyHeight_ - r)
+  		return false;
+  	if (-pe.D < minFlyHeight_ + r || -pe.D > maxFlyHeight_ - r)
+  		return false;
+  }
+  // vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
+
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Boundary Lines ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+  //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Cylinder Obstacles vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+  bool clearThisCylinder;
+  for (unsigned int i = 0; i < map_.cylinders.size(); i++)
+  {
+  	if (sqrtf(powf(map_.cylinders[i].N - cp.N, 2.0f) + powf(map_.cylinders[i].E - cp.E, 2.0f)) > r + aradius + map_.cylinders[i].R)
+  		clearThisCylinder = true;
+  	else if (lineIntersectsArc(map_.cylinders[i].N, map_.cylinders[i].E, cp, ps, pe, ccw))
+  	{
+  		if (sqrtf(powf(map_.cylinders[i].N - cp.N, 2.0f) + powf(map_.cylinders[i].E - cp.E, 2.0f)) - aradius - map_.cylinders[i].R < r)
+  		{
+  			clearThisCylinder = false;
+  		}
+  	}
+  	else
+  	{
+  		if (sqrtf(powf(map_.cylinders[i].N - ps.N, 2.0f) + powf(map_.cylinders[i].E - ps.E, 2.0f)) - map_.cylinders[i].R < r)
+  		{
+  			clearThisCylinder = false;
+  		}
+  		else if (sqrtf(powf(map_.cylinders[i].N - pe.N, 2.0f) + powf(map_.cylinders[i].E - pe.E, 2.0f)) - map_.cylinders[i].R < r)
+  		{
+  			clearThisCylinder = false;
+  		}
+  		else { clearThisCylinder = true; }
+  	}
+  	if (is3D_ && clearThisCylinder == false)
+  	{
+  		if (ps.D < -map_.cylinders[i].H - r && pe.D < -map_.cylinders[i].H - r)
+  			clearThisCylinder = true;
+  	}
+  	if (clearThisCylinder == false)
+  		return false;
+  }
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Cylinder Obstacles ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  return true; // The arc is in the safe zone if it got to here!
 }
-bool CollisionDetection::collisionClimbAngle(NED_s point_s, NED_s point_e)
+bool CollisionDetection::collisionClimbAngle(NED_s beg, NED_s en)
 {
-
+  float slope = atan2f(-1.0f*(en.D - beg.D), sqrtf(powf(beg.N - en.N, 2.0f) + powf(beg.E - en.E, 2.0f)));
+  if (slope < -1.0*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
+    return false;
+  return true;
 }
-FilletProperties CollisionDetection::grabFilletProperties(NED_s w_im1, NED_s w_i, NED_s w_ip1)
+
+bool CollisionDetection::lineAndPoint2d(NED_s ls, NED_s le, float MinMax[], float Mandb[], NED_s p, float r)
 {
+	// This function is used a lot by the collisionLine.
+	// It checks to see if the point p is at least r away from the line segment connecting ls and le. 2 Dimensional Projection
+	// This function is pretty important to have right.
+	float bt, Ei, Ni, shortest_distance, de1, de2;
+	// If the point is close enough to even consider calculating - if it is far away, it is clear.
+	if (p.E >= MinMax[2] - r && p.E <= MinMax[3] + r && p.N >= MinMax[0] - r && p.N <= MinMax[1] + r)
+	{
+		// Calculate the intersection point of the line and the perpendicular line connecting the point
+		bt = p.N - Mandb[2] * p.E;
+		Ei = (bt - Mandb[1]) / (Mandb[3]);
+		Ni = Mandb[2] * Ei + bt;
 
+		// Find the distance between the point and the line segment
+		// 3 cases. Closest point will be the first point(line beginning), second point (line ending), or on the line.
+		// If the intersection is on the line, dl is the shortest distance
+		// Otherwise it is one of the endpoints.
+		if (Ni > MinMax[0] && Ni < MinMax[1] && Ei > MinMax[2] && Ei < MinMax[3])
+			shortest_distance = sqrtf(powf(Ni - p.N, 2.0f) + powf(Ei - p.E, 2.0f));
+		else
+		{
+			de1 = sqrtf(powf(ls.N - p.N, 2.0f) + powf(ls.E - p.E, 2.0f));
+			de2 = sqrtf(powf(le.N - p.N, 2.0f) + powf(le.E - p.E, 2.0f));
+			shortest_distance = std::min(de1, de2);
+		}
+		if (shortest_distance < r)
+			return false;
+	}
+	return true;	// It is at least r away from the line if it got to here.
 }
+bool CollisionDetection::lineIntersectsArc(float Ni, float Ei, NED_s cp, NED_s ps, NED_s pe, bool ccw)
+{
+	// Find angle from cp to ps
+	float aC2s = atan2f(ps.N - cp.N, ps.E - cp.E);
+	// Find angle from cp to pe
+	float aC2e = atan2f(pe.N - cp.N, pe.E - cp.E);
+	// Find angle from cp to Ni, Ei
+	float aC2i = atan2f(Ni - cp.N, Ei - cp.E);
+	// Do they overlap?
+	if (ccw)
+	{
+		if (aC2i >= aC2s && aC2i <= aC2e)
+			return true;
+		else if (aC2s > aC2e)
+		{
+			if ((aC2i >= aC2s || aC2i <= aC2e))
+				return true;
+		}
+	}
+	else
+	{
+		if (aC2i <= aC2s && aC2i >= aC2e)
+			return true;
+		else if (aC2e > aC2s)
+		{
+			if (aC2i <= aC2s || aC2i >= aC2e)
+				return true;
+		}
+	}
+	return false;
+}
+
 void CollisionDetection::newMap(map_s map_in)
 {
   for (unsigned int i = 0; i < lineMinMax_.size(); i++)
@@ -102,8 +582,6 @@ void CollisionDetection::newMap(map_s map_in)
 	}
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ These lines are used to set up the flyZoneCheck() algorithm.s
 }
-
-
 
 // Debug print functions
 void CollisionDetection::printBoundsObstacles()
