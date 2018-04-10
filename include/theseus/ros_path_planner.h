@@ -40,13 +40,14 @@ private:
   ros::ServiceServer path_solver_service_;
   ros::ServiceServer new_map_service_;
   ros::ServiceServer send_wps_service_;
+  ros::ServiceServer replot_map_service_;
   RRT_input rrt_i_;
   map_s myWorld_;
   std::vector<std::vector<double> > filletMavPath(std::vector<double>, std::vector<double>, std::vector<double>,\
                                                   std::vector<double>, std::vector<double>, std::vector<double>);
- std::vector<std::vector<double> > filletPath(std::vector<double> x_path_data,\
-                                              std::vector<double> y_path_data,\
-                                              std::vector<double> d_path_data);
+  std::vector<std::vector<double> > filletPath(std::vector<double> x_path_data,\
+                                               std::vector<double> y_path_data,\
+                                               std::vector<double> d_path_data);
   std::vector<std::vector<double > > arc(double N, double E, double r, double aS, double aE);
   void stateCallback(const rosplane_msgs::State &msg);
 public:
@@ -73,6 +74,7 @@ private:
 public:
   bool solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
   void displayPath();
   void displayMap();

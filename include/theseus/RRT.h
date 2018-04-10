@@ -26,7 +26,7 @@ struct RRT_input
 	int path_type;        // Path type from the parent, 0 = straight line, 1 = fillet, 2 = dubins
 	RRT_input()           // Struct constructor, pust the default values here.
 	{
-		D              = 25;
+		D              = 100.0;
 		uniform2P      = false;
 		gaussianD      = false;
 		gaussianSTD    = 15;
@@ -42,7 +42,7 @@ public:
 	RRT(map_s map_in, unsigned int seed, ParamReader *input_file_in, RRT_input RRT_options);		// Constructor - input the terrain map and the random generator seed
 	RRT();
   ~RRT();  // Deconstructor - deletes the tree
-	void solveStatic(NED_s pos, float chi0);             // Solves the static path
+	void solveStatic(NED_s pos, float chi0, bool direct_hit);             // Solves the static path
   void newMap(map_s map_in);               // creates a new map
   void newSeed(unsigned int seed);
   std::vector<std::vector<NED_s> > all_wps_; // final path waypoints
@@ -53,7 +53,7 @@ private:
 		std::vector<node*> children; // Vector of all of the children nodes
 		node* parent;                // Pointer to the parent of this node
 		double distance;             // Distance from this node to its parent
-		int path_type;               // Path type from the parent, 0 = straight line, 1 = fillet, 2 = dubins
+		int path_type;               // Path type from the parent, 1 = fillet
 		double available_dist;       // This is the distance from the parent to this node that is linear
 		NED_s line_start;            // This is where the line starts to get to this node
 	};
@@ -78,14 +78,14 @@ private:
   void clearTree();                  // Clear the entire tree
 	void clearNode(node*);             // Recursively clear the nodes
   bool checkFillet(NED_s par, NED_s mid, NED_s nex, double avail_dis, double* din, double* cangle, NED_s* line_start);	// Check to see if the fillet connecting lines clears the obstacles and boundary lines.
-	bool checkCreateFan(NED_s primary_wp, NED_s coming_from, node* next_root); // This function checks to see if a fan can be created, and it also creates it.
+	bool checkCreateFan(NED_s primary_wp, NED_s coming_from, node* next_root, bool direct_hit); // This function checks to see if a fan can be created, and it also creates it.
 	bool checkDirectFan(NED_s second_wp, NED_s primary_wp, NED_s coming_from, node* next_root, NED_s* cea_out, double* din, double* anglin); // Check and create a direct round to straight path.
 	bool checkSlope(NED_s beg, NED_s en);
 	bool checkMaxSlope(NED_s beg, NED_s en);
 	void initializeTree(NED_s pos);
-	bool directConnection(unsigned int i, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool* direct_shot);  // This function checks to see if there is a direct connection to the next waypoint
-	void developTree(unsigned int i, bool reached_next_wp, node* second2last, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle); // Develops the tree
-	void smoother(bool skip_smoother, unsigned int i, double* distance_in, double* fillet_angle, NED_s* second2last_post_smoothed, bool direct_shot);
+	bool directConnection(unsigned int i, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool* direct_shot, bool direct_hit);  // This function checks to see if there is a direct connection to the next waypoint
+	void developTree(unsigned int i, bool reached_next_wp, node* second2last, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool direct_hit); // Develops the tree
+	void smoother(bool skip_smoother, unsigned int i, double* distance_in, double* fillet_angle, NED_s* second2last_post_smoothed, bool direct_shot, bool direct_hit);
 	void calcPathDistance(unsigned int i);
   void clearForNewPath();
   void clearForNewMap();
@@ -110,6 +110,7 @@ private:
   std::vector<node*> root_ptrs_;                 // Vector of all roots, each element is the start of the tree to reach the next primary waypoint
   node *closest_node_;                           // This is a variable that is used to find the closest node - if it is in here there are no memory leaks.
   node *closest_node_gchild_;                    // This is a variable that is the closest node off of a grandchild tree.
+  NED_s line_start_last_wp_;                     // Special variable that needs to be set becasue there isn't a root_ptr for the last waypoint
   double total_path_length_;                     // Total path length
   int total_nWPS_;                               // Total number of waypoints
   unsigned int nBPts_;                           // Number of boundary points

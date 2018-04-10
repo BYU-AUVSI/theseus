@@ -30,7 +30,7 @@ RRT::~RRT()
 	deleteTree();                          // Delete all of those tree pointer nodes
 	std::vector<node*>().swap(root_ptrs_); // Free the memory of the vector.
 }
-void RRT::solveStatic(NED_s pos, float chi0)         // This function solves for a path in between the waypoinnts (2 Dimensional)
+void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
   ROS_WARN("STARTING SOLVER");
   clearForNewPath();
@@ -38,7 +38,7 @@ void RRT::solveStatic(NED_s pos, float chi0)         // This function solves for
   taking_off_ = (-pos.D < input_file_->minFlyHeight);
   if (flyZoneCheck(pos, 5.0) == false)
     ROS_FATAL("Initial Starting position violates a boundary or an obstacle");
-  printRRTSetup(pos, chi0);
+  // printRRTSetup(pos, chi0);
 	NED_s second2last_post_smoothed;
 	second2last_post_smoothed.N = root_ptrs_[0]->NED.N - cos(chi0);
 	second2last_post_smoothed.E = root_ptrs_[0]->NED.E - sin(chi0);
@@ -50,11 +50,11 @@ void RRT::solveStatic(NED_s pos, float chi0)         // This function solves for
 		node *second2last = root_ptrs_[i];					// This will be set as the second to last waypoint
 		double distance_in, fillet_angle;
 		bool direct_shot = false;
-		bool direct_connect = directConnection(i, &second2last_post_smoothed, &distance_in, &fillet_angle, &direct_shot);   //******* IMPORTANT
+		bool direct_connect = directConnection(i, &second2last_post_smoothed, &distance_in, &fillet_angle, &direct_shot, direct_hit);   //******* IMPORTANT
 		if (direct_connect)
 			second2last = closest_node_;
-		developTree(i, direct_connect,second2last,&second2last_post_smoothed,&distance_in,&fillet_angle);                   //******* IMPORTANT
-		smoother(direct_connect, i, &distance_in, &fillet_angle, &second2last_post_smoothed, direct_shot);                  //******* IMPORTANT
+		developTree(i, direct_connect,second2last,&second2last_post_smoothed,&distance_in,&fillet_angle, direct_hit);                   //******* IMPORTANT
+		smoother(direct_connect, i, &distance_in, &fillet_angle, &second2last_post_smoothed, direct_shot, direct_hit);                  //******* IMPORTANT
 		calcPathDistance(i);
 	}
 	all_wps_[map_.wps.size() - 1].push_back(map_.wps[map_.wps.size() - 1]);	// Add the final waypoint to the waypoint list.
@@ -221,7 +221,7 @@ bool RRT::checkDirectFan(NED_s second_wp, NED_s primary_wp, NED_s coming_from, n
 	*anglin = 2.0*zeta;
 	return found_at_least_1_good_path;
 }
-bool RRT::checkCreateFan(NED_s primary_wp, NED_s coming_from, node* next_root)
+bool RRT::checkCreateFan(NED_s primary_wp, NED_s coming_from, node* next_root, bool direct_hit)
 {
 	bool found_at_least_1_good_path = false;
 	// Make sure that it is possible to go to the next waypoint
@@ -268,23 +268,26 @@ bool RRT::checkCreateFan(NED_s primary_wp, NED_s coming_from, node* next_root)
 			{
 				// Looks like things are going to work out for this maneuver!
 				found_at_least_1_good_path = true;
-				node *fake_child = new node;
-				node *normal_gchild = new node;
-				fake_child->NED = fake_wp;
-				fake_child->available_dist = 0;
-				fake_child->parent = next_root;
-				fake_child->distance = 2.0*zeta*input_file_->turn_radius;
-				fake_child->path_type = 1;
-				fake_child->line_start = next_root->NED;
-				next_root->children.push_back(fake_child);
+        if (direct_hit)
+        {
+  				node *fake_child = new node;
+  				node *normal_gchild = new node;
+  				fake_child->NED = fake_wp;
+  				fake_child->available_dist = 0;
+  				fake_child->parent = next_root;
+  				fake_child->distance = 2.0*zeta*input_file_->turn_radius;
+  				fake_child->path_type = 1;
+  				fake_child->line_start = next_root->NED;
+  				next_root->children.push_back(fake_child);
 
-				normal_gchild->NED = lea;
-				normal_gchild->available_dist = sqrt(R*(R - input_file_->turn_radius*sin(lambda) / sin(beta)));
-				normal_gchild->parent = fake_child;
-				normal_gchild->distance = normal_gchild->available_dist;
-				normal_gchild->path_type = 1;
-				normal_gchild->line_start = cea;
-				fake_child->children.push_back(normal_gchild);
+  				normal_gchild->NED = lea;
+  				normal_gchild->available_dist = sqrt(R*(R - input_file_->turn_radius*sin(lambda) / sin(beta)));
+  				normal_gchild->parent = fake_child;
+  				normal_gchild->distance = normal_gchild->available_dist;
+  				normal_gchild->path_type = 1;
+  				normal_gchild->line_start = cea;
+  				fake_child->children.push_back(normal_gchild);
+        }
 			}
 		// Check the negative side
 		cpa.N = primary_wp.N - input_file_->turn_radius*cos(approach_angle);
@@ -304,23 +307,26 @@ bool RRT::checkCreateFan(NED_s primary_wp, NED_s coming_from, node* next_root)
 			{
 				// Looks like things are going to work out for this maneuver!
 				found_at_least_1_good_path = true;
-				node *fake_child = new node;
-				node *normal_gchild = new node;
-				fake_child->NED = fake_wp;
-				fake_child->available_dist = 0;
-				fake_child->parent = next_root;
-				fake_child->distance = 2.0*zeta*input_file_->turn_radius;
-				fake_child->path_type = 1;
-				fake_child->line_start = next_root->NED;
-				next_root->children.push_back(fake_child);
+        if (direct_hit)
+        {
+  				node *fake_child = new node;
+  				node *normal_gchild = new node;
+  				fake_child->NED = fake_wp;
+  				fake_child->available_dist = 0;
+  				fake_child->parent = next_root;
+  				fake_child->distance = 2.0*zeta*input_file_->turn_radius;
+  				fake_child->path_type = 1;
+  				fake_child->line_start = next_root->NED;
+  				next_root->children.push_back(fake_child);
 
-				normal_gchild->NED = lea;
-				normal_gchild->available_dist = sqrt(R*(R - input_file_->turn_radius*sin(lambda) / sin(beta)));
-				normal_gchild->parent = fake_child;
-				normal_gchild->distance = normal_gchild->available_dist;
-				normal_gchild->path_type = 1;
-				normal_gchild->line_start = cea;
-				fake_child->children.push_back(normal_gchild);
+  				normal_gchild->NED = lea;
+  				normal_gchild->available_dist = sqrt(R*(R - input_file_->turn_radius*sin(lambda) / sin(beta)));
+  				normal_gchild->parent = fake_child;
+  				normal_gchild->distance = normal_gchild->available_dist;
+  				normal_gchild->path_type = 1;
+  				normal_gchild->line_start = cea;
+  				fake_child->children.push_back(normal_gchild);
+        }
 			}
 	}
 	return found_at_least_1_good_path;
@@ -370,6 +376,7 @@ bool RRT::checkFillet(NED_s par, NED_s mid, NED_s nex, double avail_dis, double*
 		cp.D = mid.D;
 		if (flyZoneCheck(ps, pe, turn_radius, cp, clearance_, ccw) == false)
 			found_feasible_link = false;
+    ROS_INFO("pe N %f, E %f, D %f", pe.N, pe.E, pe.D);
 		*line_start = pe;
 	}
 	*din = distance_in;
@@ -411,7 +418,7 @@ void RRT::initializeTree(NED_s pos)
   unsigned int i = map_.wps.size() - 1;
   ROS_INFO("Waypoint %i, North: %f, East %f Down: %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
 }
-bool RRT::directConnection(unsigned int i, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool* direct_shot)
+bool RRT::directConnection(unsigned int i, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool* direct_shot, bool direct_hit)
 {
 	// Variables created for this chuck of code in a function
 	bool reached_next_wp = false;
@@ -442,6 +449,7 @@ bool RRT::directConnection(unsigned int i, NED_s* second2last_post_smoothed, dou
 		if (reached_next_wp)
 			reached_next_wp = checkSlope(root->line_start, map_.wps[i]);
 		line_start = root->NED;
+    ROS_INFO("1 N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
 	}
 	else
 	{
@@ -454,8 +462,10 @@ bool RRT::directConnection(unsigned int i, NED_s* second2last_post_smoothed, dou
 		if (i <= map_.wps.size() - 1 && checkDirectFan(map_.wps[i], root->NED, *second2last_post_smoothed, root, &cea, distance_in, fillet_angle))
 		{
 			line_start = cea;
+      ROS_INFO("2 N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
 			if (checkSlope(line_start, map_.wps[i]))
 			{
+        ROS_INFO("reached_next_wp = true");
 				closest_node_ = root->children[root->children.size() - 1];
 				found_clean_path = true;
 				*direct_shot = true;
@@ -482,17 +492,28 @@ bool RRT::directConnection(unsigned int i, NED_s* second2last_post_smoothed, dou
 			coming_from = closest_node_->NED;
 			reached_next_wp = flyZoneCheck(coming_from, map_.wps[i], clearance_);
 			if (reached_next_wp && checkFillet(closest_node_->parent->NED, closest_node_->NED, map_.wps[i], closest_node_->available_dist, distance_in, fillet_angle, &line_start))
-				reached_next_wp = checkSlope(line_start, map_.wps[i]);
+			{
+        ROS_INFO("3 N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
+        reached_next_wp = checkSlope(line_start, map_.wps[i]);
+      }
+      else
+        reached_next_wp = false;
 		}
 	}
 	if (reached_next_wp == true && i < map_.wps.size() - 1) // This if statement handles setting waypoints to fly out of the primary waypoints.
-		if (checkCreateFan(map_.wps[i], coming_from, root_ptrs_[i + 1]) == false)
+		if (checkCreateFan(map_.wps[i], coming_from, root_ptrs_[i + 1], direct_hit) == false)
 			reached_next_wp = false;
 	if (reached_next_wp && i + 1 < root_ptrs_.size())
-		root_ptrs_[i + 1]->line_start = line_start;
+	{
+    root_ptrs_[i + 1]->line_start = line_start;
+    ROS_INFO("N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
+    ROS_INFO("Reset line start");
+  }
+  if (reached_next_wp && i + 1 == root_ptrs_.size())
+    line_start_last_wp_ = line_start;
 	return reached_next_wp;
 }
-void RRT::developTree(unsigned int i, bool reached_next_wp, node* second2last, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle)
+void RRT::developTree(unsigned int i, bool reached_next_wp, node* second2last, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool direct_hit)
 {
 	// Variables needed to create for this function
 	double distance;
@@ -502,6 +523,16 @@ void RRT::developTree(unsigned int i, bool reached_next_wp, node* second2last, N
 	int clearance_drops = 0;
 	double added_nodes = 0.0;								// Keep a record of how many nodes are added so that the algorithm doesn't get stuck.
 	ROS_INFO("Developing branches");
+  if (reached_next_wp)
+  {
+    ROS_INFO("found a direct connection");
+    if (i + 1 == root_ptrs_.size())
+      line_start = line_start_last_wp_;
+    else
+      line_start = root_ptrs_[i + 1]->line_start;
+    ROS_INFO("N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
+  }
+
 	while (reached_next_wp == false)
 	{
 		node *vpos = new node;								// vpos is the next node to add to the tree
@@ -533,7 +564,7 @@ void RRT::developTree(unsigned int i, bool reached_next_wp, node* second2last, N
 			distance = sqrt(pow(P.N - root->NED.N, 2) + pow(P.E - root->NED.E, 2) + pow(P.D - root->NED.D, 2));
 
 			// Find the closest node to the point P, if you are not trying to get to waypoint 1 (which is the second waypoint), then don't accept the root or the children of the root.
-			if (i == 0)
+			if (i == 0 || direct_hit == false)
 				closest_node_ = findClosestNode(root, P, root, &distance);
 			else
 			{
@@ -624,7 +655,7 @@ void RRT::developTree(unsigned int i, bool reached_next_wp, node* second2last, N
 		}
 		if (reached_next_wp == true && i < map_.wps.size() - 1) // This if statement handles setting waypoints to get out of the primary waypoints.
 		{
-			if (checkCreateFan(map_.wps[i], vpos->NED, root_ptrs_[i + 1]) == false)
+			if (checkCreateFan(map_.wps[i], vpos->NED, root_ptrs_[i + 1], direct_hit) == false)
 				reached_next_wp = false;
 		}
 	}
@@ -664,7 +695,7 @@ void RRT::developTree(unsigned int i, bool reached_next_wp, node* second2last, N
 	wps_to_PrimaryWP.clear();
 	line_starts_to_PrimaryWP.clear();
 }
-void RRT::smoother(bool skip_smoother, unsigned int i, double* distance_in, double* fillet_angle, NED_s* second2last_post_smoothed, bool direct_shot)
+void RRT::smoother(bool skip_smoother, unsigned int i, double* distance_in, double* fillet_angle, NED_s* second2last_post_smoothed, bool direct_shot, bool direct_hit)
 {
 	node* root = root_ptrs_[i];
 	//skip_smoother = true; // Uncommmenting this line turns the smoother off. It can be helpful for debugging.
@@ -729,14 +760,14 @@ void RRT::smoother(bool skip_smoother, unsigned int i, double* distance_in, doub
 			if (j_node + 1 == all_wps_[i].size() - 1 && bad_path_flag == false && i != map_.wps.size()-1)
 			{
 				int previous_fan_nodes = root_ptrs_[i + 1]->children.size();
-				if (checkCreateFan(map_.wps[i], path_smoothed[path_smoothed.size() - 1], root_ptrs_[i + 1]))
+				if (checkCreateFan(map_.wps[i], path_smoothed[path_smoothed.size() - 1], root_ptrs_[i + 1], direct_hit))
 				{
 					// Delete the other nodes
 					for (unsigned int j = 0; j < root_ptrs_[i+1]->children.size(); j++)		// Delete every tree generated
 						deleteNode(root_ptrs_[i+1]->children[j]);
 					std::vector<node*>().swap(root_ptrs_[i+1]->children);
 					root_ptrs_[i+1]->children.clear();
-					checkCreateFan(map_.wps[i], path_smoothed[path_smoothed.size() - 1], root_ptrs_[i + 1]);
+					checkCreateFan(map_.wps[i], path_smoothed[path_smoothed.size() - 1], root_ptrs_[i + 1], direct_hit);
 				}
 				else
 					bad_path_flag == true; // Make sure that jnode + 1 is added.

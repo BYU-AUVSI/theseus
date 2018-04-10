@@ -79,13 +79,19 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 		map.boundary_pts.push_back(boundary_point);	// This line puts the boundary points into the map member.
 	}
 
-  // gps_converter.set_reference(rPhi, rLam, rH);
+  // float temp_latitude  =   39.969473f;
+  // float temp_longitude = -111.966988f;
+  // float temp_height    = 1430.860f;
+  // gps_converter.set_reference(temp_latitude, temp_longitude, temp_height);
   // for (int i = 0; i < 12; i++)
   // {
-  //   float N, E, D;
-  //   phi            = default_boundaries_lat[i];
-  //   lambda         = default_boundaries_lon[i];
-  //   gps_converter.ned2gps(phi, lambda, rH, N, boundary_point.E, boundary_point.D);
+  //   double N, E, D;
+  //   N = (double) map.boundary_pts[i].N;
+  //   E = (double) map.boundary_pts[i].E;
+  //   D = (double) map.boundary_pts[i].D;
+  //   double temp_lat, temp_long, temp_h;
+  //   gps_converter.ned2gps(N, E, D, temp_lat, temp_long, temp_h);
+  //   ROS_INFO("point %i, latitude: %f, longitude: %f, height: %f", i, temp_lat, temp_long, temp_h);
 	// }
   // gps_converter.set_reference(rPhi, rLam, rH);
 

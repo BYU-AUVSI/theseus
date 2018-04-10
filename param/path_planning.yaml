@@ -1,6 +1,6 @@
 pp:
   Va: 20.0
-  turn_radius: 25.0          # Turn radius of the plane to plan for in the path.
+  turn_radius: 75.0          # Turn radius of the plane to plan for in the path.
   climb_angle: 10.0          # Angle in degrees the plane will typically ascend
   descend_angle: 8.0         # Angle in degrees the plane will typically descend
   max_climb_angle: 12.0      # Maximum angle the plane will ascend, must be greater than climb_angle

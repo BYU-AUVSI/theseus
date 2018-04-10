@@ -10,12 +10,13 @@ RosPathPlanner::RosPathPlanner() :
   //************** SUBSCRIBERS AND PUBLISHERS **************//
   recieved_state_        = false;
   has_map_               = false;
-  state_subscriber_      = nh_.subscribe("/state",1,&theseus::RosPathPlanner::stateCallback, this);
+  state_subscriber_      = nh_.subscribe("/state",100,&theseus::RosPathPlanner::stateCallback, this);
   waypoint_publisher_    = nh_.advertise<rosplane_msgs::Waypoint>("/waypoint_path", 1);
   path_solver_service_   = nh_.advertiseService("solve_static",&theseus::RosPathPlanner::solveStatic, this);
   new_map_service_       = nh_.advertiseService("new_random_map",&theseus::RosPathPlanner::newRandomMap, this);
   plan_mission_service_  = nh_.advertiseService("plan_mission",&theseus::RosPathPlanner::planMission, this);
   send_wps_service_      = nh_.advertiseService("send_waypoints",&theseus::RosPathPlanner::sendWaypoints, this);
+  replot_map_service_    = nh_.advertiseService("replot_map",&theseus::RosPathPlanner::displayMapService, this);
   marker_pub_            = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 1);
 
   //******************** CLASS VARIABLES *******************//
@@ -120,6 +121,11 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
     cyl.H = cyl_h;
     mission_map.cylinders.push_back(cyl);
   }
+  bool direct_hit;
+  if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT)
+    direct_hit = true;
+  else
+    direct_hit = false;
 
   myWorld_ = mission_map;
   rrt_obj_.newMap(mission_map);
@@ -130,7 +136,7 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
   displayMap();
-  rrt_obj_.solveStatic(pos, chi0_);
+  rrt_obj_.solveStatic(pos, chi0_, direct_hit);
   displayPath();
   return true;
 }
@@ -167,10 +173,26 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   pos.N =  odometry_[1];
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
-  rrt_obj_.solveStatic(pos, chi0_);
+  bool direct_hit = true;
+  rrt_obj_.solveStatic(pos, chi0_, direct_hit);
   ROS_INFO("solved the path. displaying path");
   displayPath();
   ROS_INFO("returning");
+  res.success = true;
+  return true;
+}
+bool RosPathPlanner::displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
+{
+  if (has_map_ == false)
+  {
+    ROS_ERROR("PATH PLANNER HAS NO MAP.");
+    ROS_ERROR("Generating random map.");
+    mapper myWorld(rg_.UINT(), &input_file_);
+    myWorld_ = myWorld.map;
+    rrt_obj_.newMap(myWorld_);
+    has_map_ = true;
+  }
+  displayMap();
   res.success = true;
   return true;
 }
