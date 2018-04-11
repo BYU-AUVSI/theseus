@@ -18,6 +18,18 @@ struct NED_s
 	double N;						// North (m)
 	double E;						// East  (m)
 	double D;						// Down  (m), Remember up is negative!
+  NED_s()
+  {
+    N = 0.0f;
+    E = 0.0f;
+    D = 0.0f;
+  }
+  NED_s(float N_in, float E_in, float D_in)
+  {
+    N = N_in;
+    E = E_in;
+    D = D_in;
+  }
 	bool operator==(const NED_s s)
 	{
 		return N == s.N && E == s.E && D == s.D;

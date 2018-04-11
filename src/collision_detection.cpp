@@ -16,28 +16,28 @@ CollisionDetection::~CollisionDetection()
     std::vector<double>().swap(line_Mandb_[i]);
   std::vector<std::vector<double> >().swap(line_Mandb_);
 }
-bool CollisionDetection::collisionFillet(NED_s w_im1, NED_s w_i, NED_s w_ip1, float, R, float clearance)
+bool CollisionDetection::checkFillet(NED_s w_im1, NED_s w_i, NED_s w_ip1, float, R, float clearance)
 {
   fillet_s fil;
   bool good_fillet = fil.calculate(w_im1, w_i, w_ip1, R);
   if (good_fillet)
-    return collisionFillet(fil, clearance);
+    return checkFillet(fil, clearance);
   else
     return false;
 }
-bool CollisionDetection::collisionFillet(fillet_s fil, float clearance)
+bool CollisionDetection::checkFillet(fillet_s fil, float clearance)
 {
   // check for a collision on the first line, the arc and the second line
   bool first_line, middle_arc, second_line;
-  first_line  = collisionLine(fil.w_im1, fil.z1, clearance);
-  middle_arc  = collisionArc(fil.z1, fil.z2, fil.R, fil.c, fil.lambda, clearance);
-  second_line = collisionLine(fil.z2, fil.w_ip1, clearance);
+  first_line  = checkLine(fil.w_im1, fil.z1, clearance);
+  middle_arc  = checkArc(fil.z1, fil.z2, fil.R, fil.c, fil.lambda, clearance);
+  second_line = checkLine(fil.z2, fil.w_ip1, clearance);
   if (first_line && middle_arc && second_line)
     return true;
   else
     return false;
 }
-bool CollisionDetection::collisionPoint(NED_s point, float clearance)
+bool CollisionDetection::checkPoint(NED_s point, float clearance)
 {
   float r = clearance;
   // This is a more simple version of the collision****() that just checks if the point point is at least radius away from any obstacle.
@@ -93,7 +93,7 @@ bool CollisionDetection::collisionPoint(NED_s point, float clearance)
 			return false;
 	return true; // The coordinate is in the safe zone if it got to here!
 }
-bool CollisionDetection::collisionLine(NED_s ps, NED_s pe, float clearance)
+bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 {
   // Determines if a line conn ps and pe gets within clearance of any obstacle or boundary
 	// Preliminary Calculations about the line connecting ps and pe
@@ -280,7 +280,7 @@ bool CollisionDetection::collisionLine(NED_s ps, NED_s pe, float clearance)
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   return true; // The line is in the safe zone if it got to here!
 }
-bool CollisionDetection::collisionArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance)
+bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance)
 {
   float r  = clearance;
   bool ccw = lambda < 0 ? true : false;
@@ -449,7 +449,7 @@ bool CollisionDetection::collisionArc(NED_s ps, NED_s pe, float R, NED_s cp, int
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   return true; // The arc is in the safe zone if it got to here!
 }
-bool CollisionDetection::collisionClimbAngle(NED_s beg, NED_s en)
+bool CollisionDetection::checkClimbAngle(NED_s beg, NED_s en)
 {
   float slope = atan2f(-1.0f*(en.D - beg.D), sqrtf(powf(beg.N - en.N, 2.0f) + powf(beg.E - en.E, 2.0f)));
   if (slope < -1.0*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)

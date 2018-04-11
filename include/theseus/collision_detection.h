@@ -15,9 +15,11 @@ namespace theseus
   public:
     CollisionDetection();
     ~CollisionDetection();
-    bool CollisionDetection::collisionFillet(NED_s w_im1, NED_s  w_i, NED_s w_ip1, float clearance);
-    bool CollisionDetection::collisionFillet(fillet_s fil);
-    bool CollisionDetection::collisionPoint(NED_s point, float clearance);
+    bool CollisionDetection::checkFillet(NED_s w_im1, NED_s  w_i, NED_s w_ip1, float clearance);
+    bool CollisionDetection::checkFillet(fillet_s fil);
+    bool CollisionDetection::checkPoint(NED_s point, float clearance);
+    bool CollisionDetection::checkLine(NED_s point_s, NED_s point_e, float clearance);
+    bool CollisionDetection::checkAfterWP(NED_s p, float chi);
     void newMap(map_s map_in);
   private:
     map_s map_;
@@ -35,9 +37,8 @@ namespace theseus
   	double maxFlyHeight_;                          // Maximum Fly Height (positive value)
 
 
-    bool CollisionDetection::collisionLine(NED_s point_s, NED_s point_e, float clearance);
-    bool CollisionDetection::collisionArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance);
-    bool CollisionDetection::collisionClimbAngle(NED_s point_s, NED_s point_e);
+    bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance);
+    bool CollisionDetection::checkClimbAngle(NED_s point_s, NED_s point_e);
 
     bool lineAndPoint2d(NED_s ls, NED_s le, double MinMax[], double Mandb[], NED_s p, double r);
     bool lineIntersectsArc(double Ni, double Ei, NED_s cp, NED_s ps, NED_s pe, bool ccw);

@@ -21,6 +21,11 @@ struct fillet_s
   int lambda;
 
   float R;
+  fillet_s()
+  {
+    lambda = 0;
+    R      = 0.0f;
+  }
 
   bool calculate(NED_s w_im1, NED_s w_i, NED_s w_ip1, float R_in)
   {

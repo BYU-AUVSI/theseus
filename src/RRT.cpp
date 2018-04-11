@@ -2,15 +2,13 @@
 
 namespace theseus
 {
-RRT::RRT(map_s map_in, unsigned int seed, ParamReader *input_file_in, RRT_input alg_input_in) // Setup the object
+RRT::RRT(map_s map_in, unsigned int seed) // Setup the object
 {
-	input_file_ = input_file_in;
-	alg_input_  = alg_input_in;
-	D_          = alg_input_.D;	    // Distance between each RRT waypoint
-	map_        = map_in;           // Get a copy of the terrain map
+  segment_length_ = 100.0;        // pull in segment_length_;
+  num_paths_      = 1;            // number of paths to solve between each waypoint
 	RandGen rg_in(seed);            // Make a random generator object that is seeded
-	rg_         = rg_in;            // Copy that random generator into the class.
-	ppSetup();                      // default stuff for every algorithm that needs to be called after it recieves the map.
+	rg_             = rg_in;        // Copy that random generator into the class.
+  col_det_.newMap(map_in_);
 }
 RRT::RRT()
 {
@@ -18,92 +16,77 @@ RRT::RRT()
 }
 RRT::~RRT()
 {
-  // These lines free the memory in the vectors... We were having problems with memory in the mapper class
-  // These lines fixed it there so they were inserted here as well.
-  std::vector<double>().swap(path_distances_);
 	deleteTree();                          // Delete all of those tree pointer nodes
 	std::vector<node*>().swap(root_ptrs_); // Free the memory of the vector.
 }
 void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
-  ROS_WARN("STARTING SOLVER");
+  direct_hit_ = direct_hit;
+  ROS_INFO("Starting RRT solver");
   clearForNewPath();
 	initializeTree(pos);
   taking_off_ = (-pos.D < input_file_->minFlyHeight);
-  if (flyZoneCheck(pos, 5.0) == false)
-    ROS_FATAL("Initial Starting position violates a boundary or an obstacle");
   // printRRTSetup(pos, chi0);
-	NED_s second2last_post_smoothed;
-	second2last_post_smoothed.N = root_ptrs_[0]->NED.N - cos(chi0);
-	second2last_post_smoothed.E = root_ptrs_[0]->NED.E - sin(chi0);
-	second2last_post_smoothed.D = root_ptrs_[0]->NED.D;
-	for (unsigned int i = 0; i < map_.wps.size(); i++)
-	{
-		ROS_INFO("MAIN LOOP: %i",i);
-		path_clearance_ = input_file_->clearance;
-		node *second2last = root_ptrs_[i];					// This will be set as the second to last waypoint
-		double distance_in, fillet_angle;
-		bool direct_shot = false;
-		bool direct_connect = directConnection(i, &second2last_post_smoothed, &distance_in, &fillet_angle, &direct_shot, direct_hit);   //******* IMPORTANT
-		if (direct_connect)
-			second2last = closest_node_;
-		developTree(i, direct_connect,second2last,&second2last_post_smoothed,&distance_in,&fillet_angle, direct_hit);                   //******* IMPORTANT
-		smoother(direct_connect, i, &distance_in, &fillet_angle, &second2last_post_smoothed, direct_shot, direct_hit);                  //******* IMPORTANT
-		calcPathDistance(i);
-	}
-	all_wps_[map_.wps.size() - 1].push_back(map_.wps[map_.wps.size() - 1]);	// Add the final waypoint to the waypoint list.
-	computePerformance();
+  for (unsigned int i = 0; i < map_.wps.size(); i++)
+  {
+    ROS_INFO("Finding route to waypoint %lu", i + 1);
+    path_clearance_ = input_file_.clearance;
+    bool direct_connection = tryDirectConnect(root_ptrs_[i], root_ptrs_[i + 1]);
+    if (direct_connection == false)
+    {
+      num_found_paths = 0;
+      while num_found_paths < num_paths_
+      {
+        num_found_paths += developTree(i);
+      }
+    }
+    std::vector<node*> rough_path  = findMinimumPath(i);
+    std::vector<node*> smooth_path = smoothPath(rough_path);
+    addPath(smooth_path);
+  }
+  // find a place to safely loiter?
 }
-void RRT::printRRTSetup(NED_s pos, float chi0)
+bool tryDirectConnect(node* ps, node* pe)
 {
-  // Print initial position
-  ROS_INFO("Initial North: %f, Initial East: %f, Initial Down: %f", pos.N, pos.E, pos.D);
+  if (ps->dontConnect) // then try one of the grand children
+  {
+    node* close = findClosestNode();
+  }
+  else
+  {
+    if (col_det_.checkLine(ps->p, pe->p, path_clearance_))
+    {
+      if (ps->parent == NULL) // then this is the start
+      {
+        float chi = ;
+        if (col_det_.checkAfterWP(pe->p, chi)))
+        {
+          return true;
+        }
+      }
+      else if (col_det_.checkFillet(ps->parent->p, ps->p, pe->p))
+      {
+        float chi = ;
+        if (col_det_.checkAfterWP(pe->p, chi)))
+        {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+int  developTree(unsigned int i)
+{
 
-  ROS_INFO("Number of Boundary Points: %lu",  map_.boundary_pts.size());
-  for (long unsigned int i = 0; i < map_.boundary_pts.size(); i++)
-  {
-    ROS_INFO("Boundary: %lu, North: %f, East: %f, Down: %f", i, map_.boundary_pts[i].N, map_.boundary_pts[i].E, map_.boundary_pts[i].D);
-  }
-  ROS_INFO("Number of Waypoints: %lu", map_.wps.size());
-  for (long unsigned int i = 0; i < map_.wps.size(); i++)
-  {
-    ROS_INFO("WP: %lu, North: %f, East: %f, Down: %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
-  }
-  ROS_INFO("Number of Cylinders: %lu", map_.cylinders.size());
-  for (long unsigned int i = 0; i <  map_.cylinders.size(); i++)
-  {
-    ROS_INFO("Cylinder: %lu, North: %f, East: %f, Radius: %f, Height: %f", i, map_.cylinders[i].N, map_.cylinders[i].E, map_.cylinders[i].R,  map_.cylinders[i].H);
-  }
 }
-void RRT::clearForNewPath()
+std::vector<node*> findMinimumPath(unsigned int i)
 {
-  line_starts_.clear();
-  for (long unsigned int i = 0; i < all_wps_.size(); i++)
-    all_wps_[i].clear();
-  all_wps_.clear();
-  path_distances_.clear();
-  clearTree();											  // Clear all of those tree pointer nodes
-  root_ptrs_.clear();
+
 }
-void RRT::clearForNewMap()
+std::vector<node*> smoothPath(unsigned int i)
 {
-  for (unsigned int i = 0; i < lineMinMax_.size(); i++)
-    std::vector<double>().swap(lineMinMax_[i]);
-  std::vector<std::vector<double> >().swap(lineMinMax_);
-  for (unsigned int i = 0; i < line_Mandb_.size(); i++)
-    std::vector<double>().swap(line_Mandb_[i]);
-  std::vector<std::vector<double> >().swap(line_Mandb_);
-}
-void RRT::newMap(map_s map_in)
-{
-  clearForNewMap();
-  map_        = map_in;          // Get a copy of the terrain map
-  ppSetup();                     // default stuff for every algorithm that needs to be called after it recieves the map.
-}
-void RRT::newSeed(unsigned int seed)
-{
-  RandGen rg_in(seed);          // Make a random generator object that is seeded
-	rg_         = rg_in;           // Copy that random generator into the class.
+
 }
 bool RRT::checkDirectFan(NED_s second_wp, NED_s primary_wp, NED_s coming_from, node* next_root, NED_s* cea_out, double* din, double* anglin)
 {
@@ -377,40 +360,37 @@ bool RRT::checkFillet(NED_s par, NED_s mid, NED_s nex, double avail_dis, double*
 	*cangle = 2.0*atan(distance_in / turn_radius);
 	return found_feasible_link;
 }
-void RRT::initializeTree(NED_s pos)
+void RRT::initializeTree(NED_s pos, float chi0)
 {
+  bool fan_first_node = true;
+  if (-pos.D < input_file_.minFlyHeight)
+    fan_first_node = false;
 	// Set up all of the roots
-	node *root_in = new node;             // Starting position of the tree (and the waypoint beginning)
-	NED_s starting_point;
-	starting_point.N = pos.N;
-	starting_point.E = pos.E;
-	starting_point.D = pos.D;
-
-	root_in->NED = starting_point;
-	root_in->parent = NULL;               // No parent
-	root_in->distance = 0.0;              // 0 distance.
-	root_in->available_dist = 0.0;        // No available distance, (No parent assumption)
-	root_in->path_type = 0;               // straight lines for now at the primary waypoints.
-	root_in->line_start = root_in->NED;   // The line start is set to it's own location, for now.
-	root_ptrs_.push_back(root_in);
+	node *root_in0 = new node;             // Starting position of the tree (and the waypoint beginning)
+  fillet_s emp_f;
+	root_in0->p           = pos;
+  root_in0->fil         = emp_f;
+	root_in0->parent      = NULL;               // No parent
+	root_in0->cost        = 0.0;                // 0 distance.
+  root_in0->dontConnect = fan_first_node;
+  // if (fan_first_node) // TODO
+  //   // create initial fan
+	root_ptrs_.push_back(root_in0);
+  // TODO create fan for the initial point
   int num_root = 0;
-  ROS_INFO("Root Number %i, North: %f, East %f Down: %f", num_root, root_ptrs_[num_root]->NED.N, root_ptrs_[num_root]->NED.E, root_ptrs_[num_root]->NED.D);
-	num_root++;
-  for (unsigned int i = 0; i < map_.wps.size() - 1; i++)
+  num_root++;
+  for (unsigned int i = 0; i < map_.wps.size(); i++)
 	{
-		node *root_in = new node;           // Starting position of the tree (and the waypoint beginning)
-		root_in->NED = map_.wps[i];
-		root_in->parent = NULL;             // No parent
-		root_in->distance = 0.0;            // 0 distance.
-		root_in->available_dist = 0.0;      // No available distance, (No parent assumption)
-		root_in->path_type = 0;             // straight lines for now at the primary waypoints.
-		root_in->line_start = root_in->NED; // The line start is set to it's own location, for now.
+		node *root_in        = new node;           // Starting position of the tree (and the waypoint beginning)
+    root_in->p           = map_.wps[i];
+    root_in->fil         = emp_f;
+  	root_in->parent      = NULL;               // No parent
+  	root_in->cost        = 0.0;                // 0 distance.
+    root_in->dontConnect = direct_hit_;
 		root_ptrs_.push_back(root_in);
-    ROS_INFO("Root Number %i, North: %f, East %f Down: %f", num_root, root_ptrs_[num_root]->NED.N, root_ptrs_[num_root]->NED.E, root_ptrs_[num_root]->NED.D);
     num_root++;
 	}
-  unsigned int i = map_.wps.size() - 1;
-  ROS_INFO("Waypoint %i, North: %f, East %f Down: %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
+  printRoots();
 }
 bool RRT::directConnection(unsigned int i, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool* direct_shot, bool direct_hit)
 {
@@ -800,17 +780,23 @@ void RRT::smoother(bool skip_smoother, unsigned int i, double* distance_in, doub
 	if (taking_off_ == true)
 		taking_off_ = false;
 }
-void RRT::calcPathDistance(unsigned int i)
+void RRT::clearForNewPath()
 {
-	// Determine the true path distance. (This kind of covers up some mistakes above...)
-	double final_distance = 0;
-	for (unsigned j = 0; j < all_wps_[i].size() - 1; j++)
-	{
-		final_distance += sqrt(pow(all_wps_[i][j].N - all_wps_[i][j + 1].N, 2) + pow(all_wps_[i][j].E - all_wps_[i][j + 1].E, 2) + pow(all_wps_[i][j].D - all_wps_[i][j + 1].D, 2));
-	}
-	final_distance += sqrt(pow(all_wps_[i][all_wps_[i].size() - 1].N - map_.wps[i].N, 2) + pow(all_wps_[i][all_wps_[i].size() - 1].E - map_.wps[i].E, 2) + pow(all_wps_[i][all_wps_[i].size() - 1].D - map_.wps[i].D, 2));
-	path_distances_.push_back(final_distance);
-	ROS_INFO("PATH DISTANCE: %f",path_distances_[i]);
+  for (long unsigned int i = 0; i < all_wps_.size(); i++)
+    all_wps_[i].clear();
+  all_wps_.clear();
+  clearTree();                    // Clear all of those tree pointer nodes
+  std::vector<node*>().swap(root_ptrs_);
+}
+void RRT::newMap(map_s map_in)
+{
+  map_ = map_in;     // Get a copy of the terrain map
+  col_det_.newMap(map_in);
+}
+void RRT::newSeed(unsigned int seed)
+{
+  RandGen rg_in(seed);          // Make a random generator object that is seeded
+	rg_         = rg_in;           // Copy that random generator into the class.
 }
 void RRT::deleteTree()
 {
@@ -836,13 +822,30 @@ void RRT::clearNode(node* pn)                         // Recursively delete ever
 	pn->children.clear();
   delete pn;
 }
-void RRT::computePerformance()
+void RRT::printRRTSetup(NED_s pos, float chi0)
 {
-	total_nWPS_ = 0;
-	for (unsigned int i = 0; i < all_wps_.size(); i++)
-		total_nWPS_ += all_wps_[i].size();
-	total_path_length_ = 0;
-	for (unsigned int i = 0; i < path_distances_.size(); i++)
-		total_path_length_ += path_distances_[i];
+  // Print initial position
+  ROS_INFO("Initial North: %f, Initial East: %f, Initial Down: %f", pos.N, pos.E, pos.D);
+
+  ROS_INFO("Number of Boundary Points: %lu",  map_.boundary_pts.size());
+  for (long unsigned int i = 0; i < map_.boundary_pts.size(); i++)
+  {
+    ROS_INFO("Boundary: %lu, North: %f, East: %f, Down: %f", i, map_.boundary_pts[i].N, map_.boundary_pts[i].E, map_.boundary_pts[i].D);
+  }
+  ROS_INFO("Number of Waypoints: %lu", map_.wps.size());
+  for (long unsigned int i = 0; i < map_.wps.size(); i++)
+  {
+    ROS_INFO("WP: %lu, North: %f, East: %f, Down: %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
+  }
+  ROS_INFO("Number of Cylinders: %lu", map_.cylinders.size());
+  for (long unsigned int i = 0; i <  map_.cylinders.size(); i++)
+  {
+    ROS_INFO("Cylinder: %lu, North: %f, East: %f, Radius: %f, Height: %f", i, map_.cylinders[i].N, map_.cylinders[i].E, map_.cylinders[i].R,  map_.cylinders[i].H);
+  }
+}
+void RRT::printRoots()
+{
+  for (unsigned int i = 0; i < root_ptrs_.size(); i++)
+    ROS_INFO("Waypoint %i, North: %f, East %f Down: %f", i, root_ptrs_[i]->p.N, root_ptrs_[i]->p.E, root_ptrs_[i]->p.D);
 }
 } // end namespace theseus
