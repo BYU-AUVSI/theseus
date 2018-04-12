@@ -50,12 +50,12 @@ RosPathPlanner::RosPathPlanner() :
   {
     double lat_ref, lon_ref, h_ref;
     float N_init, E_init, D_init;
-    nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
-    nh_.param<double>("lon_ref", lon_ref, -76.43075);
-    nh_.param<double>("h_ref", h_ref, 6.701);
-    nh_.param<float>("N_init", N_init, 0.0);
-    nh_.param<float>("E_init", E_init, 0.0);
-    nh_.param<float>("D_init", D_init, 0.0);
+    nh_.param<double>("testing/lat_ref", lat_ref, 38.14326388888889);
+    nh_.param<double>("testing/lon_ref", lon_ref, -76.43075);
+    nh_.param<double>("testing/h_ref", h_ref, 6.701);
+    nh_.param<float>("testing/N_init", N_init, 0.0);
+    nh_.param<float>("testing/E_init", E_init, 0.0);
+    nh_.param<float>("testing/D_init", D_init, 0.0);
     ROS_WARN("testing = true, initializing reference and initial position");
     gps_converter_.set_reference(lat_ref, lon_ref, h_ref);
     recieved_state_ = true;
