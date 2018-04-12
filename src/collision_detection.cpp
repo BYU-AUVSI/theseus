@@ -280,10 +280,91 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   return true; // The line is in the safe zone if it got to here!
 }
+bool CollisionDetection::checkAfterWP(NED_s p, float chi, float clearance)
+{
+  bool found_at_least_1_good_path = false;
+  // Make sure that it is possible to go to the next waypoint
+
+  float alpha  = M_PI / 4.0;			// Start with 45.0 degrees // TODO this might cause errors depending on the turning radius
+  float R      = 3.0*input_file_.turn_radius;
+  int num_circle_trials = 10;				// Will try num_circle_trials on one side and num_circle_trials on the other side.
+  float dalpha = (M_PI - alpha) / num_circle_trials;
+
+  float approach_angle = -chi + M_PI/2.0f; //atan2(p.N - coming_from.N, p.E - coming_from.E) + M_PI;
+  float beta, lambda, Q, phi, theta, zeta, gamma, d;
+  NED_s cpa, cea, lea, fake_wp;
+  for (int j = 0; j < num_circle_trials; j++)
+  {
+    alpha  = alpha + dalpha;
+    beta   = M_PI / 2 - alpha;
+    lambda = M_PI - 2 * beta;
+    Q      = sqrtf(R*(R - input_file_.turn_radius*sinf(lambda) / sinf(beta)) + input_file_.turn_radius*input_file_.turn_radius);
+    phi    = M_PI - asinf(R*sinf(beta) / Q);
+    theta  = acosf(input_file_.turn_radius / Q);
+    zeta   = (2 * M_PI - phi - theta) / 2.0;
+    gamma  = M_PI - 2 * zeta;
+    d      = input_file_.turn_radius / tanf(gamma / 2.0);
+
+    // Check the positive side
+    fake_wp.N = p.N - d*sinf(approach_angle);
+    fake_wp.E = p.E - d*cosf(approach_angle);
+    fake_wp.D = p.D;
+
+    cpa.N = p.N + input_file_.turn_radius*cosf(approach_angle);
+    cpa.E = p.E - input_file_.turn_radius*sinf(approach_angle);
+    cpa.D = p.D;
+
+    cea.N = fake_wp.N + d*sinf(gamma + approach_angle);
+    cea.E = fake_wp.E + d*cosf(gamma + approach_angle);
+    cea.D = p.D;
+
+    lea.N = p.N + R*sinf(approach_angle + alpha);
+    lea.E = p.E + R*cosf(approach_angle + alpha);
+    lea.D = p.D;
+
+    if (checkArc(p, cea, input_file_.turn_radius, cpa, 1, clearance))
+      if (checkLine(cea, lea, clearance))
+        return true;
+    // Check the negative side
+    cpa.N = p.N - input_file_.turn_radius*cos(approach_angle);
+    cpa.E = p.E + input_file_.turn_radius*sin(approach_angle);
+    cpa.D = p.D;
+
+    cea.N = fake_wp.N + d*sin(-gamma + approach_angle);
+    cea.E = fake_wp.E + d*cos(-gamma + approach_angle);
+    cea.D = p.D;
+
+    lea.N = p.N + R*sin(approach_angle - alpha);
+    lea.E = p.E + R*cos(approach_angle - alpha);
+    lea.D = p.D;
+
+    if (checkArc(p, cea, input_file_.turn_radius, cpa, 1, clearance))
+      if (checkLine(cea, lea, clearance))
+        return true;
+        // node *fake_child = new node;
+        // node *normal_gchild = new node;
+        // fake_child->NED = fake_wp;
+        // fake_child->available_dist = 0;
+        // fake_child->parent = next_root;
+        // fake_child->distance = 2.0*zeta*input_file_->turn_radius;
+        // fake_child->path_type = 1;
+        // fake_child->line_start = next_root->NED;
+        // next_root->children.push_back(fake_child);
+        //
+        // normal_gchild->NED = lea;
+        // normal_gchild->available_dist = sqrt(R*(R - input_file_->turn_radius*sin(lambda) / sin(beta)));
+        // normal_gchild->parent = fake_child;
+        // normal_gchild->distance = normal_gchild->available_dist;
+        // normal_gchild->path_type = 1;
+        // normal_gchild->line_start = cea;
+        // fake_child->children.push_back(normal_gchild);
+  }
+  return false;
+}
 bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance)
 {
   float r  = clearance;
-  bool ccw = lambda < 0 ? true : false;
+  bool ccw = lambda < 0 ? true : false; // ccw = lambda(-1),
   float aradius = R;
 
   // Determines if arc gets within r of an obstacle
@@ -550,10 +631,10 @@ void CollisionDetection::newMap(map_s map_in)
 			setFirstValues = false;
 		}
 	}
-	clearance_    = input_file_->clearance;		  // Clearance for the path (m)
-	minFlyHeight_ = input_file_->minFlyHeight;  // 30.48 m = 100 ft. // This still needs to add in the take off altitude
-	maxFlyHeight_ = input_file_->maxFlyHeight;  // 228.6 m = 750 ft. // This still needs to add in the take off altitude
-  iters_limit_  = input_file_->iters_limit;
+	clearance_    = input_file_.clearance;		  // Clearance for the path (m)
+	minFlyHeight_ = input_file_.minFlyHeight;  // 30.48 m = 100 ft. // This still needs to add in the take off altitude
+	maxFlyHeight_ = input_file_.maxFlyHeight;  // 228.6 m = 750 ft. // This still needs to add in the take off altitude
+  iters_limit_  = input_file_.iters_limit;
   //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv These lines are used to prep the flyZoneCheck() algorithm
 	std::vector<double> NminNmaxEminEmax;       // Yeah, this is a riduculous name...
 	std::vector<double> mb;                     // Vector of slope and intercepts

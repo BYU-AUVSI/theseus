@@ -71,6 +71,10 @@ struct NED_s
   {
     return N*in.N + E*in.E + D*in.D;
   }
+  float getChi()
+  {
+    return atan2f(E, N);
+  }
   NED_s operator*(const float num)
   {
     NED_s n;
