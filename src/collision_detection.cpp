@@ -1,4 +1,4 @@
-#include <theseus/collsion_detection.h>
+#include <theseus/collision_detection.h>
 
 
 namespace theseus
@@ -10,13 +10,13 @@ CollisionDetection::CollisionDetection()
 CollisionDetection::~CollisionDetection()
 {
   for (unsigned int i = 0; i < lineMinMax_.size(); i++)
-    std::vector<double>().swap(lineMinMax_[i]);
-  std::vector<std::vector<double> >().swap(lineMinMax_);
+    std::vector<float>().swap(lineMinMax_[i]);
+  std::vector<std::vector<float> >().swap(lineMinMax_);
   for (unsigned int i = 0; i < line_Mandb_.size(); i++)
-    std::vector<double>().swap(line_Mandb_[i]);
-  std::vector<std::vector<double> >().swap(line_Mandb_);
+    std::vector<float>().swap(line_Mandb_[i]);
+  std::vector<std::vector<float> >().swap(line_Mandb_);
 }
-bool CollisionDetection::checkFillet(NED_s w_im1, NED_s w_i, NED_s w_ip1, float, R, float clearance)
+bool CollisionDetection::checkFillet(NED_s w_im1, NED_s w_i, NED_s w_ip1, float R, float clearance)
 {
   fillet_s fil;
   bool good_fillet = fil.calculate(w_im1, w_i, w_ip1, R);
@@ -39,14 +39,14 @@ bool CollisionDetection::checkFillet(fillet_s fil, float clearance)
 }
 bool CollisionDetection::checkPoint(NED_s point, float clearance)
 {
-  float r = clearance;
+  float radius = clearance;
   // This is a more simple version of the collision****() that just checks if the point point is at least radius away from any obstacle.
 	// First, Check Within the Boundaries
 	bool withinBoundaries;
 	// Look at the Point in Polygon Algorithm
 	// Focus on rays South.
 	int crossed_lines = 0;							// This is a counter of the number of lines that the point is NORTH of.
-	double bt, Ei, Ni, de1, de2, shortest_distance;
+	float bt, Ei, Ni, de1, de2, shortest_distance;
 	for (unsigned int i = 0; i < nBPts_; i++)
 	{
 		// Find out if the line is either North or South of the line
@@ -97,8 +97,8 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 {
   // Determines if a line conn ps and pe gets within clearance of any obstacle or boundary
 	// Preliminary Calculations about the line connecting ps and pe
-  double pathMinMax[4];
-	double path_Mandb[4];
+  float pathMinMax[4];
+	float path_Mandb[4];
 	pathMinMax[0] = std::min(ps.N, pe.N);
 	pathMinMax[1] = std::max(ps.N, pe.N);
 	pathMinMax[2] = std::min(ps.E, pe.E);
@@ -107,7 +107,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 	path_Mandb[1] = pe.N - path_Mandb[0] * pe.E;
 	path_Mandb[2] = -1.0 / path_Mandb[0];
 	path_Mandb[3] = path_Mandb[0] - path_Mandb[2];
-	double Ei, Ni;
+	float Ei, Ni;
 
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Boundary Lines vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -149,7 +149,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 		}
 		// Check distance from bl to each path end point
 		bool lp_cleared;
-		double lMinMax[4], l_Mandb[4];
+		float lMinMax[4], l_Mandb[4];
 		lMinMax[0] = lineMinMax_[i][0];
 		lMinMax[1] = lineMinMax_[i][1];
 		lMinMax[2] = lineMinMax_[i][2];
@@ -205,12 +205,12 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 		// Note that if the above is true, this check does not need to be performed.
 		if (clearThisCylinder == false)
 		{
-			double dD = (pe.D - ps.D) / sqrtf(powf(ps.N - pe.N, 2.0f) + powf(ps.E - pe.E, 2.0f));
-			double bt = cylinderPoint.N - path_Mandb[2] * cylinderPoint.E;
+			float dD = (pe.D - ps.D) / sqrtf(powf(ps.N - pe.N, 2.0f) + powf(ps.E - pe.E, 2.0f));
+			float bt = cylinderPoint.N - path_Mandb[2] * cylinderPoint.E;
 			Ei = (bt - path_Mandb[1]) / (path_Mandb[3]);
 			Ni = path_Mandb[2] * Ei + bt;
-			double bigLength = sqrtf(powf(map_.cylinders[i].R + r, 2.0f) - powf(Ni - cylinderPoint.N, 2.0f) - powf(Ei - cylinderPoint.E, 2.0f)); // What is bigLength????
-			double d2cyl;
+			float bigLength = sqrtf(powf(map_.cylinders[i].R + clearance, 2.0f) - powf(Ni - cylinderPoint.N, 2.0f) - powf(Ei - cylinderPoint.E, 2.0f)); // What is bigLength????
+			float d2cyl;
 			// Check to see if the path is above the cylinder height or into the cylinder
 			if (sqrtf(powf(ps.N - cylinderPoint.N, 2.0f) + powf(ps.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance && sqrtf(powf(pe.N - cylinderPoint.N, 2.0f) + powf(pe.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance)
 			{// if BOTH of the endpoints is within the 2d cylinder
@@ -226,7 +226,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 					if (-ps.D < map_.cylinders[i].H + clearance)
             return false;
 					// else (check to see if the line that intersects the cylinder is in or out)
-					double smallLength = sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
+					float smallLength = sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
 					if (Ni > pathMinMax[0] && Ni < pathMinMax[1] && Ei > pathMinMax[2] && Ei < pathMinMax[3])
 						d2cyl = bigLength + smallLength;
 					else
@@ -239,7 +239,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 					if (-pe.D < map_.cylinders[i].H + clearance)
             return false;
 					// else check to see if the line that intersects the cylinder is in or out
-					double smallLength = sqrtf(powf(Ni - pe.N, 2.0f) + powf(Ei - pe.E, 2.0f));
+					float smallLength = sqrtf(powf(Ni - pe.N, 2.0f) + powf(Ei - pe.E, 2.0f));
 					if (Ni > pathMinMax[0] && Ni < pathMinMax[1] && Ei > pathMinMax[2] && Ei < pathMinMax[3])
 						d2cyl = bigLength + smallLength;
 					else
@@ -251,17 +251,17 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 				else
 				{
 					// Calculate the intersection point of the line and the perpendicular line connecting the point
-					double d_from_cyl2inter = sqrtf(powf(cylinderPoint.N - Ni, 2.0f) + powf(cylinderPoint.E - Ei, 2.0f));
-					double daway_from_int = sqrtf(powf(clearance + map_.cylinders[i].R, 2.0f) - powf(d_from_cyl2inter, 2.0f)); // WHAT IS THIS?
+					float d_from_cyl2inter = sqrtf(powf(cylinderPoint.N - Ni, 2.0f) + powf(cylinderPoint.E - Ei, 2.0f));
+					float daway_from_int = sqrtf(powf(clearance + map_.cylinders[i].R, 2.0f) - powf(d_from_cyl2inter, 2.0f)); // WHAT IS THIS?
 
 					// Now test the height at int +- daway_from_int;
-					double land_D_ps2i = sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
-					double deltaD = dD*sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
+					float land_D_ps2i = sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
+					float deltaD = dD*sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
 
-					double Di = ps.D + dD*sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
+					float Di = ps.D + dD*sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
 
-					double height1 = -(Di + dD*daway_from_int);
-					double height2 = -(Di - dD*daway_from_int);
+					float height1 = -(Di + dD*daway_from_int);
+					float height2 = -(Di - dD*daway_from_int);
 
 					if (-(Di + dD*daway_from_int) < map_.cylinders[i].H + clearance)
             return false;
@@ -369,7 +369,7 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
 
   // Determines if arc gets within r of an obstacle
   // Preliminary Calculations about the arc connecting ps and pe
-  double Ei, Ni;
+  float Ei, Ni;
   //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
   //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Boundary Lines vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
   bool withinBoundaries_ps, withinBoundaries_pe;
@@ -396,7 +396,7 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   	//vvvvvvvvvvvvvvvvvvvvvvvvvvvv Check if any point on the line gets too close to the boundary vvvvvvvvvvvvvvvvvvvvvvvvvvvv
   	if (cp.E >= lineMinMax_[i][2] - r - aradius && cp.E <= lineMinMax_[i][3] + r + aradius && cp.N >= lineMinMax_[i][0] - r - aradius && cp.N <= lineMinMax_[i][1] + r + aradius)
   	{
-  		double bt;
+  		float bt;
   		// Calculate the intersection point of the line and the perpendicular line connecting the point
   		bt = cp.N - line_Mandb_[i][2] * cp.E;
   		Ei = (bt - line_Mandb_[i][1]) / (line_Mandb_[i][3]);
@@ -480,7 +480,7 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   // ^^^^^^^^^^^^^^^^ Finish up checking if the end points were both inside the boundary (ray casting) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
   // vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
-  if (is3D_ && taking_off_ == false)
+  if (taking_off_ == false)
   {
   	if (-ps.D < minFlyHeight_ + r || -ps.D > maxFlyHeight_ - r)
   		return false;
@@ -518,7 +518,7 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   		}
   		else { clearThisCylinder = true; }
   	}
-  	if (is3D_ && clearThisCylinder == false)
+  	if (clearThisCylinder == false)
   	{
   		if (ps.D < -map_.cylinders[i].H - r && pe.D < -map_.cylinders[i].H - r)
   			clearThisCylinder = true;
@@ -604,11 +604,11 @@ bool CollisionDetection::lineIntersectsArc(float Ni, float Ei, NED_s cp, NED_s p
 void CollisionDetection::newMap(map_s map_in)
 {
   for (unsigned int i = 0; i < lineMinMax_.size(); i++)
-    std::vector<double>().swap(lineMinMax_[i]);
-  std::vector<std::vector<double> >().swap(lineMinMax_);
+    std::vector<float>().swap(lineMinMax_[i]);
+  std::vector<std::vector<float> >().swap(lineMinMax_);
   for (unsigned int i = 0; i < line_Mandb_.size(); i++)
-    std::vector<double>().swap(line_Mandb_[i]);
-  std::vector<std::vector<double> >().swap(line_Mandb_);
+    std::vector<float>().swap(line_Mandb_[i]);
+  std::vector<std::vector<float> >().swap(line_Mandb_);
   map_        = map_in;          // Get a copy of the terrain map
 	NED_s boundary_point;
 	bool setFirstValues = true;
@@ -631,15 +631,13 @@ void CollisionDetection::newMap(map_s map_in)
 			setFirstValues = false;
 		}
 	}
-	clearance_    = input_file_.clearance;		  // Clearance for the path (m)
 	minFlyHeight_ = input_file_.minFlyHeight;  // 30.48 m = 100 ft. // This still needs to add in the take off altitude
 	maxFlyHeight_ = input_file_.maxFlyHeight;  // 228.6 m = 750 ft. // This still needs to add in the take off altitude
-  iters_limit_  = input_file_.iters_limit;
   //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv These lines are used to prep the flyZoneCheck() algorithm
-	std::vector<double> NminNmaxEminEmax;       // Yeah, this is a riduculous name...
-	std::vector<double> mb;                     // Vector of slope and intercepts
+	std::vector<float> NminNmaxEminEmax;       // Yeah, this is a riduculous name...
+	std::vector<float> mb;                     // Vector of slope and intercepts
 	nBPts_ = map_.boundary_pts.size();          // Number of Boundary Points
-	double m, b, w, m_w;
+	float m, b, w, m_w;
 	for (unsigned int i = 0; i < nBPts_; i++)   // Loop through all points
 	{
 		// Find the min and max of North and East coordinates on the line connecting two points.

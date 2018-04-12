@@ -15,13 +15,14 @@ namespace theseus
   public:
     CollisionDetection();
     ~CollisionDetection();
-    bool checkFillet(NED_s w_im1, NED_s  w_i, NED_s w_ip1, float clearance);
-    bool checkFillet(fillet_s fil);
+    bool checkFillet(NED_s w_im1, NED_s  w_i, NED_s w_ip1, float R, float clearance);
+    bool checkFillet(fillet_s fil, float clearance);
     bool checkPoint(NED_s point, float clearance);
     bool checkLine(NED_s point_s, NED_s point_e, float clearance);
-    bool checkAfterWP(NED_s p, float chi);
+    bool checkAfterWP(NED_s p, float chi, float clearance);
     void newMap(map_s map_in);
 
+    bool  taking_off_;
     float maxNorth_;                              // Maximum North coordinate inside the boundaries
     float minNorth_;                              // Minimum North coordinate inside the boundaries
     float maxEast_;                               // Maximum East  coordinate inside the boundaries
@@ -48,3 +49,4 @@ namespace theseus
     void printBoundsObstacles();
   };
 } // end namespace theseus
+#endif

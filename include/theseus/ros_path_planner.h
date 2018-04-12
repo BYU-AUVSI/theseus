@@ -41,7 +41,6 @@ private:
   ros::ServiceServer new_map_service_;
   ros::ServiceServer send_wps_service_;
   ros::ServiceServer replot_map_service_;
-  RRT_input rrt_i_;
   map_s myWorld_;
   std::vector<std::vector<double> > filletMavPath(std::vector<double>, std::vector<double>, std::vector<double>,\
                                                   std::vector<double>, std::vector<double>, std::vector<double>);

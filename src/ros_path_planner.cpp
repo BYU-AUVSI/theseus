@@ -42,7 +42,7 @@ RosPathPlanner::RosPathPlanner() :
   update_viz_timer_ = nh_.createWallTimer(ros::WallDuration(1.0/5.0), &RosPathPlanner::updateViz, this);
 
   //********************** FUNCTIONS ***********************//
-  RRT rrt_obj(myWorld_, input_file_.seed, &input_file_, rrt_i_);
+  RRT rrt_obj(myWorld_, input_file_.seed);
   rrt_obj_ = rrt_obj;
 
   bool testing;

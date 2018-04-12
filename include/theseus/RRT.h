@@ -11,10 +11,21 @@
 #include <theseus/fillet_s.h>
 #include <theseus/rand_gen.h>
 #include <theseus/param_reader.h>
+#include <theseus/collision_detection.h>
 
 namespace theseus
 {
 // Class Definition
+struct node                    // This is the node struct for each spot on the tree
+{
+  NED_s p;                     // North, East Down of the node position
+  fillet_s fil;                // *fillet information for the PARENT
+  std::vector<node*> children; // Vector of all of the children nodes
+  node* parent;                // *Pointer to the parent of this node
+  float cost;                  // Distance from this node to its parent
+  bool dontConnect;            // true means closest nodes generated won't connect to this node
+  bool connects2wp;            // true if this node connects to the next waypoint
+};
 class RRT
 {
 public:
@@ -25,10 +36,10 @@ public:
   void newMap(map_s map_in);                                // creates a new map
   void newSeed(unsigned int seed);
   std::vector<std::vector<NED_s> > all_wps_;                // final path waypoints
-
+  map_s map_;
 private:
   // core functions
-  bool tryDirectConnect(node* ps, node* pe);
+  bool tryDirectConnect(node* ps, node* pe, unsigned int i);
   int  developTree(unsigned int i);
   std::vector<node*> findMinimumPath(unsigned int i);
   std::vector<node*> smoothPath(std::vector<node*> rough_path);
@@ -36,8 +47,11 @@ private:
 
   // secondary functions
   node* findClosestNodeGChild(node* root, NED_s p);
-  bool checkForCollision(node* ps, NED_s pe, i);
+  bool checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance);
   NED_s randomPoint(unsigned int i);
+  node* findClosestNode(node* nin, NED_s P, node* minNode, float* minD);
+  node* findMinConnector(node* nin, node* minNode, float* minCost);
+
 
   // Initialize and clear data functions
   void initializeTree(NED_s pos, float chi0);
@@ -55,7 +69,7 @@ private:
   float segment_length_;         // If used, this is the distance the algorithm uses between each node
   ParamReader input_file_;       // address of the input file
   CollisionDetection col_det_;   // collision detecter
-
+  int num_paths_;                // number of paths to be genererated before choosing the optimal path
   RandGen rg_;                   // Here is the random generator for the algorithm
   std::vector<node*> root_ptrs_; // Vector of all roots, each element is the start of the tree to reach the next primary waypoint
 
@@ -65,51 +79,6 @@ private:
 	bool taking_off_;              // If the plane is currently taking off, this option will allow the path planner to ignor the height restricitons.
   bool direct_hit_;              // when true the algorithm will hit primary waypoints dead on instead of filleting
   node* most_recent_node_;       // pointer to the most recently added node
-
-	struct node                    // This is the node struct for each spot on the tree
-	{
-		NED_s p;                     // North, East Down of the node position
-    fillet_s fil;                // *fillet information for the PARENT
-		std::vector<node*> children; // Vector of all of the children nodes
-		node* parent;                // *Pointer to the parent of this node
-		float cost;                  // Distance from this node to its parent
-    bool dontConnect;            // true means closest nodes generated won't connect to this node
-    bool connects2wp;            // true if this node connects to the next waypoint
-	};
-	node* findClosestNode(node* nin, NED_s P, node* minNode, float* minD) // This recursive function return the closes node to the input point P, for some reason it wouldn't go in the cpp...
-	{// nin is the node to measure, P is the point, minNode is the closes found node so far, minD is where to store the minimum distance
-		// Recursion
-		float distance;                                         // distance to the point P
-		for (unsigned int i = 0; i < nin->children.size(); i++) // For all of the children figure out their distances
-		{
-      distance = (P - nin->children[i].p).norm();
-			if (distance < *minD)          // If we found a better distance, update it
-			{
-				minNode = nin->children[i];  // reset the minNode
-				*minD = distance;            // reset the minimum distance
-			}
-			minNode = findClosestNode(nin->children[i], P, minNode, minD); // Recursion for each child
-		}
-		return minNode;                  // Return the closest node
-	}
-  node* findMinConnector(node* nin, node* minNode, float* minCost) // This recursive function return the closes node to the input point P, for some reason it wouldn't go in the cpp...
-  {// nin is the node to measure, minNode is the closes final node in the path so far, minD is where to store the minimum distance
-    // Recursion
-    float cost;                     // total cost of the function
-    if (nin->connects2wp == true)
-    {
-      cost = nin->cost;
-      if (cost < *minCost)          // If we found a better distance, update it
-      {
-        minNode = nin;              // reset the minNode
-        *minD = distance;           // reset the minimum distance
-      }
-    }
-    else
-      for (unsigned int i = 0; i < nin->children.size(); i++) // For all of the children figure out their distances
-        minNode = findConnectors(nin->children[i], minNode, minD); // Recursion for each child
-    return minNode;                  // Return the closest node
-  }
 };
 }
 #endif
