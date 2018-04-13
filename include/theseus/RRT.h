@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <math.h>
 #include <ros/ros.h>
+#include <ros/console.h>
+#include <visualization_msgs/Marker.h>
 
 #include <theseus/map_s.h>
 #include <theseus/fillet_s.h>
@@ -35,9 +37,11 @@ public:
 	void solveStatic(NED_s pos, float chi0, bool direct_hit); // Solves the static path
   void newMap(map_s map_in);                                // creates a new map
   void newSeed(unsigned int seed);
-  std::vector<std::vector<NED_s> > all_wps_;                // final path waypoints
+  std::vector<NED_s> all_wps_;                // final path waypoints
   map_s map_;
 private:
+  ros::NodeHandle nh_;         // public node handle for publishing, subscribing
+  ros::Publisher marker_pub_;
   // core functions
   bool tryDirectConnect(node* ps, node* pe, unsigned int i);
   int  developTree(unsigned int i);
@@ -65,6 +69,10 @@ private:
   // Printing Functions
   void printRRTSetup(NED_s pos, float chi0); // used for debugging
   void printRoots();                         // prints all of the root nodes
+  void printNode(node* nin);                 // prints the node
+  void displaySegment(node* par, NED_s pe, fillet_s fil, bool clean); // plots the proposed path
+  void plotPath();
+  void printFillet(fillet_s fil);
 
   float segment_length_;         // If used, this is the distance the algorithm uses between each node
   ParamReader input_file_;       // address of the input file

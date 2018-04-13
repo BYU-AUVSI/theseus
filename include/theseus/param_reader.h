@@ -18,7 +18,6 @@ public:
 	// Simulation Settings
 	int numWps;
 	int seed;
-  bool simulating;
 
 	// Plane settings
   double Va;

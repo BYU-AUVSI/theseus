@@ -23,8 +23,6 @@ ParamReader::ParamReader() :
     ROS_WARN("No param named 'iters_limit'");
   if (!(ros::param::get("pp/seed",seed)))
     ROS_WARN("No param named 'seed'");
-  if (!(ros::param::get("pp/simulating",simulating)))
-    ROS_WARN("No param named 'simulating'");
 
   if (!(ros::param::get("ppsim/numWps",numWps)))
     ROS_WARN("No param named 'numWps'");

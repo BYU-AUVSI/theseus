@@ -8,6 +8,9 @@
 #include <theseus/fillet_s.h>
 #include <theseus/param_reader.h>
 
+#include <ros/ros.h>
+#include <ros/console.h>
+
 namespace theseus
 {
   class CollisionDetection

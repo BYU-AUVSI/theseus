@@ -32,6 +32,15 @@ bool CollisionDetection::checkFillet(fillet_s fil, float clearance)
   first_line  = checkLine(fil.w_im1, fil.z1, clearance);
   middle_arc  = checkArc(fil.z1, fil.z2, fil.R, fil.c, fil.lambda, clearance);
   second_line = checkLine(fil.z2, fil.w_ip1, clearance);
+  if (first_line) {ROS_DEBUG("first line passed");}
+  else {ROS_FATAL("first line FAILED"); ROS_DEBUG("n_beg: %f, e_beg: %f, d_beg: %f, n_end: %f, e_end: %f, d_end: %f, ",\
+  fil.w_im1.N, fil.w_im1.E, fil.w_im1.D, fil.z1.N, fil.z1.E, fil.z1.D);}
+  if (middle_arc) {ROS_DEBUG("arc passed");}
+  else {ROS_FATAL("arc FAILED");}
+  if (second_line) {ROS_DEBUG("second line passed");}
+  else {ROS_FATAL("second line FAILED"); ROS_DEBUG("n_beg: %f, e_beg: %f, d_beg: %f, n_end: %f, e_end: %f, d_end: %f, ",\
+  fil.z2.N, fil.z2.E, fil.z2.D, fil.w_ip1.N, fil.w_ip1.E, fil.w_ip1.D);}
+
   if (first_line && middle_arc && second_line)
     return true;
   else
@@ -121,23 +130,35 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 			if (ps.N > line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
 				crossed_lines_ps++;
 			else if (ps.N == line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
+      {
+        ROS_DEBUG("line exit 1");
         return false;
+      }
 		}
 		if (pe.E >= lineMinMax_[i][2] && pe.E < lineMinMax_[i][3])
 		{
 			if (pe.N > line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
 				crossed_lines_pe++;
 			else if (pe.N == line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
+      {
+        ROS_DEBUG("line exit 2");
         return false;
+      }
 		}
 		// ^^^^^^^^^^^^^^^^ Ray Casting, count how many crosses south ^^^^^^^^^^^^^^^^
 
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvv Check if any point on the line gets too close to the boundary vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		// Check distance between each endpoint
 		if (sqrtf(powf(ps.N - map_.boundary_pts[i].N, 2.0f) + powf(ps.E - map_.boundary_pts[i].E, 2.0f) < clearance))
+    {
+      ROS_DEBUG("line exit 3");
       return false;
+    }
 		if (sqrtf(powf(pe.N - map_.boundary_pts[i].N, 2.0f) + powf(pe.E - map_.boundary_pts[i].E, 2.0f) < clearance))
+    {
+      ROS_DEBUG("line exit 4");
       return false;
+    }
 		// Check if they intersect
 		if (line_Mandb_[i][0] != path_Mandb[0])
 		{
@@ -145,7 +166,10 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 			Ni = line_Mandb_[i][0] * Ei + line_Mandb_[i][1];
 			if (Ni > pathMinMax[0] && Ni < pathMinMax[1])
 				if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1])
+        {
+          ROS_DEBUG("line exit 5");
           return false;
+        }
 		}
 		// Check distance from bl to each path end point
 		bool lp_cleared;
@@ -160,14 +184,23 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 		l_Mandb[3] = line_Mandb_[i][3];
 		lp_cleared = lineAndPoint2d(map_.boundary_pts[i], map_.boundary_pts[(i + 1) % nBPts_], lMinMax, l_Mandb, ps, clearance);
 		if (lp_cleared == false)
+    {
+      ROS_DEBUG("line exit 6");
       return false;
+    }
 		lp_cleared = lineAndPoint2d(map_.boundary_pts[i], map_.boundary_pts[(i + 1) % nBPts_], lMinMax, l_Mandb, pe, clearance);
 		if (lp_cleared == false)
+    {
+      ROS_DEBUG("line exit 7");
       return false;
+    }
 		// Check distance from pl to each boundary end point
 		lp_cleared = lineAndPoint2d(ps, pe, pathMinMax, path_Mandb, map_.boundary_pts[i], clearance);
 		if (lp_cleared == false)
+    {
+      ROS_DEBUG("line exit 8");
       return false;
+    }
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check if any point on the line gets too close to the boundary ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
@@ -175,16 +208,25 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 	withinBoundaries_ps = crossed_lines_ps % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
 	withinBoundaries_pe = crossed_lines_pe % 2;
 	if (withinBoundaries_ps == false || withinBoundaries_pe == false)
+  {
+    ROS_DEBUG("line exit 9");
     return false;
+  }
 	// ^^^^^^^^^^^^^^^^ Finish up checking if the end points were both inside the boundary (ray casting) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 	// vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
 	if (taking_off_ == false)
 	{
 		if (-ps.D < minFlyHeight_ + clearance || -ps.D > maxFlyHeight_ - clearance)
+    {
+      ROS_DEBUG("line exit 10");
       return false;
+    }
 		if (-pe.D < minFlyHeight_ + clearance || -pe.D > maxFlyHeight_ - clearance)
+    {
+      ROS_DEBUG("line exit 11");
       return false;
+    }
 	}
 	// vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
 
@@ -215,16 +257,25 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 			if (sqrtf(powf(ps.N - cylinderPoint.N, 2.0f) + powf(ps.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance && sqrtf(powf(pe.N - cylinderPoint.N, 2.0f) + powf(pe.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance)
 			{// if BOTH of the endpoints is within the 2d cylinder
 				if (-ps.D < map_.cylinders[i].H + clearance)
+        {
+          ROS_DEBUG("line exit 12");
           return false;
+        }
 				if (-ps.D < map_.cylinders[i].H + clearance)
+        {
+          ROS_DEBUG("line exit 13");
           return false;
+        }
 			}
 			else
 			{// if at least one waypoint is outside of the 2d cylinder
 				if (sqrtf(powf(ps.N - cylinderPoint.N, 2.0f) + powf(ps.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance)
 				{// if the starting point is within the 2d cylinder
 					if (-ps.D < map_.cylinders[i].H + clearance)
+          {
+            ROS_DEBUG("line exit 14");
             return false;
+          }
 					// else (check to see if the line that intersects the cylinder is in or out)
 					float smallLength = sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f));
 					if (Ni > pathMinMax[0] && Ni < pathMinMax[1] && Ei > pathMinMax[2] && Ei < pathMinMax[3])
@@ -232,12 +283,18 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 					else
 						d2cyl = bigLength - smallLength;
 					if (-(dD*d2cyl + ps.D) < map_.cylinders[i].H + clearance)
+          {
+            ROS_DEBUG("line exit 15");
             return false;
+          }
 				}
 				else if (sqrtf(powf(pe.N - cylinderPoint.N, 2.0f) + powf(pe.E - cylinderPoint.E, 2.0f)) < map_.cylinders[i].R + clearance)
 				{// if the ending point is within the 2d cylinder
 					if (-pe.D < map_.cylinders[i].H + clearance)
+          {
+            ROS_DEBUG("line exit 16");
             return false;
+          }
 					// else check to see if the line that intersects the cylinder is in or out
 					float smallLength = sqrtf(powf(Ni - pe.N, 2.0f) + powf(Ei - pe.E, 2.0f));
 					if (Ni > pathMinMax[0] && Ni < pathMinMax[1] && Ei > pathMinMax[2] && Ei < pathMinMax[3])
@@ -245,7 +302,10 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 					else
 						d2cyl = bigLength - smallLength;
 					if (-(-dD*d2cyl + pe.D) < map_.cylinders[i].H + clearance)
+          {
+            ROS_DEBUG("line exit 17");
             return false;
+          }
 				}
 				// Now check the two intersection points
 				else
@@ -264,17 +324,29 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 					float height2 = -(Di - dD*daway_from_int);
 
 					if (-(Di + dD*daway_from_int) < map_.cylinders[i].H + clearance)
+          {
+            ROS_DEBUG("line exit 18");
             return false;
+          }
 					if (-(Di - dD*daway_from_int) < map_.cylinders[i].H + clearance)
+          {
+            ROS_DEBUG("line exit 19");
             return false;
+          }
 					if (-Di < map_.cylinders[i].H + clearance)
+          {
+            ROS_DEBUG("line exit 20");
             return false;
+          }
 				}
 			}
 			clearThisCylinder = true;
 		}
 		if (clearThisCylinder == false)
+    {
+      ROS_DEBUG("line exit 21");
       return false;
+    }
 	}
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Cylinder Obstacles ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

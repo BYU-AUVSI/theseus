@@ -15,11 +15,13 @@
 #include <vector>
 #include <math.h>
 #include <algorithm>
+#include <algorithm>
 #include <std_srvs/Trigger.h>
 #include <theseus/mapper.h>
 #include <theseus/rand_gen.h>
 #include <theseus/param_reader.h>
 #include <theseus/gps_struct.h>
+#include <theseus/fillet_s.h>
 
 namespace theseus
 {
@@ -42,12 +44,7 @@ private:
   ros::ServiceServer send_wps_service_;
   ros::ServiceServer replot_map_service_;
   map_s myWorld_;
-  std::vector<std::vector<double> > filletMavPath(std::vector<double>, std::vector<double>, std::vector<double>,\
-                                                  std::vector<double>, std::vector<double>, std::vector<double>);
-  std::vector<std::vector<double> > filletPath(std::vector<double> x_path_data,\
-                                               std::vector<double> y_path_data,\
-                                               std::vector<double> d_path_data);
-  std::vector<std::vector<double > > arc(double N, double E, double r, double aS, double aE);
+  std::vector<std::vector<float > > arc(float N, float E, float r, float aS, float aE);
   void stateCallback(const rosplane_msgs::State &msg);
 public:
   ros::Publisher mission_map_publisher_;
