@@ -12,15 +12,21 @@ RandGen::RandGen(unsigned int seed_in)	// Seed the Random Generator for reproduc
 	seed = seed_in;
   srand(seed);
 }
-RandGen::RandGen()						// This empty function is needed so that RandGen can be a member of a class.
+RandGen::RandGen()            // This empty function is needed so that RandGen can be a member of a class.
 {
 }
-RandGen::~RandGen()						// Deconstructor
+RandGen::~RandGen()           // Deconstructor
 {
 }
-double RandGen::randLin()				// This public function returns a random number from 0 to 1, uniform distribution
+double RandGen::randLin()     // This public function returns a random number from 0 to 1, uniform distribution
 {
 	return ((double) rand()/(RAND_MAX));
+}
+double RandGen::norm_rnd(double mu, double sigma)
+{
+  double U = randLin();
+  double V = randLin();
+  return sqrt(-2.0*log(U))*cos(2.0*M_PI*V)*sigma + mu;
 }
 std::vector<unsigned int> RandGen::UINTv(unsigned int len)
 {

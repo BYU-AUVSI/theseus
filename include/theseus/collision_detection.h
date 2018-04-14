@@ -22,10 +22,12 @@ namespace theseus
     bool checkFillet(fillet_s fil, float clearance);
     bool checkPoint(NED_s point, float clearance);
     bool checkLine(NED_s point_s, NED_s point_e, float clearance);
+    bool checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance);
     bool checkAfterWP(NED_s p, float chi, float clearance);
     void newMap(map_s map_in);
 
     bool  taking_off_;
+    bool  landing_now_;
     float maxNorth_;                              // Maximum North coordinate inside the boundaries
     float minNorth_;                              // Minimum North coordinate inside the boundaries
     float maxEast_;                               // Maximum East  coordinate inside the boundaries
@@ -42,7 +44,6 @@ namespace theseus
   	std::vector<std::vector<float> > line_Mandb_; // (N x 4) vector that contains the slope and intercept of the line (m, b, (-1/m), (m + 1/m)) from N = m*E + b ... not sure about E = constant lines yet.
     unsigned int nBPts_;                          // Number of boundary points
 
-    bool checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance);
     bool checkClimbAngle(NED_s point_s, NED_s point_e);
 
     bool lineAndPoint2d(NED_s ls, NED_s le, float MinMax[], float Mandb[], NED_s p, float r);

@@ -47,7 +47,7 @@ private:
   int  developTree(unsigned int i);
   std::vector<node*> findMinimumPath(unsigned int i);
   std::vector<node*> smoothPath(std::vector<node*> rough_path);
-  void addPath(std::vector<node*> smooth_path);
+  void addPath(std::vector<node*> smooth_path, unsigned int i);
 
   // secondary functions
   node* findClosestNodeGChild(node* root, NED_s p);
@@ -55,7 +55,8 @@ private:
   NED_s randomPoint(unsigned int i);
   node* findClosestNode(node* nin, NED_s P, node* minNode, float* minD);
   node* findMinConnector(node* nin, node* minNode, float* minCost);
-
+  void createFan(node* root, NED_s p, float chi, float clearance);
+  float redoRandomDownPoint(unsigned int i, float closest_D);
 
   // Initialize and clear data functions
   void initializeTree(NED_s pos, float chi0);
@@ -83,8 +84,8 @@ private:
 
 	float clearance_;              // The minimum clearance that the path will have away from any obstacles (can fluctuate up and down)
 	float path_clearance_;         // The minimum clearance that the path from waypoint i to i+1 will have. (only decreases until new waypoint is obtained)
-	unsigned int iters_limit_;     // This is the maximum number of iterations the solver will do before it will just move on
 	bool taking_off_;              // If the plane is currently taking off, this option will allow the path planner to ignor the height restricitons.
+  bool landing_now_;
   bool direct_hit_;              // when true the algorithm will hit primary waypoints dead on instead of filleting
   node* most_recent_node_;       // pointer to the most recently added node
 };

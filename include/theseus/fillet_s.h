@@ -52,6 +52,7 @@ struct fillet_s
     z1.D            = w_i.D;
     z2.D            = w_i.D;
     c               = w_i - ((q_im1 - q_i).normalize())*(R/sinf(varrho/2.0f));
+    c.D             = w_i.D;
     lambda          = q_im1.N*q_i.E - q_im1.E*q_i.N > 0.0f ? 1 : -1;                         // 1 = cw; -1 = ccw
     adj             = 2.0f*R/tanf(varrho/2.0f) - 2.0f*asinf((z2 - z1).norm()/(2.0f*R))*R;    // adjustment length
 

@@ -173,7 +173,7 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   pos.N =  odometry_[1];
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
-  bool direct_hit = false;
+  bool direct_hit = true;
   rrt_obj_.solveStatic(pos, chi0_, direct_hit);
   ROS_INFO("solved the path. displaying path");
   displayPath();
@@ -392,7 +392,7 @@ void RosPathPlanner::displayPath()
     std::vector<std::vector<float> > NcEc;
     if (fil.lambda == -1)
     {
-      ROS_DEBUG("lambda = ccw");
+      // ROS_DEBUG("lambda = ccw");
       NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z2 - fil.c).getChi(), (fil.z1 - fil.c).getChi());
       // need to flip the vectors
       std::reverse(NcEc[0].begin(),NcEc[0].end());
@@ -400,7 +400,7 @@ void RosPathPlanner::displayPath()
     }
     if (fil.lambda ==  1)
     {
-      ROS_DEBUG("lambda = cw");
+      // ROS_DEBUG("lambda = cw");
       NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z1 - fil.c).getChi(), (fil.z2 - fil.c).getChi());
     }
     std::vector<float> Nc = NcEc[0];

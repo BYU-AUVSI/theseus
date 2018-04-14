@@ -22,7 +22,6 @@ public:
 	// Plane settings
   double Va;
 	double turn_radius;
-	double climb_angle;
 	double descend_angle;
 	double max_climb_angle;
 	double max_descend_angle;
@@ -39,7 +38,6 @@ public:
   float E_init;
   float D_init;
   bool chi0;
-	bool   is3D;
 	double minCylRadius;
 	double maxCylRadius;
 	double minCylHeight;
