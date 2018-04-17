@@ -78,6 +78,61 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This fu
     }
   }
   // find a place to safely loiter?
+
+  // NED_s first_after, second_after;
+  // float chi_last = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).getChi();
+  // first_after = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).normalize()*300.0f + all_wps_[all_wps_.size() - 1];
+  // second_after = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).normalize()*500.0f + all_wps_[all_wps_.size() - 1];
+  // all_wps_.push_back(first_after);
+  // all_wps_.push_back(second_after);
+  all_wps_.clear();
+  NED_s wp;
+  wp.N = 221.8275909423828;
+  wp.E = -3.2715530395507812;
+  wp.D = -44.26875305175781;
+  all_wps_.push_back(wp);
+  wp.N = 249.9587860107422;
+  wp.E = 243.06765747070312;
+  wp.D = -76.29425048828125;
+  all_wps_.push_back(wp);
+  wp.N = -176.12940979003906;
+  wp.E = 479.64923095703125;
+  wp.D = -84.92816925048828;
+  all_wps_.push_back(wp);
+  wp.N = -245.54563903808594;
+  wp.E = 240.6516876220703;
+  wp.D = -108.62531280517578;
+  all_wps_.push_back(wp);
+  // wp.N = 38.73063278198242;
+  // wp.E = 47.211883544921875;
+  // wp.D = -77.8299789428711;
+  // all_wps_.push_back(wp);
+  wp.N = 203.25352478027344;
+  wp.E = -64.73995971679688;
+  wp.D = -77.8299789428711;
+  all_wps_.push_back(wp);
+  wp.N = 323.4235534667969;
+  wp.E = 594.923583984375;
+  wp.D = -178.75735473632812;
+  all_wps_.push_back(wp);
+  wp.N = 121.78028869628906;
+  wp.E = 647.900146484375;
+  wp.D = -178.75735473632812;
+  all_wps_.push_back(wp);
+  wp.N = -19.800050735473633;
+  wp.E = 442.2632141113281;
+  wp.D = -191.7363739013672;
+  all_wps_.push_back(wp);
+  wp.N = -100.45663452148438;
+  wp.E = 205.8821563720703;
+  wp.D = -202.62266540527344;
+  all_wps_.push_back(wp);
+  wp.N = 620.9794311523438;
+  wp.E = 17.95068359375;
+  wp.D = -188.4557647705078;
+  all_wps_.push_back(wp);
+  for (int i = 0; i < map_.wps.size(); i++)
+    ROS_DEBUG("WP %i: %f, %f, %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
 }
 
 
@@ -217,10 +272,14 @@ void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
   ROS_DEBUG("smooth_path.size() %lu",smooth_path.size());
   for (unsigned int j = 0; j < smooth_path.size(); j++)
   {
-    if (direct_hit_ == true && j == smooth_path.size() - 1 && i != map_.wps.size() - 1)
+    if (direct_hit_ == true && j == smooth_path.size() - 1 && i != map_.wps.size() - 1 && j != 0)
     {
 
     }
+    // else if (direct_hit_ == true && i == 2 && j == 0)
+    // {
+    //
+    // }
     else
       all_wps_.push_back(smooth_path[j]->p);
 

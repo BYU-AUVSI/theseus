@@ -17,6 +17,7 @@ RosPathPlanner::RosPathPlanner() :
   plan_mission_service_  = nh_.advertiseService("plan_mission",&theseus::RosPathPlanner::planMission, this);
   send_wps_service_      = nh_.advertiseService("send_waypoints",&theseus::RosPathPlanner::sendWaypoints, this);
   replot_map_service_    = nh_.advertiseService("replot_map",&theseus::RosPathPlanner::displayMapService, this);
+  wp_distance_service_   = nh_.advertiseService("display_wp_distance",&theseus::RosPathPlanner::displayD2WP, this);
   marker_pub_            = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 10);
 
   //******************** CLASS VARIABLES *******************//
@@ -39,7 +40,7 @@ RosPathPlanner::RosPathPlanner() :
   odom_mkr_.scale.y            = 15.0; // point width
 
   //***************** CALLBACKS AND TIMERS *****************//
-  update_viz_timer_ = nh_.createWallTimer(ros::WallDuration(1.0/5.0), &RosPathPlanner::updateViz, this);
+  update_viz_timer_ = nh_.createWallTimer(ros::WallDuration(1.0/4.0), &RosPathPlanner::updateViz, this);
 
   //********************** FUNCTIONS ***********************//
   RRT rrt_obj(myWorld_, input_file_.seed);
@@ -130,13 +131,20 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
   myWorld_ = mission_map;
   rrt_obj_.newMap(mission_map);
   has_map_ = true;
+  wp_distances_.clear();
+  cyl_distances_.clear();
+  for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
+    wp_distances_.push_back(INFINITY);
+  for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
+    cyl_distances_.push_back(INFINITY);
+  min_cyl_dis_ = INFINITY;
   ROS_INFO("RECIEVED JUDGES MAP");
   NED_s pos;
   pos.N =  odometry_[1];
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
   displayMap();
-  rrt_obj_.solveStatic(pos, chi0_, direct_hit);
+  rrt_obj_.solveStatic(pos, chi0_, true);
   displayPath();
   return true;
 }
@@ -146,6 +154,13 @@ bool RosPathPlanner::newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Tri
   myWorld_ = myWorld.map;
   rrt_obj_.newMap(myWorld_);
   has_map_ = true;
+  wp_distances_.clear();
+  cyl_distances_.clear();
+  for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
+    wp_distances_.push_back(INFINITY);
+  for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
+    cyl_distances_.push_back(INFINITY);
+    min_cyl_dis_ = INFINITY;
   ROS_INFO("RECIEVED NEW RANDOM MAP");
   displayMap();
   res.success = true;
@@ -167,6 +182,13 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
     myWorld_ = myWorld.map;
     rrt_obj_.newMap(myWorld_);
     has_map_ = true;
+    wp_distances_.clear();
+    cyl_distances_.clear();
+    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
+      wp_distances_.push_back(INFINITY);
+    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
+      cyl_distances_.push_back(INFINITY);
+    min_cyl_dis_ = INFINITY;
   }
   displayMap();
   NED_s pos;
@@ -191,8 +213,25 @@ bool RosPathPlanner::displayMapService(std_srvs::Trigger::Request &req, std_srvs
     myWorld_ = myWorld.map;
     rrt_obj_.newMap(myWorld_);
     has_map_ = true;
+    wp_distances_.clear();
+    cyl_distances_.clear();
+    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
+      wp_distances_.push_back(INFINITY);
+    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
+      cyl_distances_.push_back(INFINITY);
+    min_cyl_dis_ = INFINITY;
   }
   displayMap();
+  res.success = true;
+  return true;
+}
+bool RosPathPlanner::displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
+{
+  for (int i = 0; i < wp_distances_.size(); i++)
+    ROS_INFO("min distance to wp %i: %f", i, wp_distances_[i]);
+  for (int i = 0; i < cyl_distances_.size(); i++)
+    ROS_INFO("min distance to cylinder number %i: %f", i, cyl_distances_[i]);
+  ROS_INFO("minimum distance to cylinder (overall): %f", min_cyl_dis_);
   res.success = true;
   return true;
 }
@@ -481,6 +520,49 @@ void RosPathPlanner::stateCallback(const rosplane_msgs::State &msg)
   odometry_[1] =  msg.position[0];
   odometry_[2] = -msg.position[2];
   chi0_        =  msg.chi;
+  NED_s p;
+  p.N = msg.position[0];
+  p.E = msg.position[1];
+  p.D = msg.position[2];
+  if (has_map_)
+  {
+    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
+    {
+      float d = (p - rrt_obj_.map_.wps[i]).norm();
+      if (d < wp_distances_[i])
+        wp_distances_[i] = d;
+    }
+    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
+    {
+      float d;
+      NED_s c;
+      c.N = rrt_obj_.map_.cylinders[i].N;
+      c.E = rrt_obj_.map_.cylinders[i].E;
+      c.D = p.D;
+      d = (p - c).norm() - rrt_obj_.map_.cylinders[i].R;
+      if (d < 0.0f)
+        ROS_DEBUG("d %f, h_cyl: %f, h_p %f", d,rrt_obj_.map_.cylinders[i].H, -p.D);
+      if (-p.D <= rrt_obj_.map_.cylinders[i].H)
+      {
+        if (d < 0.0f)
+          d = 0.0f;
+      }
+      else if (d < 0.0f)
+      {
+        d = -p.D - rrt_obj_.map_.cylinders[i].H;
+        ROS_DEBUG("d %f", d);
+      }
+      else
+      {
+        float h = -p.D - rrt_obj_.map_.cylinders[i].H;
+        d = sqrtf(d*d + h*h);
+      }
+      if (d < cyl_distances_[i])
+        cyl_distances_[i] = d;
+      if (d < min_cyl_dis_)
+        min_cyl_dis_ = d;
+    }
+  }
 }
 void RosPathPlanner::updateViz(const ros::WallTimerEvent&)
 {

@@ -43,6 +43,7 @@ private:
   ros::ServiceServer new_map_service_;
   ros::ServiceServer send_wps_service_;
   ros::ServiceServer replot_map_service_;
+  ros::ServiceServer wp_distance_service_;
   map_s myWorld_;
   std::vector<std::vector<float > > arc(float N, float E, float r, float aS, float aE);
   void stateCallback(const rosplane_msgs::State &msg);
@@ -61,6 +62,10 @@ private:
   visualization_msgs::Marker odom_mkr_;
   bool recieved_state_;
   bool has_map_;
+
+  std::vector<float> wp_distances_;
+  std::vector<float> cyl_distances_;
+  float min_cyl_dis_;
   //***************** CALLBACKS AND TIMERS *****************//
   ros::WallTimer update_viz_timer_;
   void updateViz(const ros::WallTimerEvent&);
@@ -71,6 +76,7 @@ public:
   bool solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
   void displayPath();
   void displayMap();
