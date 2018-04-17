@@ -227,8 +227,16 @@ bool RosPathPlanner::displayMapService(std_srvs::Trigger::Request &req, std_srvs
 }
 bool RosPathPlanner::displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
 {
+  float avg_min_wp_dis_ = 0.0;
+  float waypoint_count = 0.0;
   for (int i = 0; i < wp_distances_.size(); i++)
+  {
     ROS_INFO("min distance to wp %i: %f", i, wp_distances_[i]);
+    avg_min_wp_dis_ += wp_distances_[i];
+    waypoint_count++;
+  }
+  avg_min_wp_dis_ = avg_min_wp_dis_/waypoint_count;
+  ROS_INFO("average minimum distance to wp: %f", avg_min_wp_dis_);
   for (int i = 0; i < cyl_distances_.size(); i++)
     ROS_INFO("min distance to cylinder number %i: %f", i, cyl_distances_[i]);
   ROS_INFO("minimum distance to cylinder (overall): %f", min_cyl_dis_);
