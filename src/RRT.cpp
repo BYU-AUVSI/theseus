@@ -16,6 +16,8 @@ RRT::RRT(map_s map_in, unsigned int seed) :
 	rg_             = rg_in;        // Copy that random generator into the class.
   map_            = map_in;
   col_det_.newMap(map_in);
+  last_path_id_   = 1;              // just used for debugging
+  path_id_ = 1;
 }
 RRT::RRT()
 {
@@ -76,61 +78,70 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This fu
       col_det_.taking_off_ = false;
       ROS_DEBUG("taking off is false");
     }
+    clearRVizPaths();
+    clearRVizPaths();
+    clearRVizPaths();
+    last_path_id_ = path_id_;
+    path_id_ = 1; // just for debugging, displayPath();
+    ROS_DEBUG("path_id_ reset, last_path_id_  = %i", last_path_id_);
   }
   // find a place to safely loiter?
 
+  // Set up an extra straight line.
   // NED_s first_after, second_after;
   // float chi_last = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).getChi();
   // first_after = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).normalize()*300.0f + all_wps_[all_wps_.size() - 1];
   // second_after = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).normalize()*500.0f + all_wps_[all_wps_.size() - 1];
   // all_wps_.push_back(first_after);
   // all_wps_.push_back(second_after);
-  all_wps_.clear();
-  NED_s wp;
-  wp.N = 221.8275909423828;
-  wp.E = -3.2715530395507812;
-  wp.D = -44.26875305175781;
-  all_wps_.push_back(wp);
-  wp.N = 249.9587860107422;
-  wp.E = 243.06765747070312;
-  wp.D = -76.29425048828125;
-  all_wps_.push_back(wp);
-  wp.N = -176.12940979003906;
-  wp.E = 479.64923095703125;
-  wp.D = -84.92816925048828;
-  all_wps_.push_back(wp);
-  wp.N = -245.54563903808594;
-  wp.E = 240.6516876220703;
-  wp.D = -108.62531280517578;
-  all_wps_.push_back(wp);
-  // wp.N = 38.73063278198242;
-  // wp.E = 47.211883544921875;
+
+
+  // all_wps_.clear();
+  // NED_s wp;
+  // wp.N = 221.8275909423828;
+  // wp.E = -3.2715530395507812;
+  // wp.D = -44.26875305175781;
+  // all_wps_.push_back(wp);
+  // wp.N = 249.9587860107422;
+  // wp.E = 243.06765747070312;
+  // wp.D = -76.29425048828125;
+  // all_wps_.push_back(wp);
+  // wp.N = -176.12940979003906;
+  // wp.E = 479.64923095703125;
+  // wp.D = -84.92816925048828;
+  // all_wps_.push_back(wp);
+  // wp.N = -245.54563903808594;
+  // wp.E = 240.6516876220703;
+  // wp.D = -108.62531280517578;
+  // all_wps_.push_back(wp);
+  // // wp.N = 38.73063278198242;
+  // // wp.E = 47.211883544921875;
+  // // wp.D = -77.8299789428711;
+  // // all_wps_.push_back(wp);
+  // wp.N = 203.25352478027344;
+  // wp.E = -64.73995971679688;
   // wp.D = -77.8299789428711;
   // all_wps_.push_back(wp);
-  wp.N = 203.25352478027344;
-  wp.E = -64.73995971679688;
-  wp.D = -77.8299789428711;
-  all_wps_.push_back(wp);
-  wp.N = 323.4235534667969;
-  wp.E = 594.923583984375;
-  wp.D = -178.75735473632812;
-  all_wps_.push_back(wp);
-  wp.N = 121.78028869628906;
-  wp.E = 647.900146484375;
-  wp.D = -178.75735473632812;
-  all_wps_.push_back(wp);
-  wp.N = -19.800050735473633;
-  wp.E = 442.2632141113281;
-  wp.D = -191.7363739013672;
-  all_wps_.push_back(wp);
-  wp.N = -100.45663452148438;
-  wp.E = 205.8821563720703;
-  wp.D = -202.62266540527344;
-  all_wps_.push_back(wp);
-  wp.N = 620.9794311523438;
-  wp.E = 17.95068359375;
-  wp.D = -188.4557647705078;
-  all_wps_.push_back(wp);
+  // wp.N = 323.4235534667969;
+  // wp.E = 594.923583984375;
+  // wp.D = -178.75735473632812;
+  // all_wps_.push_back(wp);
+  // wp.N = 121.78028869628906;
+  // wp.E = 647.900146484375;
+  // wp.D = -178.75735473632812;
+  // all_wps_.push_back(wp);
+  // wp.N = -19.800050735473633;
+  // wp.E = 442.2632141113281;
+  // wp.D = -191.7363739013672;
+  // all_wps_.push_back(wp);
+  // wp.N = -100.45663452148438;
+  // wp.E = 205.8821563720703;
+  // wp.D = -202.62266540527344;
+  // all_wps_.push_back(wp);
+  // wp.N = 620.9794311523438;
+  // wp.E = 17.95068359375;
+  // wp.D = -188.4557647705078;
+  // all_wps_.push_back(wp);
   for (int i = 0; i < map_.wps.size(); i++)
     ROS_DEBUG("WP %i: %f, %f, %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
 }
@@ -175,7 +186,10 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
       fillet_s fil;
       ROS_DEBUG("calculating fillet");
       bool fil_possible = fil.calculate(start_of_line->parent->p, start_of_line->p, pe_node->p, input_file_.turn_radius);
-      if (fil_possible && col_det_.checkFillet(fil, clearance))
+      fillet_s temp_fil = fil;
+      temp_fil.w_im1 = fil.z1;
+      ROS_FATAL("cheking fillet");
+      if (fil_possible && col_det_.checkFillet(temp_fil, clearance))
       {
         ROS_DEBUG("fillet checked out, now trying neighboring fillets");
         if (start_of_line->parent != NULL && start_of_line->fil.roomFor(fil) == false)
@@ -215,8 +229,25 @@ int RRT::developTree(unsigned int i)
     if (taking_off_ == false && landing_now_ == false)
       random_point.D     = redoRandomDownPoint(i,  closest_node->p.D); // this is so that more often a node passes the climb angle check
     NED_s test_point   = (random_point - closest_node->p).normalize()*segment_length_ + closest_node->p;
-    added_new_node     = checkForCollision(closest_node, test_point, i, clearance);
+    added_new_node     = checkForCollision(closest_node, test_point, i, clearance, false);
+
+    std::vector<NED_s> temp_path;
+    if (closest_node->parent != NULL)
+      temp_path.push_back(closest_node->fil.z2);
+    temp_path.push_back(closest_node->p);
+    temp_path.push_back(test_point);
+    displayPath(temp_path,true);
+
   }
+  ROS_DEBUG("found a new node");
+  std::vector<NED_s> temp_path;
+  if (most_recent_node_->parent->parent != NULL)
+    temp_path.push_back(most_recent_node_->parent->fil.z2);
+  temp_path.push_back(most_recent_node_->parent->p);
+  temp_path.push_back(most_recent_node_->p);
+  displayPath(temp_path,false);
+
+
   ROS_DEBUG("trying direct connect for the new node");
   bool connect_to_end = tryDirectConnect(most_recent_node_, root_ptrs_[i + 1], i);
   if (connect_to_end == true)
@@ -306,7 +337,7 @@ node* RRT::findClosestNodeGChild(node* root, NED_s p)
     }
     return closest_node;
 }
-bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance)
+bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance, bool connecting_to_end)
 {
   node* start_of_line;
   if (ps->dontConnect) // then try one of the grand children
@@ -322,30 +353,26 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance)
   // //ROS_DEBUG("checking the line");
   if (col_det_.checkLine(start_of_line->p, pe, clearance))
   {
+    ROS_FATAL("chekcLine in RRT passed");
     // //ROS_DEBUG("line worked");
     if (start_of_line->parent == NULL) // then this is the start
     {
       // //ROS_DEBUG("parent was null");
       float chi = (pe - start_of_line->p).getChi();
       // //ROS_DEBUG("checking after waypoint");
-      if (col_det_.checkAfterWP(pe, chi, clearance))
-      {
-        // //ROS_DEBUG("found a good connection");
-        node* ending_node        = new node;
-        ending_node->p           = pe;
-        // don't do the fillet
-        ending_node->parent      = start_of_line;
-        ending_node->cost        = start_of_line->cost + (pe - start_of_line->p).norm();
-        ending_node->dontConnect = false;
-        ending_node->connects2wp = (pe == map_.wps[i]);
-        start_of_line->children.push_back(ending_node);
-        most_recent_node_        = ending_node;
-        // //ROS_DEBUG("printing ending node");
-        // printNode(ending_node);
-        return true;
-      }
-      // else
-        //ROS_DEBUG("failed after wp 1");
+      // //ROS_DEBUG("found a good connection");
+      node* ending_node        = new node;
+      ending_node->p           = pe;
+      // don't do the fillet
+      ending_node->parent      = start_of_line;
+      ending_node->cost        = start_of_line->cost + (pe - start_of_line->p).norm();
+      ending_node->dontConnect = false;
+      ending_node->connects2wp = (pe == map_.wps[i]);
+      start_of_line->children.push_back(ending_node);
+      most_recent_node_        = ending_node;
+      // //ROS_DEBUG("printing ending node");
+      // printNode(ending_node);
+      return true;
     }
     else
     {
@@ -358,7 +385,10 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance)
 
       // if (fil_possible) { ROS_INFO("fillet possible");}
       // else {ROS_WARN("fillet not possible");}
-      if (fil_possible && col_det_.checkFillet(fil, clearance))
+      fillet_s temp_fil = fil;
+      temp_fil.w_im1 = fil.z1;
+      ROS_FATAL("cheking fillet");
+      if (fil_possible && col_det_.checkFillet(temp_fil, clearance))
       {
         //ROS_DEBUG("passed fillet check, checking for neighboring fillets");
         if (start_of_line->parent->parent != NULL && start_of_line->fil.roomFor(fil) == false)
@@ -366,35 +396,30 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance)
           // printNode(start_of_line);
           //ROS_DEBUG("testing spot N: %f, E %f, D %f", pe.N, pe.E, pe.D);
           // ROS_FATAL("failed neighboring fillets");
-          // displaySegment(start_of_line, pe, fil, true);
+          // displayPath()
           return false;
         }
         //ROS_DEBUG("passed neighboring fillets");
         float chi = (pe - start_of_line->p).getChi();
         // //ROS_DEBUG("checking after wp");
-        if (col_det_.checkAfterWP(pe, chi, clearance))
-        {
-          //ROS_DEBUG("everything worked, adding another connection");
-          node* ending_node        = new node;
-          ending_node->p           = pe;
-          ending_node->fil         = fil;
-          ending_node->parent      = start_of_line;
-          ending_node->cost        = start_of_line->cost + (pe - start_of_line->p).norm() - fil.adj;
-          ending_node->dontConnect = false;
-          ending_node->connects2wp = (pe == map_.wps[i]);
-          start_of_line->children.push_back(ending_node);
-          most_recent_node_        = ending_node;
-          // //ROS_DEBUG("printing ending node");
-          // printNode(ending_node);
-          // displaySegment(start_of_line, pe, fil, true);
-          return true;
-        }
-        // else
-          //ROS_DEBUG("failed after wp 2");
+        //ROS_DEBUG("everything worked, adding another connection");
+        node* ending_node        = new node;
+        ending_node->p           = pe;
+        ending_node->fil         = fil;
+        ending_node->parent      = start_of_line;
+        ending_node->cost        = start_of_line->cost + (pe - start_of_line->p).norm() - fil.adj;
+        ending_node->dontConnect = false;
+        ending_node->connects2wp = (pe == map_.wps[i]);
+        start_of_line->children.push_back(ending_node);
+        most_recent_node_        = ending_node;
+        // //ROS_DEBUG("printing ending node");
+        // printNode(ending_node);
+        // displayPath()
+        return true;
       }
       // else
       //   ROS_ERROR("failed fillet");
-      // displaySegment(start_of_line, pe, fil, true);
+      // displayPath()
     }
   }
   else
@@ -529,6 +554,13 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         normal_gchild->dontConnect = false;
         normal_gchild->connects2wp = false;
         fake_child->children.push_back(normal_gchild);
+
+        std::vector<NED_s> temp_path;
+        if (normal_gchild->parent->parent != NULL)
+          temp_path.push_back(normal_gchild->parent->parent->p);
+        temp_path.push_back(normal_gchild->parent->p);
+        temp_path.push_back(normal_gchild->p);
+        displayPath(temp_path,false);
       }
     // Check the negative side
     cpa.N = p.N - input_file_.turn_radius*cosf(approach_angle);
@@ -565,6 +597,13 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         normal_gchild->dontConnect = false;
         normal_gchild->connects2wp = false;
         fake_child->children.push_back(normal_gchild);
+
+        std::vector<NED_s> temp_path;
+        if (normal_gchild->parent->parent != NULL)
+          temp_path.push_back(normal_gchild->parent->parent->p);
+        temp_path.push_back(normal_gchild->parent->p);
+        temp_path.push_back(normal_gchild->p);
+        displayPath(temp_path,false);
       }
   }
 }
@@ -579,6 +618,7 @@ void RRT::initializeTree(NED_s pos, float chi0)
   fillet_s emp_f;
 	root_in0->p           = pos;
   root_in0->fil         = emp_f;
+  root_in0->fil.z2      = root_in0->p;
 	root_in0->parent      = NULL;           // No parent
 	root_in0->cost        = 0.0;            // 0 distance.
   root_in0->dontConnect = fan_first_node;
@@ -591,6 +631,7 @@ void RRT::initializeTree(NED_s pos, float chi0)
 		node *root_in        = new node;           // Starting position of the tree (and the waypoint beginning)
     root_in->p           = map_.wps[i];
     root_in->fil         = emp_f;
+    root_in0->fil.z2      = root_in0->p;
   	root_in->parent      = NULL;               // No parent
   	root_in->cost        = 0.0;                // 0 distance.
     root_in->dontConnect = direct_hit_;
@@ -708,57 +749,61 @@ void RRT::printFillet(fillet_s fil)
   //ROS_DEBUG("fil.q_i.N %f, fil.q_i.E %f, fil.q_i.D %f",  fil.q_i.N,  fil.q_i.E,  fil.q_i.D);
   //ROS_DEBUG("fil.R %f",  fil.R);
 }
-void RRT::displaySegment(node* par, NED_s pe, fillet_s fil, bool clean)
+void RRT::clearRVizPaths()
 {
-  if (clean)
+  visualization_msgs::Marker clear_mkr;
+  ROS_DEBUG("clearing all paths");
+  clear_mkr.ns   = "planned_path";
+  ROS_DEBUG("1 to %i", last_path_id_);
+  for (int i = 1; i < last_path_id_ + 1; i++)
   {
-
+    clear_mkr.id = i;
+    clear_mkr.action = visualization_msgs::Marker::DELETE;
+    marker_pub_.publish(clear_mkr);
   }
-  visualization_msgs::Marker parent_path, fillet_path, line_path, wps_marker;
+}
+void RRT::displayPath(std::vector<NED_s> path, bool testing)
+{
+  visualization_msgs::Marker planned_path_mkr, aWPS_mkr;
+  if (path_id_ == 1)
+    clearRVizPaths();
   // Set the frame ID and timestamp.  See the TF tutorials for information on these.
-  parent_path.header.frame_id = fillet_path.header.frame_id = "/local_ENU";
-  line_path.header.frame_id = wps_marker.header.frame_id = "/local_ENU";
+  planned_path_mkr.header.frame_id = aWPS_mkr.header.frame_id = "/local_ENU";
   // Set the namespace and id for this obs_mkr.  This serves to create a unique ID
   // Any obs_mkr sent with the same namespace and id will overwrite the old one
-  parent_path.ns        = "parent_path";
-  fillet_path.ns        = "fillet_path";
-  line_path.ns          = "line_path";
-  wps_marker.ns         = "wps_marker";
+  planned_path_mkr.ns   = "planned_path";
+  aWPS_mkr.ns           = "all_wps";
+  uint32_t cyl          = visualization_msgs::Marker::CYLINDER;
   uint32_t pts          = visualization_msgs::Marker::POINTS;
   uint32_t lis          = visualization_msgs::Marker::LINE_STRIP;
-  parent_path.type      = fillet_path.type = line_path.type = lis;
-  wps_marker.type       = pts;
+  planned_path_mkr.type = lis;
+  aWPS_mkr.type         = pts;
   // Set the obs_mkr action.  Options are ADD (Which is really create or modify), DELETE, and new in ROS Indigo: 3 (DELETEALL)
-  parent_path.action = fillet_path.action = visualization_msgs::Marker::ADD;
-  line_path.action = wps_marker.action = visualization_msgs::Marker::ADD;
-
-  parent_path.pose.orientation.x = fillet_path.pose.orientation.x = 0.0;
-  parent_path.pose.orientation.y = fillet_path.pose.orientation.y = 0.0;
-  parent_path.pose.orientation.z = fillet_path.pose.orientation.z = 0.0;
-  parent_path.pose.orientation.w = fillet_path.pose.orientation.w = 1.0;
-  line_path.pose.orientation.x = wps_marker.pose.orientation.x = 0.0;
-  line_path.pose.orientation.y = wps_marker.pose.orientation.y = 0.0;
-  line_path.pose.orientation.z = wps_marker.pose.orientation.z = 0.0;
-  line_path.pose.orientation.w = wps_marker.pose.orientation.w = 1.0;
+  planned_path_mkr.action = aWPS_mkr.action = visualization_msgs::Marker::ADD;
+  planned_path_mkr.pose.orientation.x = aWPS_mkr.pose.orientation.x = 0.0;
+  planned_path_mkr.pose.orientation.y = aWPS_mkr.pose.orientation.y = 0.0;
+  planned_path_mkr.pose.orientation.z = aWPS_mkr.pose.orientation.z = 0.0;
+  planned_path_mkr.pose.orientation.w = aWPS_mkr.pose.orientation.w = 1.0;
   // Set the color -- be sure to set alpha to something non-zero!
-  parent_path.color.r    = 0.0f;
-  parent_path.color.g    = 0.0f;
-  parent_path.color.b    = 1.0f;
-  parent_path.color.a    = 1.0;
-  fillet_path.color.r            = 0.0f;
-  fillet_path.color.g            = 1.0f;
-  fillet_path.color.b            = 0.0f;
-  fillet_path.color.a            = 0.8;
-  line_path.color.r    = 1.0f;
-  line_path.color.g    = 0.0f;
-  line_path.color.b    = 0.0f;
-  line_path.color.a    = 1.0;
-  wps_marker.color.r            = 1.0f;
-  wps_marker.color.g            = 1.0f;
-  wps_marker.color.b            = 0.0f;
-  wps_marker.color.a            = 1.0;
-  parent_path.lifetime = fillet_path.lifetime = ros::Duration();
-  line_path.lifetime = wps_marker.lifetime = ros::Duration();
+  if (testing)
+  {
+    planned_path_mkr.color.r    = 0.0f;
+    planned_path_mkr.color.g    = 1.0f;
+    planned_path_mkr.color.b    = 0.0f;
+    planned_path_mkr.color.a    = 1.0;
+  }
+  else
+  {
+    planned_path_mkr.color.r    = 0.0f;
+    planned_path_mkr.color.g    = 0.0f;
+    planned_path_mkr.color.b    = 1.0f;
+    planned_path_mkr.color.a    = 1.0;
+  }
+  aWPS_mkr.color.r            = 0.0f;
+  aWPS_mkr.color.g            = 0.0f;
+  aWPS_mkr.color.b            = 1.0f;
+  aWPS_mkr.color.a            = 1.0;
+  planned_path_mkr.lifetime = aWPS_mkr.lifetime = ros::Duration();
 
   while (marker_pub_.getNumSubscribers() < 1)
   {
@@ -767,66 +812,95 @@ void RRT::displaySegment(node* par, NED_s pe, fillet_s fil, bool clean)
     ROS_WARN_ONCE("Please create a subscriber to the marker");
     sleep(1);
   }
-
-  wps_marker.header.stamp = ros::Time::now();
-  wps_marker.id           =  0;
-  wps_marker.scale.x      =  10.0; // point width
-  wps_marker.scale.y      =  10.0; // point height
-  geometry_msgs::Point p;
-  p.y =  pe.N;
-  p.x =  pe.E;
-  p.z = -pe.D;
-  wps_marker.points.push_back(p);
-  marker_pub_.publish(wps_marker);
-  sleep(0.05);
-
-  // Plot the parent path
-  if (par->parent != NULL)
+  // all waypoints
+  if (false)
   {
-    parent_path.header.stamp = ros::Time::now();
-    parent_path.id           =  0;
-    parent_path.scale.x      =  15.0; // line width
-    geometry_msgs::Point ps, pem;
-    ps.x =  par->parent->p.E;
-    ps.y =  par->parent->p.N;
-    ps.z = -par->parent->p.D;
-    parent_path.points.push_back(ps);
-    pem.x =  par->p.E;
-    pem.y =  par->p.N;
-    pem.z = -par->p.D;
-    parent_path.points.push_back(pem);
-    marker_pub_.publish(parent_path);
-      sleep(0.05);
+    aWPS_mkr.header.stamp = ros::Time::now();
+    aWPS_mkr.id           =  0;
+    aWPS_mkr.scale.x      =  10.0; // point width
+    aWPS_mkr.scale.y      =  10.0; // point height
+    for (long unsigned int i = 0; i < path.size(); i++)
+  	{
+      geometry_msgs::Point p;
+      p.y =  path[i].N;
+      p.x =  path[i].E;
+      p.z = -path[i].D;
+      aWPS_mkr.points.push_back(p);
+    }
+    marker_pub_.publish(aWPS_mkr);
+    sleep(4.0);
   }
 
-  line_path.header.stamp = ros::Time::now();
-  line_path.id           =  0;
-  line_path.scale.x      =  15.0; // line width
-  geometry_msgs::Point ps, pem;
-  ps.x =  par->p.E;
-  ps.y =  par->p.N;
-  ps.z = -par->p.D;
-  line_path.points.push_back(ps);
-  pem.x =  pe.E;
-  pem.y =  pe.N;
-  pem.z = -pe.D;
-  line_path.points.push_back(pem);
-  marker_pub_.publish(line_path);
-  sleep(0.05);
+  // Plot desired path
+  planned_path_mkr.header.stamp = ros::Time::now();
+  if (testing)
+    planned_path_mkr.id         = 0;
+  else
+    planned_path_mkr.id         = path_id_++;
+  planned_path_mkr.scale.x      = 5.0; // line width
+  std::vector<NED_s> vis_path;
+  vis_path.push_back(path[0]);
+  for (int i = 1; i < path.size() - 1; i++)
+  {
+    fillet_s fil;
+    fil.calculate(path[i - 1], path[i], path[i + 1], input_file_.turn_radius);
+    vis_path.push_back(fil.z1);
 
-  fillet_path.header.stamp = ros::Time::now();
-  fillet_path.id           =  0;
-  fillet_path.scale.x      =  15.0; // line width
-  ps.x =  fil.z1.E;
-  ps.y =  fil.z1.N;
-  ps.z = -fil.z1.D;
-  fillet_path.points.push_back(ps);
-  pem.x =  fil.z2.E;
-  pem.y =  fil.z2.N;
-  pem.z = -fil.z2.D;
-  fillet_path.points.push_back(pem);
-  marker_pub_.publish(fillet_path);
-  sleep(0.05);
-  sleep(4.0);
+    std::vector<std::vector<float> > NcEc;
+    if (fil.lambda == -1)
+    {
+      NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z2 - fil.c).getChi(), (fil.z1 - fil.c).getChi());
+      // need to flip the vectors
+      std::reverse(NcEc[0].begin(),NcEc[0].end());
+      std::reverse(NcEc[1].begin(),NcEc[1].end());
+    }
+    if (fil.lambda ==  1)
+    {
+      NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z1 - fil.c).getChi(), (fil.z2 - fil.c).getChi());
+    }
+    std::vector<float> Nc = NcEc[0];
+    std::vector<float> Ec = NcEc[1];
+    NED_s pos;
+    for (int j = 0; j < Nc.size(); j++)
+    {
+      pos.N = Nc[j];
+      pos.E = Ec[j];
+      pos.D = fil.c.D;
+      vis_path.push_back(pos);
+    }
+    vis_path.push_back(fil.z2);
+  }
+  vis_path.push_back(path[path.size() - 1]);
+
+  for (int i = 0; i < vis_path.size(); i++)
+  {
+    geometry_msgs::Point p;
+    p.x =  vis_path[i].E;
+    p.y =  vis_path[i].N;
+    p.z = -vis_path[i].D;
+    planned_path_mkr.points.push_back(p);
+  }
+  marker_pub_.publish(planned_path_mkr);
+  sleep(1.0);
+}
+std::vector<std::vector<float > > RRT::arc(float N, float E, float r, float aS, float aE)
+{
+  std::vector<float> Nc, Ec;
+  while (aE < aS)
+    aE += 2.0f*M_PI;
+  if (aE - aS == 0.0)
+  {
+    Ec.push_back(r*sin(aS)+ E);
+    Nc.push_back(r*cos(aS)+ N);
+  }
+  for (float th = aS; th <= aE; th += M_PI/35.0)
+  {
+    Ec.push_back(r*sin(th)+ E);
+    Nc.push_back(r*cos(th)+ N);
+  }
+  std::vector<std::vector<float> > NcEc;
+  NcEc.push_back(Nc);
+  NcEc.push_back(Ec);
+  return NcEc;
 }
 } // end namespace theseus

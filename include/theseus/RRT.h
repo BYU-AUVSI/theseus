@@ -51,7 +51,7 @@ private:
 
   // secondary functions
   node* findClosestNodeGChild(node* root, NED_s p);
-  bool checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance);
+  bool checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance, bool connecting_to_end);
   NED_s randomPoint(unsigned int i);
   node* findClosestNode(node* nin, NED_s P, node* minNode, float* minD);
   node* findMinConnector(node* nin, node* minNode, float* minCost);
@@ -71,9 +71,12 @@ private:
   void printRRTSetup(NED_s pos, float chi0); // used for debugging
   void printRoots();                         // prints all of the root nodes
   void printNode(node* nin);                 // prints the node
-  void displaySegment(node* par, NED_s pe, fillet_s fil, bool clean); // plots the proposed path
-  void plotPath();
+  void displayPath(std::vector<NED_s> path, bool testing); // plots the proposed path
+  std::vector<std::vector<float > > arc(float N, float E, float r, float aS, float aE);
   void printFillet(fillet_s fil);
+  void clearRVizPaths();
+  int path_id_;
+  int last_path_id_;
 
   float segment_length_;         // If used, this is the distance the algorithm uses between each node
   ParamReader input_file_;       // address of the input file
