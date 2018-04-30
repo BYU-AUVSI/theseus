@@ -9,8 +9,6 @@ ParamReader::ParamReader() :
     ROS_WARN("No param named 'Va'");
   if (!(ros::param::get("pp/turn_radius",turn_radius)))
     ROS_WARN("No param named 'turn_radius'");
-  if (!(ros::param::get("pp/descend_angle",descend_angle)))
-    ROS_WARN("No param named 'descend_angle'");
   if (!(ros::param::get("pp/max_climb_angle",max_climb_angle)))
     ROS_WARN("No param named 'max_climb_angle'");
   if (!(ros::param::get("pp/max_descend_angle",max_descend_angle)))
@@ -54,7 +52,6 @@ ParamReader::ParamReader() :
   }
 
 	double deg2rad    = M_PI/180.0;
-	descend_angle     = descend_angle*deg2rad;
 	max_climb_angle   = max_climb_angle*deg2rad;
 	max_descend_angle = max_descend_angle*deg2rad;
 }

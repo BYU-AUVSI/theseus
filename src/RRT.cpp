@@ -187,6 +187,14 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
       ROS_DEBUG("calculating fillet");
       bool fil_possible = fil.calculate(start_of_line->parent->p, start_of_line->p, pe_node->p, input_file_.turn_radius);
       fillet_s temp_fil = fil;
+      float slope = atan2f(-1.0f*(fil.z1.D - start_of_line->fil.z2.D), sqrtf(powf(start_of_line->fil.z2.N - \
+                           fil.z1.N, 2.0f) + powf(start_of_line->fil.z2.E - fil.z1.E, 2.0f)));
+      if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
+        return false;
+      slope = atan2f(-1.0f*(pe_node->p.D - fil.z2.D), sqrtf(powf(fil.z2.N - pe_node->p.N, 2.0f) \
+                     + powf(fil.z2.E - pe_node->p.E, 2.0f)));
+      if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
+        return false;
       temp_fil.w_im1 = fil.z1;
       ROS_FATAL("cheking fillet");
       if (fil_possible && col_det_.checkFillet(temp_fil, clearance))
@@ -231,21 +239,21 @@ int RRT::developTree(unsigned int i)
     NED_s test_point   = (random_point - closest_node->p).normalize()*segment_length_ + closest_node->p;
     added_new_node     = checkForCollision(closest_node, test_point, i, clearance, false);
 
-    std::vector<NED_s> temp_path;
-    if (closest_node->parent != NULL)
-      temp_path.push_back(closest_node->fil.z2);
-    temp_path.push_back(closest_node->p);
-    temp_path.push_back(test_point);
-    displayPath(temp_path,true);
+    // std::vector<NED_s> temp_path;
+    // if (closest_node->parent != NULL)
+    //   temp_path.push_back(closest_node->fil.z2);
+    // temp_path.push_back(closest_node->p);
+    // temp_path.push_back(test_point);
+    // displayPath(temp_path,true);
 
   }
   ROS_DEBUG("found a new node");
-  std::vector<NED_s> temp_path;
-  if (most_recent_node_->parent->parent != NULL)
-    temp_path.push_back(most_recent_node_->parent->fil.z2);
-  temp_path.push_back(most_recent_node_->parent->p);
-  temp_path.push_back(most_recent_node_->p);
-  displayPath(temp_path,false);
+  // std::vector<NED_s> temp_path;
+  // if (most_recent_node_->parent->parent != NULL)
+  //   temp_path.push_back(most_recent_node_->parent->fil.z2);
+  // temp_path.push_back(most_recent_node_->parent->p);
+  // temp_path.push_back(most_recent_node_->p);
+  // displayPath(temp_path,false);
 
 
   ROS_DEBUG("trying direct connect for the new node");
@@ -353,7 +361,7 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance,
   // //ROS_DEBUG("checking the line");
   if (col_det_.checkLine(start_of_line->p, pe, clearance))
   {
-    ROS_FATAL("chekcLine in RRT passed");
+    // ROS_FATAL("chekcLine in RRT passed");
     // //ROS_DEBUG("line worked");
     if (start_of_line->parent == NULL) // then this is the start
     {
@@ -386,6 +394,13 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance,
       // if (fil_possible) { ROS_INFO("fillet possible");}
       // else {ROS_WARN("fillet not possible");}
       fillet_s temp_fil = fil;
+      float slope = atan2f(-1.0f*(fil.z1.D - start_of_line->fil.z2.D), sqrtf(powf(start_of_line->fil.z2.N - \
+                           fil.z1.N, 2.0f) + powf(start_of_line->fil.z2.E - fil.z1.E, 2.0f)));
+      if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
+        return false;
+      slope = atan2f(-1.0f*(pe.D - fil.z2.D), sqrtf(powf(fil.z2.N - pe.N, 2.0f) + powf(fil.z2.E - pe.E, 2.0f)));
+      if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
+        return false;
       temp_fil.w_im1 = fil.z1;
       ROS_FATAL("cheking fillet");
       if (fil_possible && col_det_.checkFillet(temp_fil, clearance))
@@ -396,7 +411,6 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance,
           // printNode(start_of_line);
           //ROS_DEBUG("testing spot N: %f, E %f, D %f", pe.N, pe.E, pe.D);
           // ROS_FATAL("failed neighboring fillets");
-          // displayPath()
           return false;
         }
         //ROS_DEBUG("passed neighboring fillets");
@@ -414,12 +428,10 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance,
         most_recent_node_        = ending_node;
         // //ROS_DEBUG("printing ending node");
         // printNode(ending_node);
-        // displayPath()
         return true;
       }
       // else
       //   ROS_ERROR("failed fillet");
-      // displayPath()
     }
   }
   else
@@ -555,12 +567,12 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         normal_gchild->connects2wp = false;
         fake_child->children.push_back(normal_gchild);
 
-        std::vector<NED_s> temp_path;
-        if (normal_gchild->parent->parent != NULL)
-          temp_path.push_back(normal_gchild->parent->parent->p);
-        temp_path.push_back(normal_gchild->parent->p);
-        temp_path.push_back(normal_gchild->p);
-        displayPath(temp_path,false);
+        // std::vector<NED_s> temp_path;
+        // if (normal_gchild->parent->parent != NULL)
+        //   temp_path.push_back(normal_gchild->parent->parent->p);
+        // temp_path.push_back(normal_gchild->parent->p);
+        // temp_path.push_back(normal_gchild->p);
+        // displayPath(temp_path,false);
       }
     // Check the negative side
     cpa.N = p.N - input_file_.turn_radius*cosf(approach_angle);
@@ -598,12 +610,12 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         normal_gchild->connects2wp = false;
         fake_child->children.push_back(normal_gchild);
 
-        std::vector<NED_s> temp_path;
-        if (normal_gchild->parent->parent != NULL)
-          temp_path.push_back(normal_gchild->parent->parent->p);
-        temp_path.push_back(normal_gchild->parent->p);
-        temp_path.push_back(normal_gchild->p);
-        displayPath(temp_path,false);
+        // std::vector<NED_s> temp_path;
+        // if (normal_gchild->parent->parent != NULL)
+        //   temp_path.push_back(normal_gchild->parent->parent->p);
+        // temp_path.push_back(normal_gchild->parent->p);
+        // temp_path.push_back(normal_gchild->p);
+        // displayPath(temp_path,false);
       }
   }
 }

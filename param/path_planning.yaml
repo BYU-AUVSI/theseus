@@ -1,16 +1,15 @@
 pp:
   Va: 20.0
-  turn_radius: 50.0          # Turn radius of the plane to plan for in the path.
-  segment_length: 150.0      # Turn radius of the plane to plan for in the path.
-  descend_angle: 8.0         # Angle in degrees the plane will typically descend
+  turn_radius: 25.0          # Turn radius of the plane to plan for in the path.
+  segment_length: 80.0       # Turn radius of the plane to plan for in the path.
   max_climb_angle: 18.0      # Maximum angle the plane will ascend, must be greater than climb_angle
-  max_descend_angle: 10.0    # Maximum angle the plane will descend, must be greater than descend_angle
+  max_descend_angle: 15.0    # Maximum angle the plane will descend, must be greater than descend_angle
   clearance: 20.0            # Minimum distance the algorithm has to stay away from any obstacle
-  iters_limit: 2500        # This is a maximum iteration limit - so impossible maps don't hang the program
+  iters_limit: 2500          # This is a maximum iteration limit - so impossible maps don't hang the program
   seed: 123                  # Seed the random generators for all of the simulation seeds
 ppsim:
   # Map Settings
-  numWps: 4                  # Number of waypoints to plan.
+  numWps: 5                  # Number of waypoints to plan.
   N0: 0.0                    # initial starting place for the plane, North in NED
   E0: 0.0                    # initial starting place for the plane, East in NED
   D0: 0.0                    # initial starting place for the plane, Down in NED

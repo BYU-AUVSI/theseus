@@ -20,6 +20,8 @@ bool CollisionDetection::checkFillet(NED_s w_im1, NED_s w_i, NED_s w_ip1, float 
 {
   fillet_s fil;
   bool good_fillet = fil.calculate(w_im1, w_i, w_ip1, R);
+  if (checkClimbAngle(w_im1, fil.z1) == false)
+    return false;
   if (good_fillet)
     return checkFillet(fil, clearance);
   else
@@ -27,28 +29,8 @@ bool CollisionDetection::checkFillet(NED_s w_im1, NED_s w_i, NED_s w_ip1, float 
 }
 bool CollisionDetection::checkFillet(fillet_s fil, float clearance)
 {
-  // check for a collision on the first line, the arc and the second line
-  // bool first_line, second_line;
   bool middle_arc;
-  // if (fil.w_im1 != fil.z1)
-    // first_line  = checkLine(fil.w_im1, fil.z1, clearance);
-  // else
-    // first_line = true;
   middle_arc  = checkArc(fil.z1, fil.z2, fil.R, fil.c, fil.lambda, clearance);
-  // if (fil.w_ip1 != fil.z2)
-    // second_line = checkLine(fil.z2, fil.w_ip1, clearance);
-  // else
-      // second_line = true;
-  // if (first_line) {ROS_DEBUG("first line passed");}
-  // else {ROS_FATAL("first line FAILED"); ROS_DEBUG("n_beg: %f, e_beg: %f, d_beg: %f, n_end: %f, e_end: %f, d_end: %f, ",\
-  // fil.w_im1.N, fil.w_im1.E, fil.w_im1.D, fil.z1.N, fil.z1.E, fil.z1.D);}
-  if (middle_arc) {ROS_DEBUG("arc passed");}
-  else {ROS_FATAL("arc FAILED");}
-  // if (second_line) {ROS_DEBUG("second line passed");}
-  // else {ROS_FATAL("second line FAILED"); ROS_DEBUG("n_beg: %f, e_beg: %f, d_beg: %f, n_end: %f, e_end: %f, d_end: %f, ",\
-  // fil.z2.N, fil.z2.E, fil.z2.D, fil.w_ip1.N, fil.w_ip1.E, fil.w_ip1.D);}
-
-  // if (first_line && middle_arc && second_line)
   if (middle_arc)
     return true;
   else
