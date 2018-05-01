@@ -106,7 +106,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This fu
   clearRVizPaths();
   path_id_ = 2;
   displayPath(all_rough_paths, false);
-  sleep(3.0);
+  sleep(4.0);
 }
 
 
@@ -281,23 +281,64 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
   ROS_ERROR("STARTING THE SMOOTHER");
   std::vector<node*> new_path;
   new_path.push_back(smooth_rts_[i]);
-  ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
-  printNode(new_path.back());
+  // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+  // printNode(new_path.back());
   std::vector<NED_s> temp_path; // used for plotting
   if (direct_hit_)
   {
     int ptr;
     if (i > 0)
+    {
+      ptr = 0;
+      fillet_s fil1, fil2;
+      bool passed1 = fil1.calculate(new_path.back()->parent->p, new_path.back()->p, rough_path[ptr + 1]->p, input_file_.turn_radius);
+      bool passed2 = fil2.calculate(new_path.back()->p, rough_path[ptr + 1]->p, rough_path[ptr + 2]->p, input_file_.turn_radius);
+      node *fake_child           = new node;
+      node *normal_gchild        = new node;
+      fake_child->p              = rough_path[ptr + 1]->p;
+      fake_child->fil            = fil1;
+      fake_child->parent         = new_path.back();
+      fake_child->cost           = (rough_path[ptr + 1]->p - new_path.back()->p).norm();
+      fake_child->dontConnect    = false;
+      fake_child->connects2wp    = false;
+      new_path.back()->children.push_back(fake_child);
+      normal_gchild->p           = rough_path[ptr + 2]->p;
+      normal_gchild->fil         = fil2;
+      normal_gchild->parent      = fake_child;
+      normal_gchild->cost        = normal_gchild->parent->cost + (rough_path[ptr + 2]->p - rough_path[ptr + 1]->p).norm() - fil2.adj;
+      normal_gchild->dontConnect = false;
+      normal_gchild->connects2wp = false;
+      fake_child->children.push_back(normal_gchild);
+
       ptr = 2;
+      new_path.push_back(fake_child);
+      new_path.push_back(normal_gchild);
+    }
     else
       ptr = 0; // TODO there will be a problem if the fan is created for the first node...
     while (ptr < rough_path.size() - 1)
     {
       ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
+      if (new_path.back()->parent != NULL)
+        temp_path.push_back(new_path.back()->fil.z2);
+      temp_path.push_back(new_path.back()->p);
+      temp_path.push_back(rough_path[ptr + 1]->p);
+      displayPath(temp_path,false);
+      temp_path.clear();
+
+      ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
       if (checkForCollision(new_path.back(), rough_path[ptr + 1]->p, i, path_clearance_, false) == false) // if there is a collision
       {
-        new_path.push_back(most_recent_node_);
+        ROS_DEBUG("Collision, adding the most recent node");
         ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+        ROS_DEBUG("N: %f, E: %f, D: %f", most_recent_node_->p.N, most_recent_node_->p.E,most_recent_node_->p.D);
+        if (new_path.back()->parent != NULL)
+          temp_path.push_back(new_path.back()->fil.z2);
+        temp_path.push_back(new_path.back()->p);
+        temp_path.push_back(most_recent_node_->p);
+        displayPath(temp_path,true);
+        temp_path.clear();
+        new_path.push_back(most_recent_node_);
         ROS_DEBUG("Adding most recent node");
       }
       else
@@ -307,6 +348,13 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     }
     new_path.push_back(smooth_rts_[i + 1]);
     ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+    for (int it = 0; it < new_path.size(); it++)
+    {
+      // temp_neds.push_back(new_path[it]->p);
+      ROS_DEBUG("SMOOTH PATH N: %f E: %f D: %f", new_path[it]->p.N, new_path[it]->p.E, new_path[it]->p.D);
+    }
+    // displayPath(temp_neds, true);
+    temp_neds.clear();
     // TODO see if it is possible to smooth the fan
   }
   else
@@ -316,7 +364,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     {
       ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
       if (new_path.back()->parent != NULL)
-        temp_path.push_back(new_path.back()->parent->p);
+        temp_path.push_back(new_path.back()->fil.z2);
       temp_path.push_back(new_path.back()->p);
       temp_path.push_back(rough_path[ptr + 1]->p);
       displayPath(temp_path,false);
@@ -327,7 +375,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
         ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
         ROS_DEBUG("N: %f, E: %f, D: %f", most_recent_node_->p.N, most_recent_node_->p.E,most_recent_node_->p.D);
         if (new_path.back()->parent != NULL)
-          temp_path.push_back(new_path.back()->parent->p);
+          temp_path.push_back(new_path.back()->fil.z2);
         temp_path.push_back(new_path.back()->p);
         temp_path.push_back(most_recent_node_->p);
         displayPath(temp_path,true);
@@ -348,8 +396,8 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
       ROS_DEBUG("SMOOTH PATH N: %f E: %f D: %f", new_path[it]->p.N, new_path[it]->p.E, new_path[it]->p.D);
     }
     displayPath(temp_neds, true);
-    new_path.erase(new_path.begin());
   }
+  new_path.erase(new_path.begin());
   return new_path;
 }
 void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
@@ -907,7 +955,7 @@ void RRT::displayPath(std::vector<NED_s> path, bool testing)
       aWPS_mkr.points.push_back(p);
     }
     marker_pub_.publish(aWPS_mkr);
-    sleep(2.0);
+    sleep(1.0);
   }
 
   // Plot desired path
@@ -959,7 +1007,7 @@ void RRT::displayPath(std::vector<NED_s> path, bool testing)
     planned_path_mkr.points.push_back(p);
   }
   marker_pub_.publish(planned_path_mkr);
-  sleep(1.0);
+  sleep(4.0);
 }
 std::vector<std::vector<float > > RRT::arc(float N, float E, float r, float aS, float aE)
 {

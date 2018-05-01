@@ -195,7 +195,7 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   pos.N =  odometry_[1];
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
-  bool direct_hit = false;
+  bool direct_hit = true;
   rrt_obj_.solveStatic(pos, chi0_, direct_hit);
   visualization_msgs::Marker clear_mkr;
   clear_mkr.action = visualization_msgs::Marker::DELETEALL;

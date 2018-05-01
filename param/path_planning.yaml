@@ -6,7 +6,7 @@ pp:
   max_descend_angle: 15.0    # Maximum angle the plane will descend, must be greater than descend_angle
   clearance: 20.0            # Minimum distance the algorithm has to stay away from any obstacle
   iters_limit: 2500          # This is a maximum iteration limit - so impossible maps don't hang the program
-  seed: 123                  # Seed the random generators for all of the simulation seeds
+  seed: 1234                 # Seed the random generators for all of the simulation seeds
 ppsim:
   # Map Settings
   numWps: 5                  # Number of waypoints to plan.
