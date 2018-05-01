@@ -17,7 +17,7 @@ RRT::RRT(map_s map_in, unsigned int seed) :
   map_            = map_in;
   col_det_.newMap(map_in);
   last_path_id_   = 1;              // just used for debugging
-  path_id_ = 1;
+  path_id_        = 1;
 }
 RRT::RRT()
 {
@@ -30,11 +30,14 @@ RRT::~RRT()
 }
 void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
+  std::vector<NED_s> all_rough_paths;
+
   direct_hit_      = direct_hit;
   path_clearance_  = input_file_.clearance;
   ROS_DEBUG("Starting RRT solver");
   clearForNewPath();
 	initializeTree(pos, chi0);
+  all_rough_paths.push_back(root_ptrs_[0]->p);
   taking_off_ = (-pos.D < input_file_.minFlyHeight);
   col_det_.taking_off_ = taking_off_;
   if (taking_off_) {ROS_DEBUG("taking_off_ on initial set is true");}
@@ -70,7 +73,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This fu
       }
     }
     std::vector<node*> rough_path  = findMinimumPath(i);
-    std::vector<node*> smooth_path = smoothPath(rough_path);
+    std::vector<node*> smooth_path = smoothPath(rough_path, i);
     addPath(smooth_path, i);
     if (-all_wps_[all_wps_.size() - 1].D > input_file_.minFlyHeight)
     {
@@ -80,10 +83,12 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This fu
     }
     clearRVizPaths();
     clearRVizPaths();
-    clearRVizPaths();
     last_path_id_ = path_id_;
     path_id_ = 1; // just for debugging, displayPath();
     ROS_DEBUG("path_id_ reset, last_path_id_  = %i", last_path_id_);
+
+    for (int it = 1; it < rough_path.size(); it++)
+      all_rough_paths.push_back(rough_path[it]->p);
   }
   // find a place to safely loiter?
 
@@ -95,55 +100,13 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This fu
   // all_wps_.push_back(first_after);
   // all_wps_.push_back(second_after);
 
+  // for (int i = 0; i < map_.wps.size(); i++)
+  //   ROS_DEBUG("WP %i: %f, %f, %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
 
-  // all_wps_.clear();
-  // NED_s wp;
-  // wp.N = 221.8275909423828;
-  // wp.E = -3.2715530395507812;
-  // wp.D = -44.26875305175781;
-  // all_wps_.push_back(wp);
-  // wp.N = 249.9587860107422;
-  // wp.E = 243.06765747070312;
-  // wp.D = -76.29425048828125;
-  // all_wps_.push_back(wp);
-  // wp.N = -176.12940979003906;
-  // wp.E = 479.64923095703125;
-  // wp.D = -84.92816925048828;
-  // all_wps_.push_back(wp);
-  // wp.N = -245.54563903808594;
-  // wp.E = 240.6516876220703;
-  // wp.D = -108.62531280517578;
-  // all_wps_.push_back(wp);
-  // // wp.N = 38.73063278198242;
-  // // wp.E = 47.211883544921875;
-  // // wp.D = -77.8299789428711;
-  // // all_wps_.push_back(wp);
-  // wp.N = 203.25352478027344;
-  // wp.E = -64.73995971679688;
-  // wp.D = -77.8299789428711;
-  // all_wps_.push_back(wp);
-  // wp.N = 323.4235534667969;
-  // wp.E = 594.923583984375;
-  // wp.D = -178.75735473632812;
-  // all_wps_.push_back(wp);
-  // wp.N = 121.78028869628906;
-  // wp.E = 647.900146484375;
-  // wp.D = -178.75735473632812;
-  // all_wps_.push_back(wp);
-  // wp.N = -19.800050735473633;
-  // wp.E = 442.2632141113281;
-  // wp.D = -191.7363739013672;
-  // all_wps_.push_back(wp);
-  // wp.N = -100.45663452148438;
-  // wp.E = 205.8821563720703;
-  // wp.D = -202.62266540527344;
-  // all_wps_.push_back(wp);
-  // wp.N = 620.9794311523438;
-  // wp.E = 17.95068359375;
-  // wp.D = -188.4557647705078;
-  // all_wps_.push_back(wp);
-  for (int i = 0; i < map_.wps.size(); i++)
-    ROS_DEBUG("WP %i: %f, %f, %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
+  clearRVizPaths();
+  path_id_ = 2;
+  displayPath(all_rough_paths, false);
+  sleep(3.0);
 }
 
 
@@ -202,7 +165,7 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
         ROS_DEBUG("fillet checked out, now trying neighboring fillets");
         if (start_of_line->parent != NULL && start_of_line->fil.roomFor(fil) == false)
         {
-          printNode(start_of_line);
+          //printNode(start_of_line);
           ROS_DEBUG("failed direct connection because of neighboring fillets");
           return false;
         }
@@ -271,13 +234,15 @@ std::vector<node*> RRT::findMinimumPath(unsigned int i)
   float minimum_cost = INFINITY;
   node* almost_last  = findMinConnector(root_ptrs_[i], root_ptrs_[i], &minimum_cost);
   ROS_DEBUG("found a minimum path");
-  root_ptrs_[i + 1]->parent = almost_last;
+  root_ptrs_[i + 1]->parent  = almost_last;
+  smooth_rts_[i + 1]->parent = almost_last;
   if (almost_last->parent != NULL)
   {
     fillet_s fil;
     bool fil_b = fil.calculate(almost_last->parent->p, almost_last->p, root_ptrs_[i + 1]->p, input_file_.turn_radius);
     root_ptrs_[i + 1]->fil    = fil;
-    ROS_DEBUG("calculated fillet");
+    smooth_rts_[i + 1]->fil    = fil;
+    // ROS_DEBUG("calculated fillet");
   }
 
 	std::stack<node*> wpstack;
@@ -291,6 +256,7 @@ std::vector<node*> RRT::findMinimumPath(unsigned int i)
     wpstack.push(current_node);
 		current_node = current_node->parent;
 	}
+  rough_path.push_back(root_ptrs_[i]);
   ROS_DEBUG("about to empty the stack");
 	while (!wpstack.empty())
 	{
@@ -301,9 +267,90 @@ std::vector<node*> RRT::findMinimumPath(unsigned int i)
   //ROS_DEBUG("created rough path");
   return rough_path;
 }
-std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path)
+std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
 {
-  return rough_path;
+  std::vector<NED_s> temp_neds;
+  for (int it = 0; it < rough_path.size(); it++)
+  {
+    temp_neds.push_back(rough_path[it]->p);
+    ROS_DEBUG("ROUGH PATH N: %f E: %f D: %f", rough_path[it]->p.N, rough_path[it]->p.E, rough_path[it]->p.D);
+  }
+  displayPath(temp_neds, false);
+  temp_neds.clear();
+  // return rough_path;
+  ROS_ERROR("STARTING THE SMOOTHER");
+  std::vector<node*> new_path;
+  new_path.push_back(smooth_rts_[i]);
+  ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+  printNode(new_path.back());
+  std::vector<NED_s> temp_path; // used for plotting
+  if (direct_hit_)
+  {
+    int ptr;
+    if (i > 0)
+      ptr = 2;
+    else
+      ptr = 0; // TODO there will be a problem if the fan is created for the first node...
+    while (ptr < rough_path.size() - 1)
+    {
+      ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
+      if (checkForCollision(new_path.back(), rough_path[ptr + 1]->p, i, path_clearance_, false) == false) // if there is a collision
+      {
+        new_path.push_back(most_recent_node_);
+        ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+        ROS_DEBUG("Adding most recent node");
+      }
+      else
+      {
+        ptr++;
+      }
+    }
+    new_path.push_back(smooth_rts_[i + 1]);
+    ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+    // TODO see if it is possible to smooth the fan
+  }
+  else
+  {
+    int ptr = 0;
+    while (ptr < rough_path.size() - 1)
+    {
+      ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
+      if (new_path.back()->parent != NULL)
+        temp_path.push_back(new_path.back()->parent->p);
+      temp_path.push_back(new_path.back()->p);
+      temp_path.push_back(rough_path[ptr + 1]->p);
+      displayPath(temp_path,false);
+      temp_path.clear();
+      if (checkForCollision(new_path.back(), rough_path[ptr + 1]->p, i, path_clearance_, false) == false) // if there is a collision
+      {
+        ROS_DEBUG("Collision, adding the most recent node");
+        ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+        ROS_DEBUG("N: %f, E: %f, D: %f", most_recent_node_->p.N, most_recent_node_->p.E,most_recent_node_->p.D);
+        if (new_path.back()->parent != NULL)
+          temp_path.push_back(new_path.back()->parent->p);
+        temp_path.push_back(new_path.back()->p);
+        temp_path.push_back(most_recent_node_->p);
+        displayPath(temp_path,true);
+        temp_path.clear();
+
+        new_path.push_back(most_recent_node_);
+      }
+      else
+      {
+        ptr++;
+        ROS_DEBUG("no collision");
+      }
+    }
+    new_path.push_back(smooth_rts_[i + 1]);
+    for (int it = 0; it < new_path.size(); it++)
+    {
+      temp_neds.push_back(new_path[it]->p);
+      ROS_DEBUG("SMOOTH PATH N: %f E: %f D: %f", new_path[it]->p.N, new_path[it]->p.E, new_path[it]->p.D);
+    }
+    displayPath(temp_neds, true);
+    new_path.erase(new_path.begin());
+  }
+  return new_path;
 }
 void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
 {
@@ -321,7 +368,6 @@ void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
     // }
     else
       all_wps_.push_back(smooth_path[j]->p);
-
   }
 }
 
@@ -347,6 +393,8 @@ node* RRT::findClosestNodeGChild(node* root, NED_s p)
 }
 bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance, bool connecting_to_end)
 {
+  // returns true if there was no collision detected.
+  // returns false if there was a collision collected.
   node* start_of_line;
   if (ps->dontConnect) // then try one of the grand children
   {
@@ -402,7 +450,6 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance,
       if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
         return false;
       temp_fil.w_im1 = fil.z1;
-      ROS_FATAL("cheking fillet");
       if (fil_possible && col_det_.checkFillet(temp_fil, clearance))
       {
         //ROS_DEBUG("passed fillet check, checking for neighboring fillets");
@@ -626,29 +673,37 @@ void RRT::initializeTree(NED_s pos, float chi0)
   if (-pos.D < input_file_.minFlyHeight)
     fan_first_node = false;
 	// Set up all of the roots
-	node *root_in0 = new node;              // Starting position of the tree (and the waypoint beginning)
+	node *root_in0        = new node;        // Starting position of the tree (and the waypoint beginning)
+  node *root_in0_smooth = new node;
   fillet_s emp_f;
 	root_in0->p           = pos;
   root_in0->fil         = emp_f;
   root_in0->fil.z2      = root_in0->p;
-	root_in0->parent      = NULL;           // No parent
-	root_in0->cost        = 0.0;            // 0 distance.
+	root_in0->parent      = NULL;            // No parent
+	root_in0->cost        = 0.0f;            // 0 distance.
   root_in0->dontConnect = fan_first_node;
   root_in0->connects2wp = false;
+  ROS_DEBUG("about to set smoother");
+  root_in0_smooth->equal(root_in0);
+  ROS_DEBUG("set smooth_rts");
 	root_ptrs_.push_back(root_in0);
+  smooth_rts_.push_back(root_in0_smooth);
   int num_root = 0;
   num_root++;
   for (unsigned int i = 0; i < map_.wps.size(); i++)
 	{
-		node *root_in        = new node;           // Starting position of the tree (and the waypoint beginning)
+		node *root_in        = new node;       // Starting position of the tree (and the waypoint beginning)
+    node *root_in_smooth = new node;
     root_in->p           = map_.wps[i];
     root_in->fil         = emp_f;
-    root_in0->fil.z2      = root_in0->p;
-  	root_in->parent      = NULL;               // No parent
-  	root_in->cost        = 0.0;                // 0 distance.
+    root_in0->fil.z2     = root_in0->p;
+  	root_in->parent      = NULL;           // No parent
+  	root_in->cost        = 0.0f;           // 0 distance.
     root_in->dontConnect = direct_hit_;
     root_in->connects2wp = false;
-		root_ptrs_.push_back(root_in);
+    root_in_smooth->equal(root_in);
+    root_ptrs_.push_back(root_in);
+    smooth_rts_.push_back(root_in_smooth);
     num_root++;
 	}
   // printRoots();
@@ -674,6 +729,9 @@ void RRT::deleteTree()
   if (root_ptrs_.size() > 0)
     deleteNode(root_ptrs_[0]);
   root_ptrs_.clear();
+  if (smooth_rts_.size() > 0)
+    deleteNode(smooth_rts_[0]);
+  smooth_rts_.clear();
 }
 void RRT::deleteNode(node* pn)                         // Recursively delete every node
 {
@@ -688,6 +746,9 @@ void RRT::clearTree()
   if (root_ptrs_.size() > 0)
     clearNode(root_ptrs_[0]);
   root_ptrs_.clear();
+  if (smooth_rts_.size() > 0)
+    clearNode(smooth_rts_[0]);
+  smooth_rts_.clear();
 }
 void RRT::clearNode(node* pn)                         // Recursively delete every node
 {
@@ -701,65 +762,65 @@ void RRT::clearNode(node* pn)                         // Recursively delete ever
 void RRT::printRRTSetup(NED_s pos, float chi0)
 {
   // Print initial position
-  //ROS_DEBUG("Initial North: %f, Initial East: %f, Initial Down: %f", pos.N, pos.E, pos.D);
+  ROS_DEBUG("Initial North: %f, Initial East: %f, Initial Down: %f", pos.N, pos.E, pos.D);
 
-  //ROS_DEBUG("Number of Boundary Points: %lu",  map_.boundary_pts.size());
-  // for (long unsigned int i = 0; i < map_.boundary_pts.size(); i++)
-  // {
-  //   //ROS_DEBUG("Boundary: %lu, North: %f, East: %f, Down: %f", \
-  //   i, map_.boundary_pts[i].N, map_.boundary_pts[i].E, map_.boundary_pts[i].D);
-  // }
-  // //ROS_DEBUG("Number of Waypoints: %lu", map_.wps.size());
-  // for (long unsigned int i = 0; i < map_.wps.size(); i++)
-  // {
-  //   //ROS_DEBUG("WP: %lu, North: %f, East: %f, Down: %f", i + (unsigned long int) 1, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
-  // }
-  // //ROS_DEBUG("Number of Cylinders: %lu", map_.cylinders.size());
-  // for (long unsigned int i = 0; i <  map_.cylinders.size(); i++)
-  // {
-  //   //ROS_DEBUG("Cylinder: %lu, North: %f, East: %f, Radius: %f, Height: %f", \
-  //   i, map_.cylinders[i].N, map_.cylinders[i].E, map_.cylinders[i].R,  map_.cylinders[i].H);
-  // }
+  ROS_DEBUG("Number of Boundary Points: %lu",  map_.boundary_pts.size());
+  for (long unsigned int i = 0; i < map_.boundary_pts.size(); i++)
+  {
+    ROS_DEBUG("Boundary: %lu, North: %f, East: %f, Down: %f", \
+    i, map_.boundary_pts[i].N, map_.boundary_pts[i].E, map_.boundary_pts[i].D);
+  }
+  ROS_DEBUG("Number of Waypoints: %lu", map_.wps.size());
+  for (long unsigned int i = 0; i < map_.wps.size(); i++)
+  {
+    ROS_DEBUG("WP: %lu, North: %f, East: %f, Down: %f", i + (unsigned long int) 1, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
+  }
+  ROS_DEBUG("Number of Cylinders: %lu", map_.cylinders.size());
+  for (long unsigned int i = 0; i <  map_.cylinders.size(); i++)
+  {
+    ROS_DEBUG("Cylinder: %lu, North: %f, East: %f, Radius: %f, Height: %f", \
+    i, map_.cylinders[i].N, map_.cylinders[i].E, map_.cylinders[i].R,  map_.cylinders[i].H);
+  }
 }
 void RRT::printRoots()
 {
-  // for (unsigned int i = 0; i < root_ptrs_.size(); i++)
-    //ROS_DEBUG("Waypoint %i, North: %f, East %f Down: %f", \
+  for (unsigned int i = 0; i < root_ptrs_.size(); i++)
+    ROS_DEBUG("Waypoint %i, North: %f, East %f Down: %f", \
     i, root_ptrs_[i]->p.N, root_ptrs_[i]->p.E, root_ptrs_[i]->p.D);
 }
 void RRT::printNode(node* nin)
 {
-  //ROS_DEBUG("NODE ADDRESS: %p", (void *)nin);
-  //ROS_DEBUG("p.N %f, p.E %f, p.D %f", nin->p.N, nin->p.E, nin->p.D);
-  // printFillet(nin->fil);
-  //ROS_DEBUG("fil.w_im1.N %f, fil.w_im1.E %f, fil.w_im1.D %f", nin->fil.w_im1.N, nin->fil.w_im1.E, nin->fil.w_im1.D);
-  //ROS_DEBUG("fil.w_i.N %f, fil.w_i.E %f, fil.w_i.D %f", nin->fil.w_i.N, nin->fil.w_i.E, nin->fil.w_i.D);
-  //ROS_DEBUG("fil.w_ip1.N %f, fil.w_ip1.E %f, fil.w_ip1.D %f", nin->fil.w_ip1.N, nin->fil.w_ip1.E, nin->fil.w_ip1.D);
-  //ROS_DEBUG("fil.z1.N %f, fil.z1.E %f, fil.z1.D %f", nin->fil.z1.N, nin->fil.z1.E, nin->fil.z1.D);
-  //ROS_DEBUG("fil.z2.N %f, fil.z2.E %f, fil.z2.D %f", nin->fil.z2.N, nin->fil.z2.E, nin->fil.z2.D);
-  //ROS_DEBUG("fil.c.N %f, fil.c.E %f, fil.c.D %f", nin->fil.c.N, nin->fil.c.E, nin->fil.c.D);
-  //ROS_DEBUG("fil.q_im1.N %f, fil.q_im1.E %f, fil.q_im1.D %f", nin->fil.q_im1.N, nin->fil.q_im1.E, nin->fil.q_im1.D);
-  //ROS_DEBUG("fil.q_i.N %f, fil.q_i.E %f, fil.q_i.D %f", nin->fil.q_i.N, nin->fil.q_i.E, nin->fil.q_i.D);
-  //ROS_DEBUG("fil.R %f", nin->fil.R);
-  //ROS_DEBUG("parent %p", (void *)nin->parent);
-  //ROS_DEBUG("number of children %lu", nin->children.size());
-  //ROS_DEBUG("cost %f", nin->cost);
-  // if (nin->dontConnect) {//ROS_DEBUG("dontConnect == true");}
-  // else {//ROS_DEBUG("dontConnect == false");}
-  // if (nin->connects2wp) {//ROS_DEBUG("connects2wp == true");}
-  // else {//ROS_DEBUG("connects2wp == false");}
+  ROS_DEBUG("NODE ADDRESS: %p", (void *)nin);
+  ROS_DEBUG("p.N %f, p.E %f, p.D %f", nin->p.N, nin->p.E, nin->p.D);
+  printFillet(nin->fil);
+  ROS_DEBUG("fil.w_im1.N %f, fil.w_im1.E %f, fil.w_im1.D %f", nin->fil.w_im1.N, nin->fil.w_im1.E, nin->fil.w_im1.D);
+  ROS_DEBUG("fil.w_i.N %f, fil.w_i.E %f, fil.w_i.D %f", nin->fil.w_i.N, nin->fil.w_i.E, nin->fil.w_i.D);
+  ROS_DEBUG("fil.w_ip1.N %f, fil.w_ip1.E %f, fil.w_ip1.D %f", nin->fil.w_ip1.N, nin->fil.w_ip1.E, nin->fil.w_ip1.D);
+  ROS_DEBUG("fil.z1.N %f, fil.z1.E %f, fil.z1.D %f", nin->fil.z1.N, nin->fil.z1.E, nin->fil.z1.D);
+  ROS_DEBUG("fil.z2.N %f, fil.z2.E %f, fil.z2.D %f", nin->fil.z2.N, nin->fil.z2.E, nin->fil.z2.D);
+  ROS_DEBUG("fil.c.N %f, fil.c.E %f, fil.c.D %f", nin->fil.c.N, nin->fil.c.E, nin->fil.c.D);
+  ROS_DEBUG("fil.q_im1.N %f, fil.q_im1.E %f, fil.q_im1.D %f", nin->fil.q_im1.N, nin->fil.q_im1.E, nin->fil.q_im1.D);
+  ROS_DEBUG("fil.q_i.N %f, fil.q_i.E %f, fil.q_i.D %f", nin->fil.q_i.N, nin->fil.q_i.E, nin->fil.q_i.D);
+  ROS_DEBUG("fil.R %f", nin->fil.R);
+  ROS_DEBUG("parent %p", (void *)nin->parent);
+  ROS_DEBUG("number of children %lu", nin->children.size());
+  ROS_DEBUG("cost %f", nin->cost);
+  if (nin->dontConnect) {ROS_DEBUG("dontConnect == true");}
+  else {ROS_DEBUG("dontConnect == false");}
+  if (nin->connects2wp) {ROS_DEBUG("connects2wp == true");}
+  else {ROS_DEBUG("connects2wp == false");}
 }
 void RRT::printFillet(fillet_s fil)
 {
-  //ROS_DEBUG("fil.w_im1.N %f, fil.w_im1.E %f, fil.w_im1.D %f",  fil.w_im1.N,  fil.w_im1.E,  fil.w_im1.D);
-  //ROS_DEBUG("fil.w_i.N %f, fil.w_i.E %f, fil.w_i.D %f",  fil.w_i.N,  fil.w_i.E,  fil.w_i.D);
-  //ROS_DEBUG("fil.w_ip1.N %f, fil.w_ip1.E %f, fil.w_ip1.D %f",  fil.w_ip1.N,  fil.w_ip1.E,  fil.w_ip1.D);
-  //ROS_DEBUG("fil.z1.N %f, fil.z1.E %f, fil.z1.D %f",  fil.z1.N,  fil.z1.E,  fil.z1.D);
-  //ROS_DEBUG("fil.z2.N %f, fil.z2.E %f, fil.z2.D %f",  fil.z2.N,  fil.z2.E,  fil.z2.D);
-  //ROS_DEBUG("fil.c.N %f, fil.c.E %f, fil.c.D %f",  fil.c.N,  fil.c.E,  fil.c.D);
-  //ROS_DEBUG("fil.q_im1.N %f, fil.q_im1.E %f, fil.q_im1.D %f",  fil.q_im1.N,  fil.q_im1.E,  fil.q_im1.D);
-  //ROS_DEBUG("fil.q_i.N %f, fil.q_i.E %f, fil.q_i.D %f",  fil.q_i.N,  fil.q_i.E,  fil.q_i.D);
-  //ROS_DEBUG("fil.R %f",  fil.R);
+  ROS_DEBUG("fil.w_im1.N %f, fil.w_im1.E %f, fil.w_im1.D %f",  fil.w_im1.N,  fil.w_im1.E,  fil.w_im1.D);
+  ROS_DEBUG("fil.w_i.N %f, fil.w_i.E %f, fil.w_i.D %f",  fil.w_i.N,  fil.w_i.E,  fil.w_i.D);
+  ROS_DEBUG("fil.w_ip1.N %f, fil.w_ip1.E %f, fil.w_ip1.D %f",  fil.w_ip1.N,  fil.w_ip1.E,  fil.w_ip1.D);
+  ROS_DEBUG("fil.z1.N %f, fil.z1.E %f, fil.z1.D %f",  fil.z1.N,  fil.z1.E,  fil.z1.D);
+  ROS_DEBUG("fil.z2.N %f, fil.z2.E %f, fil.z2.D %f",  fil.z2.N,  fil.z2.E,  fil.z2.D);
+  ROS_DEBUG("fil.c.N %f, fil.c.E %f, fil.c.D %f",  fil.c.N,  fil.c.E,  fil.c.D);
+  ROS_DEBUG("fil.q_im1.N %f, fil.q_im1.E %f, fil.q_im1.D %f",  fil.q_im1.N,  fil.q_im1.E,  fil.q_im1.D);
+  ROS_DEBUG("fil.q_i.N %f, fil.q_i.E %f, fil.q_i.D %f",  fil.q_i.N,  fil.q_i.E,  fil.q_i.D);
+  ROS_DEBUG("fil.R %f",  fil.R);
 }
 void RRT::clearRVizPaths()
 {
@@ -803,6 +864,9 @@ void RRT::displayPath(std::vector<NED_s> path, bool testing)
     planned_path_mkr.color.g    = 1.0f;
     planned_path_mkr.color.b    = 0.0f;
     planned_path_mkr.color.a    = 1.0;
+    aWPS_mkr.scale.x      =  10.0; // point width
+    aWPS_mkr.scale.y      =  10.0; // point height
+    planned_path_mkr.scale.x      = 8.0; // line width
   }
   else
   {
@@ -810,6 +874,9 @@ void RRT::displayPath(std::vector<NED_s> path, bool testing)
     planned_path_mkr.color.g    = 0.0f;
     planned_path_mkr.color.b    = 1.0f;
     planned_path_mkr.color.a    = 1.0;
+    aWPS_mkr.scale.x      =  10.0; // point width
+    aWPS_mkr.scale.y      =  10.0; // point height
+    planned_path_mkr.scale.x      = 5.0; // line width
   }
   aWPS_mkr.color.r            = 0.0f;
   aWPS_mkr.color.g            = 0.0f;
@@ -840,7 +907,7 @@ void RRT::displayPath(std::vector<NED_s> path, bool testing)
       aWPS_mkr.points.push_back(p);
     }
     marker_pub_.publish(aWPS_mkr);
-    sleep(4.0);
+    sleep(2.0);
   }
 
   // Plot desired path
@@ -849,7 +916,6 @@ void RRT::displayPath(std::vector<NED_s> path, bool testing)
     planned_path_mkr.id         = 0;
   else
     planned_path_mkr.id         = path_id_++;
-  planned_path_mkr.scale.x      = 5.0; // line width
   std::vector<NED_s> vis_path;
   vis_path.push_back(path[0]);
   for (int i = 1; i < path.size() - 1; i++)

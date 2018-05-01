@@ -27,6 +27,16 @@ struct node                    // This is the node struct for each spot on the t
   float cost;                  // Distance from this node to its parent
   bool dontConnect;            // true means closest nodes generated won't connect to this node
   bool connects2wp;            // true if this node connects to the next waypoint
+  void equal(node* n)
+  {
+    p           = n->p;
+    fil         = n->fil;
+    children    = n->children;
+    parent      = n->parent;
+    cost        = n->cost;
+    dontConnect = n->dontConnect;
+    connects2wp = n->connects2wp;
+  }
 };
 class RRT
 {
@@ -46,7 +56,7 @@ private:
   bool tryDirectConnect(node* ps, node* pe, unsigned int i);
   int  developTree(unsigned int i);
   std::vector<node*> findMinimumPath(unsigned int i);
-  std::vector<node*> smoothPath(std::vector<node*> rough_path);
+  std::vector<node*> smoothPath(std::vector<node*> rough_path, int i);
   void addPath(std::vector<node*> smooth_path, unsigned int i);
 
   // secondary functions
@@ -78,19 +88,23 @@ private:
   int path_id_;
   int last_path_id_;
 
-  float segment_length_;         // If used, this is the distance the algorithm uses between each node
-  ParamReader input_file_;       // address of the input file
-  CollisionDetection col_det_;   // collision detecter
-  int num_paths_;                // number of paths to be genererated before choosing the optimal path
-  RandGen rg_;                   // Here is the random generator for the algorithm
-  std::vector<node*> root_ptrs_; // Vector of all roots, each element is the start of the tree to reach the next primary waypoint
 
-	float clearance_;              // The minimum clearance that the path will have away from any obstacles (can fluctuate up and down)
-	float path_clearance_;         // The minimum clearance that the path from waypoint i to i+1 will have. (only decreases until new waypoint is obtained)
-	bool taking_off_;              // If the plane is currently taking off, this option will allow the path planner to ignor the height restricitons.
+
+
+  float segment_length_;          // If used, this is the distance the algorithm uses between each node
+  ParamReader input_file_;        // address of the input file
+  CollisionDetection col_det_;    // collision detecter
+  int num_paths_;                 // number of paths to be genererated before choosing the optimal path
+  RandGen rg_;                    // Here is the random generator for the algorithm
+  std::vector<node*> root_ptrs_;  // Vector of all roots, each element is the start of the tree to reach the next primary waypoint
+  std::vector<node*> smooth_rts_; // Vector of all roots, each element is the start of the tree to reach the nect primary waypoint
+
+	float clearance_;               // The minimum clearance that the path will have away from any obstacles (can fluctuate up and down)
+	float path_clearance_;          // The minimum clearance that the path from waypoint i to i+1 will have. (only decreases until new waypoint is obtained)
+	bool taking_off_;               // If the plane is currently taking off, this option will allow the path planner to ignor the height restricitons.
   bool landing_now_;
-  bool direct_hit_;              // when true the algorithm will hit primary waypoints dead on instead of filleting
-  node* most_recent_node_;       // pointer to the most recently added node
+  bool direct_hit_;               // when true the algorithm will hit primary waypoints dead on instead of filleting
+  node* most_recent_node_;        // pointer to the most recently added node
 };
 }
 #endif

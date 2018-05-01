@@ -31,9 +31,9 @@ RosPathPlanner::RosPathPlanner() :
   odom_mkr_.pose.orientation.y = 0.0;
   odom_mkr_.pose.orientation.z = 0.0;
   odom_mkr_.pose.orientation.w = 1.0;
-  odom_mkr_.color.r            = 0.0f;
+  odom_mkr_.color.r            = 1.0f;
   odom_mkr_.color.g            = 1.0f;
-  odom_mkr_.color.b            = 0.0f;
+  odom_mkr_.color.b            = 1.0f;
   odom_mkr_.color.a            = 1.0;
   odom_mkr_.lifetime           = ros::Duration();
   odom_mkr_.scale.x            = 15.0; // point width
@@ -195,7 +195,7 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   pos.N =  odometry_[1];
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
-  bool direct_hit = true;
+  bool direct_hit = false;
   rrt_obj_.solveStatic(pos, chi0_, direct_hit);
   visualization_msgs::Marker clear_mkr;
   clear_mkr.action = visualization_msgs::Marker::DELETEALL;
@@ -377,8 +377,8 @@ void RosPathPlanner::displayPath()
   planned_path_mkr.pose.orientation.w = aWPS_mkr.pose.orientation.w = 1.0;
   // Set the color -- be sure to set alpha to something non-zero!
   planned_path_mkr.color.r    = 0.0f;
-  planned_path_mkr.color.g    = 0.0f;
-  planned_path_mkr.color.b    = 1.0f;
+  planned_path_mkr.color.g    = 1.0f;
+  planned_path_mkr.color.b    = 0.0f;
   planned_path_mkr.color.a    = 1.0;
   aWPS_mkr.color.r            = 0.0f;
   aWPS_mkr.color.g            = 0.0f;
