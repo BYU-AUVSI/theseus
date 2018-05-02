@@ -123,10 +123,29 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
     mission_map.cylinders.push_back(cyl);
   }
   bool direct_hit;
-  if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT)
+  if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT || req.mission.mission_type == req.mission.MISSION_TYPE_LAND)
     direct_hit = true;
   else
     direct_hit = false;
+  double chi;
+  bool landing = false;
+  if (req.mission.mission_type == req.mission.MISSION_TYPE_LAND)
+  {
+    chi = req.mission.waypoints[0].point.chi;
+    landing = true;
+    num_waypoints++;
+    float landing_strip = 400.0;
+    ned.N = mission_map.wps.back().N + landing_strip*cosf(chi);
+    ned.E = mission_map.wps.back().E + landing_strip*sinf(chi);
+    ned.D = 0.0f;
+    mission_map.wps.push_back(ned);
+    num_waypoints++;
+    landing_strip = 400.0;
+    ned.N = mission_map.wps.back().N + landing_strip*cosf(chi);
+    ned.E = mission_map.wps.back().E + landing_strip*sinf(chi);
+    ned.D = 0.0f;
+    mission_map.wps.push_back(ned);
+  }
 
   myWorld_ = mission_map;
   rrt_obj_.newMap(mission_map);
@@ -144,7 +163,7 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
   displayMap();
-  rrt_obj_.solveStatic(pos, chi0_, true);
+  rrt_obj_.solveStatic(pos, chi0_, true, landing);
   displayPath();
   return true;
 }
@@ -196,7 +215,8 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
   bool direct_hit = true;
-  rrt_obj_.solveStatic(pos, chi0_, direct_hit);
+  bool landing = false;
+  rrt_obj_.solveStatic(pos, chi0_, direct_hit, landing);
   visualization_msgs::Marker clear_mkr;
   clear_mkr.action = visualization_msgs::Marker::DELETEALL;
   marker_pub_.publish(clear_mkr);
@@ -482,12 +502,14 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
   {
     ros::Duration(0.5).sleep();
     rosplane_msgs::Waypoint new_waypoint;
-
+    new_waypoint.landing = false;
+    if (rrt_obj_.landing_now_ && i >= rrt_obj_.all_wps_.size() - 1 - 1) // landing = true on the last 2 waypoints
+      new_waypoint.landing = true;
     new_waypoint.w[0] = rrt_obj_.all_wps_[i].N;
     new_waypoint.w[1] = rrt_obj_.all_wps_[i].E;
     new_waypoint.w[2] = rrt_obj_.all_wps_[i].D;
 
-    new_waypoint.Va_d = 16.0; // TODO find a good initial spot for this Va
+    new_waypoint.Va_d = 20.0; // TODO find a good initial spot for this Va
     if (i == 0)
       new_waypoint.set_current = true;
     else
@@ -495,6 +517,7 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
     new_waypoint.clear_wp_list = false;
     waypoint_publisher_.publish(new_waypoint);
   }
+
   res.success = true;
   return true;
 }

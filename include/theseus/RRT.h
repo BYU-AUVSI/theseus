@@ -43,12 +43,13 @@ class RRT
 public:
   RRT(map_s map_in, unsigned int seed);
 	RRT();
-  ~RRT();                                                   // Deconstructor - deletes the tree
-	void solveStatic(NED_s pos, float chi0, bool direct_hit); // Solves the static path
-  void newMap(map_s map_in);                                // creates a new map
+  ~RRT();                                                                 // Deconstructor - deletes the tree
+	void solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing); // Solves the static path
+  void newMap(map_s map_in);                                              // creates a new map
   void newSeed(unsigned int seed);
   std::vector<NED_s> all_wps_;                // final path waypoints
   map_s map_;
+  bool landing_now_;
 private:
   ros::NodeHandle nh_;         // public node handle for publishing, subscribing
   ros::Publisher marker_pub_;
@@ -102,7 +103,6 @@ private:
 	float clearance_;               // The minimum clearance that the path will have away from any obstacles (can fluctuate up and down)
 	float path_clearance_;          // The minimum clearance that the path from waypoint i to i+1 will have. (only decreases until new waypoint is obtained)
 	bool taking_off_;               // If the plane is currently taking off, this option will allow the path planner to ignor the height restricitons.
-  bool landing_now_;
   bool direct_hit_;               // when true the algorithm will hit primary waypoints dead on instead of filleting
   node* most_recent_node_;        // pointer to the most recently added node
 };

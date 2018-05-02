@@ -28,7 +28,7 @@ RRT::~RRT()
 	deleteTree();                          // Delete all of those tree pointer nodes
 	// std::vector<node*>().swap(root_ptrs_); // Free the memory of the vector.
 }
-void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This function solves for a path in between the waypoinnts (2 Dimensional)
+void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
   std::vector<NED_s> all_rough_paths;
 
@@ -44,9 +44,10 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This fu
   else {ROS_DEBUG("taking_off_ on initial set is false");}
   printRRTSetup(pos, chi0);
   long unsigned int iters_left = input_file_.iters_limit;
+
   for (unsigned int i = 0; i < map_.wps.size(); i++)
   {
-    landing_now_ = (-map_.wps[i].D < input_file_.minFlyHeight) && taking_off_ == false;
+    landing_now_ = landing;
     col_det_.landing_now_ = landing_now_;
     if (i > 0 && taking_off_ == false && direct_hit_ == true)
       createFan(root_ptrs_[i],root_ptrs_[i]->p, (root_ptrs_[i]->p - root_ptrs_[i]->parent->p).getChi(), path_clearance_);
@@ -89,6 +90,13 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This fu
 
     for (int it = 1; it < rough_path.size(); it++)
       all_rough_paths.push_back(rough_path[it]->p);
+    if (landing_now_)
+      break;
+  }
+  if (landing_now_)
+  {
+    for (int j = 1; j < all_wps_.size(); j++)
+      all_wps_.push_back(map_.wps[j]);
   }
   // find a place to safely loiter?
 
@@ -275,7 +283,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     temp_neds.push_back(rough_path[it]->p);
     ROS_DEBUG("ROUGH PATH N: %f E: %f D: %f", rough_path[it]->p.N, rough_path[it]->p.E, rough_path[it]->p.D);
   }
-  displayPath(temp_neds, false);
+  // displayPath(temp_neds, false);
   temp_neds.clear();
   // return rough_path;
   ROS_ERROR("STARTING THE SMOOTHER");
@@ -323,7 +331,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
         temp_path.push_back(new_path.back()->fil.z2);
       temp_path.push_back(new_path.back()->p);
       temp_path.push_back(rough_path[ptr + 1]->p);
-      displayPath(temp_path,false);
+      // displayPath(temp_path,false);
       temp_path.clear();
 
       ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
@@ -336,7 +344,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
           temp_path.push_back(new_path.back()->fil.z2);
         temp_path.push_back(new_path.back()->p);
         temp_path.push_back(most_recent_node_->p);
-        displayPath(temp_path,true);
+        // displayPath(temp_path,true);
         temp_path.clear();
         new_path.push_back(most_recent_node_);
         ROS_DEBUG("Adding most recent node");
@@ -367,7 +375,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
         temp_path.push_back(new_path.back()->fil.z2);
       temp_path.push_back(new_path.back()->p);
       temp_path.push_back(rough_path[ptr + 1]->p);
-      displayPath(temp_path,false);
+      // displayPath(temp_path,false);
       temp_path.clear();
       if (checkForCollision(new_path.back(), rough_path[ptr + 1]->p, i, path_clearance_, false) == false) // if there is a collision
       {
@@ -378,7 +386,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
           temp_path.push_back(new_path.back()->fil.z2);
         temp_path.push_back(new_path.back()->p);
         temp_path.push_back(most_recent_node_->p);
-        displayPath(temp_path,true);
+        // displayPath(temp_path,true);
         temp_path.clear();
 
         new_path.push_back(most_recent_node_);
@@ -395,7 +403,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
       temp_neds.push_back(new_path[it]->p);
       ROS_DEBUG("SMOOTH PATH N: %f E: %f D: %f", new_path[it]->p.N, new_path[it]->p.E, new_path[it]->p.D);
     }
-    displayPath(temp_neds, true);
+    // displayPath(temp_neds, true);
   }
   new_path.erase(new_path.begin());
   return new_path;
