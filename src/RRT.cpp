@@ -95,8 +95,14 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
   }
   if (landing_now_)
   {
-    for (int j = 1; j < all_wps_.size(); j++)
+
+    for (int j = 1; j < map_.wps.size(); j++)
+    {
+      ROS_DEBUG("pushing back another waypoint");
       all_wps_.push_back(map_.wps[j]);
+      ROS_DEBUG("N: %f, E: %f, D: %f", all_wps_.back().N, all_wps_.back().E, all_wps_.back().D);
+      all_rough_paths.push_back(map_.wps[j]);
+    }
   }
   // find a place to safely loiter?
 
@@ -111,7 +117,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
   // for (int i = 0; i < map_.wps.size(); i++)
   //   ROS_DEBUG("WP %i: %f, %f, %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
 
-  clearRVizPaths();
+  // clearRVizPaths();
   path_id_ = 2;
   displayPath(all_rough_paths, false);
   sleep(4.0);
@@ -285,9 +291,11 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
   }
   // displayPath(temp_neds, false);
   temp_neds.clear();
-  // return rough_path;
-  ROS_ERROR("STARTING THE SMOOTHER");
   std::vector<node*> new_path;
+
+  rough_path.erase(rough_path.begin());
+  return rough_path;
+  ROS_ERROR("STARTING THE SMOOTHER");
   new_path.push_back(smooth_rts_[i]);
   // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
   // printNode(new_path.back());

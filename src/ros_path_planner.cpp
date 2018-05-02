@@ -209,13 +209,40 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
       cyl_distances_.push_back(INFINITY);
     min_cyl_dis_ = INFINITY;
   }
-  displayMap();
   NED_s pos;
   pos.N =  odometry_[1];
   pos.E =  odometry_[0];
   pos.D = -odometry_[2];
-  bool direct_hit = true;
-  bool landing = false;
+  bool direct_hit = false;
+  bool landing = true;
+  if (landing == true)
+  {
+    // pos.N =  0.0f;
+    // pos.E =  0.0f;
+    // pos.D = -100.0f;
+    chi0_ = 0.0f;
+    rrt_obj_.map_.wps.clear();
+    NED_s descend_point;
+    descend_point.N = 200.0f;
+    descend_point.E = -75.0f;
+    descend_point.D = -25.0f;
+    rrt_obj_.map_.wps.push_back(descend_point);
+    float chi = 90.0*M_PI/180.0;
+    landing = true;
+    float landing_strip = 400.0;
+    NED_s ned;
+    ned.N = rrt_obj_.map_.wps.back().N + landing_strip*cosf(chi);
+    ned.E = rrt_obj_.map_.wps.back().E + landing_strip*sinf(chi);
+    ned.D = 0.0f;
+    rrt_obj_.map_.wps.push_back(ned);
+    landing_strip = 400.0;
+    ned.N = rrt_obj_.map_.wps.back().N + landing_strip*cosf(chi);
+    ned.E = rrt_obj_.map_.wps.back().E + landing_strip*sinf(chi);
+    ned.D = 0.0f;
+    rrt_obj_.map_.wps.push_back(ned);
+    myWorld_ = rrt_obj_.map_;
+  }
+  displayMap();
   rrt_obj_.solveStatic(pos, chi0_, direct_hit, landing);
   visualization_msgs::Marker clear_mkr;
   clear_mkr.action = visualization_msgs::Marker::DELETEALL;
