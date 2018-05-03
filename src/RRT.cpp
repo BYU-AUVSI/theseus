@@ -18,6 +18,7 @@ RRT::RRT(map_s map_in, unsigned int seed) :
   col_det_.newMap(map_in);
   last_path_id_   = 1;              // just used for debugging
   path_id_        = 1;
+  ending_chi_     = 0.0f;
 }
 RRT::RRT()
 {
@@ -43,17 +44,20 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
   if (taking_off_) {ROS_DEBUG("taking_off_ on initial set is true");}
   else {ROS_DEBUG("taking_off_ on initial set is false");}
   printRRTSetup(pos, chi0);
+  if (taking_off_ == false && direct_hit_ == true)
+    createFan(root_ptrs_[0],root_ptrs_[0]->p, chi0, path_clearance_);
   long unsigned int iters_left = input_file_.iters_limit;
 
   for (unsigned int i = 0; i < map_.wps.size(); i++)
   {
     landing_now_ = landing;
     col_det_.landing_now_ = landing_now_;
-    if (i > 0 && taking_off_ == false && direct_hit_ == true)
+    if (i > 0 &&taking_off_ == false && direct_hit_ == true)
       createFan(root_ptrs_[i],root_ptrs_[i]->p, (root_ptrs_[i]->p - root_ptrs_[i]->parent->p).getChi(), path_clearance_);
     ROS_DEBUG("Finding route to waypoint %lu", i + (long unsigned int) 1);
     path_clearance_        = input_file_.clearance;
     bool direct_connection = tryDirectConnect(root_ptrs_[i], root_ptrs_[i + 1], i);
+    ROS_INFO("trying to connect to N %f, E %f, D %f", root_ptrs_[i + 1]->p.N, root_ptrs_[i + 1]->p.E, root_ptrs_[i + 1]->p.D);
     if (direct_connection == false)
     {
       int num_found_paths = 0;
@@ -119,8 +123,9 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
 
   // clearRVizPaths();
   path_id_ = 2;
-  displayPath(all_rough_paths, false);
-  sleep(4.0);
+  // displayPath(all_rough_paths, false);
+  ending_point_ = all_wps_.back();
+  ending_chi_   = (all_wps_.back() - all_wps_[all_wps_.size() - 2]).getChi();
 }
 
 
@@ -659,8 +664,18 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
       if (col_det_.checkLine(cea, lea, clearance))
       {
         fillet_s fil1, fil2;
-        bool passed1 = fil1.calculate(root->parent->p, p, fake_wp, input_file_.turn_radius);
-        bool passed2 = fil2.calculate(p, fake_wp, lea, input_file_.turn_radius);
+        bool passed1, passed2;
+        if (root->parent == NULL)
+        {
+          NED_s fake_parent;
+          fake_parent.N = root->p.N + 100.0f*cosf(chi + M_PI);
+          fake_parent.E = root->p.E + 100.0f*sinf(chi + M_PI);
+          fake_parent.D = root->p.D;
+          passed1 = fil1.calculate(fake_parent, p, fake_wp, input_file_.turn_radius);
+        }
+        else
+          passed1 = fil1.calculate(root->parent->p, p, fake_wp, input_file_.turn_radius);
+        passed2 = fil2.calculate(p, fake_wp, lea, input_file_.turn_radius);
         node *fake_child        = new node;
         node *normal_gchild     = new node;
         fake_child->p           = fake_wp;
@@ -702,8 +717,18 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
       if (col_det_.checkLine(cea, lea, clearance))
       {
         fillet_s fil1, fil2;
-        bool passed1 = fil1.calculate(root->parent->p, p, fake_wp, input_file_.turn_radius);
-        bool passed2 = fil2.calculate(p, fake_wp, lea, input_file_.turn_radius);
+        bool passed1, passed2;
+        if (root->parent == NULL)
+        {
+          NED_s fake_parent;
+          fake_parent.N = root->p.N + 100.0f*cosf(chi + M_PI);
+          fake_parent.E = root->p.E + 100.0f*sinf(chi + M_PI);
+          fake_parent.D = root->p.D;
+          passed1 = fil1.calculate(fake_parent, p, fake_wp, input_file_.turn_radius);
+        }
+        else
+          passed1 = fil1.calculate(root->parent->p, p, fake_wp, input_file_.turn_radius);
+        passed2 = fil2.calculate(p, fake_wp, lea, input_file_.turn_radius);
         node *fake_child        = new node;
         node *normal_gchild     = new node;
         fake_child->p           = fake_wp;
@@ -729,11 +754,12 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         // displayPath(temp_path,false);
       }
   }
+  ROS_DEBUG("Created the fan");
 }
 // Initializing and Clearing Data
 void RRT::initializeTree(NED_s pos, float chi0)
 {
-  bool fan_first_node = direct_hit_; // TODO change this so there can be a fan for the initial point
+  bool fan_first_node = direct_hit_;
   if (-pos.D < input_file_.minFlyHeight)
     fan_first_node = false;
 	// Set up all of the roots
@@ -770,7 +796,7 @@ void RRT::initializeTree(NED_s pos, float chi0)
     smooth_rts_.push_back(root_in_smooth);
     num_root++;
 	}
-  // printRoots();
+  printRoots();
 }
 void RRT::clearForNewPath()
 {

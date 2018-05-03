@@ -50,6 +50,8 @@ public:
   std::vector<NED_s> all_wps_;                // final path waypoints
   map_s map_;
   bool landing_now_;
+  NED_s ending_point_;
+  float ending_chi_;
 private:
   ros::NodeHandle nh_;         // public node handle for publishing, subscribing
   ros::Publisher marker_pub_;
