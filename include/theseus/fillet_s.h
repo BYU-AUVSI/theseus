@@ -55,7 +55,17 @@ struct fillet_s
     c.D             = w_i.D;
     lambda          = q_im1.N*q_i.E - q_im1.E*q_i.N > 0.0f ? 1 : -1;                         // 1 = cw; -1 = ccw
     adj             = 2.0f*R/tanf(varrho/2.0f) - 2.0f*asinf((z2 - z1).norm()/(2.0f*R))*R;    // adjustment length
-
+    if ((w_i - c).norm() < R)
+    {
+      NED_s q_rotated;
+      float rot = M_PI/2.0f;
+      if (lambda == -1)
+        rot = -M_PI/2.0f;
+      q_rotated.N = q_i.N*cosf(rot) - q_i.E*sinf(rot);
+      q_rotated.E = q_i.N*sinf(rot) + q_i.E*cosf(rot);
+      q_rotated.D = q_i.D;
+      c       = w_i + q_rotated*(R/sinf(varrho/2.0f));
+    }
     // check to see if this is possible
     if (q_im1.dot(z1 - w_im1) > 0.0f && (q_i*-1.0f).dot(z2 - w_ip1) > 0.0f)
       return true;

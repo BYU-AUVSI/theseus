@@ -227,9 +227,6 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   bool landing = false;
   displayMap();
   rrt_obj_.solveStatic(pos, chi0_, direct_hit, landing);
-  visualization_msgs::Marker clear_mkr;
-  clear_mkr.action = visualization_msgs::Marker::DELETEALL;
-  marker_pub_.publish(clear_mkr);
   displayMap();
   displayPath(pos);
   res.success = true;
@@ -308,9 +305,9 @@ bool RosPathPlanner::addLanding(std_srvs::Trigger::Request &req, std_srvs::Trigg
   bool landing = true;
   rrt_obj_.map_.wps.clear();
   NED_s descend_point;
-  descend_point.N = 75.0f;
-  descend_point.E = 200.0f;
-  descend_point.D = -30.0f;
+  descend_point.N = N;
+  descend_point.E = E;
+  descend_point.D = D;
   rrt_obj_.map_.wps.push_back(descend_point);
   descend_point.N = N;
   descend_point.E = E;
@@ -430,6 +427,10 @@ bool RosPathPlanner::landNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:
   bool landing = true;
   rrt_obj_.map_.wps.clear();
   NED_s descend_point;
+  descend_point.N = N;
+  descend_point.E = E;
+  descend_point.D = D;
+  rrt_obj_.map_.wps.push_back(descend_point);
   descend_point.N = N;
   descend_point.E = E;
   descend_point.D = D;
@@ -664,7 +665,7 @@ void RosPathPlanner::displayPath(NED_s pos)
   planned_path_mkr.header.frame_id = aWPS_mkr.header.frame_id = "/local_ENU";
   // Set the namespace and id for this obs_mkr.  This serves to create a unique ID
   // Any obs_mkr sent with the same namespace and id will overwrite the old one
-  planned_path_mkr.ns   = "planned_path";
+  planned_path_mkr.ns   = "planned_path_final";
   aWPS_mkr.ns           = "all_wps";
   uint32_t cyl          = visualization_msgs::Marker::CYLINDER;
   uint32_t pts          = visualization_msgs::Marker::POINTS;
@@ -758,18 +759,39 @@ void RosPathPlanner::displayPath(NED_s pos)
     fillet_s fil;
     fil.calculate(all_wps[i - 1], all_wps[i], all_wps[i + 1], input_file_.turn_radius);
     vis_path.push_back(fil.z1);
-
+    // ROS_WARN("z1 N %f, E %f, D %f", fil.z1.N, fil.z1.E, fil.z1.D);
+    // ROS_WARN("z2 N %f, E %f, D %f", fil.z2.N, fil.z2.E, fil.z2.D);
+    // if ((fil.w_i - fil.c).norm() < fil.R)
+    // {
+    //   ROS_DEBUG("(fil.w_i - fil.c).norm() %f",(fil.w_i - fil.c).norm());
+    //   NED_s q_rotated;
+    //   float rot = M_PI/2.0f;
+    //   if (fil.lambda == -1)
+    //     rot = -M_PI/2.0f;
+    //   q_rotated.N = fil.q_i.N*cosf(rot) - fil.q_i.E*sinf(rot);
+    //   q_rotated.E = fil.q_i.N*sinf(rot) + fil.q_i.E*cosf(rot);
+    //   q_rotated.D = fil.q_i.D;
+    //   fil.c       = fil.w_i + q_rotated*fil.R;
+    //   ROS_DEBUG("c readjusted");
+    // }
+    // ROS_WARN("c N %f, E %f, D %f", fil.c.N, fil.c.E, fil.c.D);
     std::vector<std::vector<float> > NcEc;
     if (fil.lambda == -1)
     {
+      // ROS_ERROR("ccw");
       NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z2 - fil.c).getChi(), (fil.z1 - fil.c).getChi());
+      // ROS_FATAL("chi to z2 %f", (fil.z2 - fil.c).getChi());
+      // ROS_FATAL("chi to z1 %f", (fil.z1 - fil.c).getChi());
       // need to flip the vectors
       std::reverse(NcEc[0].begin(),NcEc[0].end());
       std::reverse(NcEc[1].begin(),NcEc[1].end());
     }
     if (fil.lambda ==  1)
     {
+      // ROS_ERROR("cw");
       NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z1 - fil.c).getChi(), (fil.z2 - fil.c).getChi());
+      // ROS_FATAL("chi to z1 %f", (fil.z1 - fil.c).getChi());
+      // ROS_FATAL("chi to z2 %f", (fil.z2 - fil.c).getChi());
     }
     std::vector<float> Nc = NcEc[0];
     std::vector<float> Ec = NcEc[1];
@@ -827,6 +849,7 @@ std::vector<std::vector<float > > RosPathPlanner::arc(float N, float E, float r,
     aE += 2.0f*M_PI;
   if (aE - aS == 0.0)
   {
+    ROS_DEBUG("aE == aS");
     Ec.push_back(r*sin(aS)+ E);
     Nc.push_back(r*cos(aS)+ N);
   }

@@ -126,6 +126,8 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
   // displayPath(all_rough_paths, false);
   ending_point_ = all_wps_.back();
   ending_chi_   = (all_wps_.back() - all_wps_[all_wps_.size() - 2]).getChi();
+  // ROS_FATAL("FINISHED THE RRT ALGORITHM");
+  // sleep(10.0);
 }
 
 
@@ -155,6 +157,22 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
       ROS_DEBUG("checking after the waypoint");
       if (col_det_.checkAfterWP(pe_node->p, chi, clearance))
       {
+        if (landing_now_)
+        {
+          // check to see if the change in chi is okay
+          float chi1 = chi;
+          float chi2 = (map_.wps.back() - map_.wps[map_.wps.size() - 2]).getChi() - M_PI;
+          chi2 = chi2 - chi1;
+          while (chi2 < -2.0f*M_PI)
+            chi2 += 2.0f*M_PI;
+          while (chi2 > 2.0f*M_PI)
+            chi2 -= 2.0f*M_PI;
+          if (chi2 < 15.0f*M_PI/180.0 && chi2 > -15.0f*M_PI/180.0)
+          {
+            ROS_DEBUG("too close of chi1 and chi2");
+            return false;
+          }
+        }
         ROS_DEBUG("direct connection success 1");
         start_of_line->cost        = start_of_line->cost + (pe_node->p - start_of_line->p).norm();
         start_of_line->connects2wp = true;
@@ -178,7 +196,7 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
       if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
         return false;
       temp_fil.w_im1 = fil.z1;
-      ROS_FATAL("cheking fillet");
+      ROS_DEBUG("cheking fillet");
       if (fil_possible && col_det_.checkFillet(temp_fil, clearance))
       {
         ROS_DEBUG("fillet checked out, now trying neighboring fillets");
@@ -192,6 +210,19 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
         ROS_DEBUG("checking after the waypoint");
         if (col_det_.checkAfterWP(pe_node->p, chi, clearance))
         {
+          // check to see if the change in chi is okay
+          float chi1 = chi;
+          float chi2 = (map_.wps.back() - map_.wps[map_.wps.size() - 2]).getChi() - M_PI;
+          chi2 = chi2 - chi1;
+          while (chi2 < -2.0f*M_PI)
+            chi2 += 2.0f*M_PI;
+          while (chi2 > 2.0f*M_PI)
+            chi2 -= 2.0f*M_PI;
+          if (chi2 < 15.0f*M_PI/180.0 && chi2 > -15.0f*M_PI/180.0)
+          {
+            ROS_DEBUG("too close of chi1 and chi2, number 2");
+            return false;
+          }
           ROS_DEBUG("direct connection success 2");
           start_of_line->cost        = start_of_line->cost + (pe_node->p - start_of_line->p).norm() - fil.adj;
           start_of_line->connects2wp = true;

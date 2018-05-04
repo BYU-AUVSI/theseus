@@ -31,6 +31,21 @@ bool CollisionDetection::checkFillet(fillet_s fil, float clearance)
 {
   bool middle_arc;
   middle_arc  = checkArc(fil.z1, fil.z2, fil.R, fil.c, fil.lambda, clearance);
+
+  // check to see if the change in chi is okay
+  float chi1 = (fil.w_i - fil.w_im1).getChi();
+  float chi2 = (fil.w_ip1 - fil.w_i).getChi() - M_PI;
+  chi2 = chi2 - chi1;
+  while (chi2 < -2.0f*M_PI)
+    chi2 += 2.0f*M_PI;
+  while (chi2 > 2.0f*M_PI)
+    chi2 -= 2.0f*M_PI;
+  if (chi2 < 15.0f*M_PI/180.0 && chi2 > -15.0f*M_PI/180.0)
+  {
+    ROS_DEBUG("line exit 23");
+    return false;
+  }
+
   if (middle_arc)
     return true;
   else
