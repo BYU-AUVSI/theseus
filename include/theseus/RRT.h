@@ -84,13 +84,21 @@ private:
   void printRRTSetup(NED_s pos, float chi0); // used for debugging
   void printRoots();                         // prints all of the root nodes
   void printNode(node* nin);                 // prints the node
-  void displayPath(std::vector<NED_s> path, bool testing); // plots the proposed path
+  void displayPath(std::vector<NED_s> path, NED_s color, float width); // plots the proposed path
   std::vector<std::vector<float > > arc(float N, float E, float r, float aS, float aE);
   void printFillet(fillet_s fil);
   void clearRVizPaths();
   int path_id_;
   int last_path_id_;
-
+  std::vector<node*> fringe_;
+  std::vector<NED_s> tree_path_;
+  void addTreePath(node* root, node* nin);
+  void addFringe(node* nin);
+  void displayTree(node* root);
+  NED_s gray_;
+  NED_s blue_;
+  NED_s green_;
+  NED_s orange_;
 
 
 

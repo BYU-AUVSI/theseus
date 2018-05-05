@@ -19,6 +19,19 @@ RRT::RRT(map_s map_in, unsigned int seed) :
   last_path_id_   = 1;              // just used for debugging
   path_id_        = 1;
   ending_chi_     = 0.0f;
+
+  gray_.N = 0.5f;
+  gray_.E = 0.5f;
+  gray_.D = 0.5f;
+  blue_.N = 0.0f;
+  blue_.E = 1.0f;
+  blue_.D = 1.0f;
+  green_.N = 0.0f;
+  green_.E = 1.0f;
+  green_.D = 0.0f;
+  orange_.N = 1.0f;
+  orange_.E = 140.0f/255.0f;
+  orange_.D = 0.0f;
 }
 RRT::RRT()
 {
@@ -86,14 +99,19 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
       col_det_.taking_off_ = false;
       ROS_DEBUG("taking off is false");
     }
-    clearRVizPaths();
-    clearRVizPaths();
-    last_path_id_ = path_id_;
-    path_id_ = 1; // just for debugging, displayPath();
+    // clearRVizPaths();
+    // last_path_id_ = path_id_;
+    // path_id_ = 1; // just for debugging, displayPath();
     ROS_DEBUG("path_id_ reset, last_path_id_  = %i", last_path_id_);
 
     for (int it = 1; it < rough_path.size(); it++)
       all_rough_paths.push_back(rough_path[it]->p);
+
+    // plotting the waypoint sequences
+    displayTree(root_ptrs_[i]);
+    ROS_FATAL("REACHED 1 WAYPOINT");
+    sleep(60.0);
+    sleep(1.0);
     if (landing_now_)
       break;
   }
@@ -123,11 +141,11 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
 
   // clearRVizPaths();
   path_id_ = 2;
-  // displayPath(all_rough_paths, false);
+  // displayPath(all_rough_paths, blue_, 10.0f);
   ending_point_ = all_wps_.back();
   ending_chi_   = (all_wps_.back() - all_wps_[all_wps_.size() - 2]).getChi();
-  // ROS_FATAL("FINISHED THE RRT ALGORITHM");
-  // sleep(10.0);
+  ROS_FATAL("FINISHED THE RRT ALGORITHM");
+  sleep(15.0);
 }
 
 
@@ -257,7 +275,7 @@ int RRT::developTree(unsigned int i)
     //   temp_path.push_back(closest_node->fil.z2);
     // temp_path.push_back(closest_node->p);
     // temp_path.push_back(test_point);
-    // displayPath(temp_path,true);
+    // displayPath(temp_path, orange_, 8.0f);
 
   }
   ROS_DEBUG("found a new node");
@@ -266,7 +284,7 @@ int RRT::developTree(unsigned int i)
   //   temp_path.push_back(most_recent_node_->parent->fil.z2);
   // temp_path.push_back(most_recent_node_->parent->p);
   // temp_path.push_back(most_recent_node_->p);
-  // displayPath(temp_path,false);
+  // displayPath(temp_path, gray_, 8.0f);
 
 
   ROS_DEBUG("trying direct connect for the new node");
@@ -317,6 +335,23 @@ std::vector<node*> RRT::findMinimumPath(unsigned int i)
   //ROS_DEBUG("created rough path");
   return rough_path;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
 {
   std::vector<NED_s> temp_neds;
@@ -325,12 +360,15 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     temp_neds.push_back(rough_path[it]->p);
     ROS_DEBUG("ROUGH PATH N: %f E: %f D: %f", rough_path[it]->p.N, rough_path[it]->p.E, rough_path[it]->p.D);
   }
-  // displayPath(temp_neds, false);
+  displayPath(temp_neds, blue_, 13.0f);
+  sleep(0.05);
   temp_neds.clear();
   std::vector<node*> new_path;
 
-  rough_path.erase(rough_path.begin());
-  return rough_path;
+  // rough_path.erase(rough_path.begin());
+  // return rough_path;
+
+
   ROS_ERROR("STARTING THE SMOOTHER");
   new_path.push_back(smooth_rts_[i]);
   // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
@@ -375,7 +413,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
         temp_path.push_back(new_path.back()->fil.z2);
       temp_path.push_back(new_path.back()->p);
       temp_path.push_back(rough_path[ptr + 1]->p);
-      // displayPath(temp_path,false);
+      // displayPath(temp_path, orange_, 10.0f);
       temp_path.clear();
 
       ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
@@ -388,7 +426,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
           temp_path.push_back(new_path.back()->fil.z2);
         temp_path.push_back(new_path.back()->p);
         temp_path.push_back(most_recent_node_->p);
-        // displayPath(temp_path,true);
+        // displayPath(temp_path, green_, 10.0f);
         temp_path.clear();
         new_path.push_back(most_recent_node_);
         ROS_DEBUG("Adding most recent node");
@@ -402,10 +440,10 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
     for (int it = 0; it < new_path.size(); it++)
     {
-      // temp_neds.push_back(new_path[it]->p);
+      temp_neds.push_back(new_path[it]->p);
       ROS_DEBUG("SMOOTH PATH N: %f E: %f D: %f", new_path[it]->p.N, new_path[it]->p.E, new_path[it]->p.D);
     }
-    // displayPath(temp_neds, true);
+    displayPath(temp_neds, green_, 15.0f);
     temp_neds.clear();
     // TODO see if it is possible to smooth the fan
   }
@@ -419,7 +457,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
         temp_path.push_back(new_path.back()->fil.z2);
       temp_path.push_back(new_path.back()->p);
       temp_path.push_back(rough_path[ptr + 1]->p);
-      // displayPath(temp_path,false);
+      // displayPath(temp_path,blue_, 10.0f);
       temp_path.clear();
       if (checkForCollision(new_path.back(), rough_path[ptr + 1]->p, i, path_clearance_, false) == false) // if there is a collision
       {
@@ -430,7 +468,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
           temp_path.push_back(new_path.back()->fil.z2);
         temp_path.push_back(new_path.back()->p);
         temp_path.push_back(most_recent_node_->p);
-        // displayPath(temp_path,true);
+        // displayPath(temp_path, green_, 12.0f);
         temp_path.clear();
 
         new_path.push_back(most_recent_node_);
@@ -447,11 +485,54 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
       temp_neds.push_back(new_path[it]->p);
       ROS_DEBUG("SMOOTH PATH N: %f E: %f D: %f", new_path[it]->p.N, new_path[it]->p.E, new_path[it]->p.D);
     }
-    // displayPath(temp_neds, true);
+    displayPath(temp_neds, green_, 15.0f);
   }
   new_path.erase(new_path.begin());
   return new_path;
 }
+
+
+
+//
+// void RRT::checkWholePath(node* snode, std::vector<node*> rough_path, int ptr, int i)
+// {
+//   bool okay_path;
+//   node* add_this_node_next;
+//   most_recent_node_ = snode;
+//   for (int j = ptr; j < remaining_rough_path.size(); j++)
+//   {
+//     okay_path = checkForCollision(most_recent_node_, remaining_rough_path[j]->p, i, path_clearance_, false);
+//     if (okay_path == false)
+//       return false;
+//     if (j == ptr)
+//       add_this_node_next = most_recent_node_;
+//   }
+//   most_recent_node_ = add_this_node_next;
+//   return true;
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
 {
   ROS_DEBUG("Adding the path");
@@ -729,7 +810,7 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         //   temp_path.push_back(normal_gchild->parent->parent->p);
         // temp_path.push_back(normal_gchild->parent->p);
         // temp_path.push_back(normal_gchild->p);
-        // displayPath(temp_path,false);
+        // displayPath(temp_path, gray_, 8.0f);
       }
     // Check the negative side
     cpa.N = p.N - input_file_.turn_radius*cosf(approach_angle);
@@ -782,7 +863,7 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         //   temp_path.push_back(normal_gchild->parent->parent->p);
         // temp_path.push_back(normal_gchild->parent->p);
         // temp_path.push_back(normal_gchild->p);
-        // displayPath(temp_path,false);
+        // displayPath(temp_path, gray_, 8.0f);
       }
   }
   ROS_DEBUG("Created the fan");
@@ -949,23 +1030,57 @@ void RRT::clearRVizPaths()
   ROS_DEBUG("clearing all paths");
   clear_mkr.ns   = "planned_path";
   ROS_DEBUG("1 to %i", last_path_id_);
-  for (int i = 1; i < last_path_id_ + 1; i++)
+  for (int i = 0; i < last_path_id_ + 1; i++)
   {
     clear_mkr.id = i;
     clear_mkr.action = visualization_msgs::Marker::DELETE;
     marker_pub_.publish(clear_mkr);
+    sleep(1.0);
   }
 }
-void RRT::displayPath(std::vector<NED_s> path, bool testing)
+void RRT::displayTree(node* root)
+{
+  fringe_.clear();
+  addFringe(root);
+  for (int j = 0; j < fringe_.size(); j++)
+  {
+    tree_path_.clear();
+    addTreePath(root, fringe_[j]);
+    tree_path_.push_back(root->p);
+    std::reverse(tree_path_.begin(), tree_path_.end());
+    displayPath(tree_path_, gray_, 2.5f);
+    sleep(0.005);
+  }
+}
+void RRT::addFringe(node* nin)
+{
+  if (nin->children.size() == 0)
+    fringe_.push_back(nin);
+  else
+  {
+    tree_path_.clear();
+    for (unsigned int i = 0; i < nin->children.size(); i++)
+      addFringe(nin->children[i]);
+  }
+}
+void RRT::addTreePath(node* root, node* nin)
+{
+  if (nin->p != root->p)
+  {
+    tree_path_.push_back(nin->p);
+    addTreePath(root, nin->parent);
+  }
+}
+void RRT::displayPath(std::vector<NED_s> path, NED_s color, float width)
 {
   visualization_msgs::Marker planned_path_mkr, aWPS_mkr;
-  if (path_id_ == 1)
-    clearRVizPaths();
+  // if (path_id_ == 1)
+  //   clearRVizPaths();
   // Set the frame ID and timestamp.  See the TF tutorials for information on these.
   planned_path_mkr.header.frame_id = aWPS_mkr.header.frame_id = "/local_ENU";
   // Set the namespace and id for this obs_mkr.  This serves to create a unique ID
   // Any obs_mkr sent with the same namespace and id will overwrite the old one
-  planned_path_mkr.ns   = "planned_path";
+  planned_path_mkr.ns   = "planned_path_rrt";
   aWPS_mkr.ns           = "all_wps";
   uint32_t cyl          = visualization_msgs::Marker::CYLINDER;
   uint32_t pts          = visualization_msgs::Marker::POINTS;
@@ -979,26 +1094,14 @@ void RRT::displayPath(std::vector<NED_s> path, bool testing)
   planned_path_mkr.pose.orientation.z = aWPS_mkr.pose.orientation.z = 0.0;
   planned_path_mkr.pose.orientation.w = aWPS_mkr.pose.orientation.w = 1.0;
   // Set the color -- be sure to set alpha to something non-zero!
-  if (testing)
-  {
-    planned_path_mkr.color.r    = 0.0f;
-    planned_path_mkr.color.g    = 1.0f;
-    planned_path_mkr.color.b    = 0.0f;
-    planned_path_mkr.color.a    = 1.0;
-    aWPS_mkr.scale.x      =  10.0; // point width
-    aWPS_mkr.scale.y      =  10.0; // point height
-    planned_path_mkr.scale.x      = 8.0; // line width
-  }
-  else
-  {
-    planned_path_mkr.color.r    = 0.0f;
-    planned_path_mkr.color.g    = 0.0f;
-    planned_path_mkr.color.b    = 1.0f;
-    planned_path_mkr.color.a    = 1.0;
-    aWPS_mkr.scale.x      =  10.0; // point width
-    aWPS_mkr.scale.y      =  10.0; // point height
-    planned_path_mkr.scale.x      = 5.0; // line width
-  }
+  planned_path_mkr.color.r    = color.N;
+  planned_path_mkr.color.g    = color.E;
+  planned_path_mkr.color.b    = color.D;
+  planned_path_mkr.color.a    = 1.0;
+  aWPS_mkr.scale.x            = 10.0; // point width
+  aWPS_mkr.scale.y            = 10.0; // point height
+  planned_path_mkr.scale.x    = width; // line width
+
   aWPS_mkr.color.r            = 0.0f;
   aWPS_mkr.color.g            = 0.0f;
   aWPS_mkr.color.b            = 1.0f;
@@ -1033,10 +1136,7 @@ void RRT::displayPath(std::vector<NED_s> path, bool testing)
 
   // Plot desired path
   planned_path_mkr.header.stamp = ros::Time::now();
-  if (testing)
-    planned_path_mkr.id         = 0;
-  else
-    planned_path_mkr.id         = path_id_++;
+  planned_path_mkr.id         = path_id_++;
   std::vector<NED_s> vis_path;
   vis_path.push_back(path[0]);
   for (int i = 1; i < path.size() - 1; i++)
@@ -1080,7 +1180,7 @@ void RRT::displayPath(std::vector<NED_s> path, bool testing)
     planned_path_mkr.points.push_back(p);
   }
   marker_pub_.publish(planned_path_mkr);
-  sleep(4.0);
+  sleep(0.05);
 }
 std::vector<std::vector<float > > RRT::arc(float N, float E, float r, float aS, float aE)
 {
