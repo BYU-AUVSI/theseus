@@ -70,7 +70,7 @@ private:
   node* findMinConnector(node* nin, node* minNode, float* minCost);
   void createFan(node* root, NED_s p, float chi, float clearance);
   float redoRandomDownPoint(unsigned int i, float closest_D);
-
+  bool checkWholePath(node* snode, std::vector<node*> rough_path, int ptr, int i);
   // Initialize and clear data functions
   void initializeTree(NED_s pos, float chi0);
   void clearForNewPath();
