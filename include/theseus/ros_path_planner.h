@@ -15,11 +15,14 @@
 #include <vector>
 #include <math.h>
 #include <algorithm>
+#include <algorithm>
 #include <std_srvs/Trigger.h>
 #include <theseus/mapper.h>
 #include <theseus/rand_gen.h>
 #include <theseus/param_reader.h>
 #include <theseus/gps_struct.h>
+#include <theseus/fillet_s.h>
+#include <fstream>
 
 namespace theseus
 {
@@ -37,19 +40,20 @@ private:
   ros::Subscriber state_subscriber_;
   ros::Publisher waypoint_publisher_;
   ros::Publisher marker_pub_;
-  ros::ServiceServer path_solver_service_;
+  ros::ServiceServer path_solver_service1_;
+  ros::ServiceServer path_solver_service2_;
+  ros::ServiceServer path_solver_service3_;
+  ros::ServiceServer path_solver_service4_;
+  ros::ServiceServer path_solver_service5_;
+  ros::ServiceServer path_solver_service6_;
   ros::ServiceServer new_map_service_;
   ros::ServiceServer send_wps_service_;
   ros::ServiceServer replot_map_service_;
-  RRT_input rrt_i_;
+  ros::ServiceServer wp_distance_service_;
   map_s myWorld_;
-  std::vector<std::vector<double> > filletMavPath(std::vector<double>, std::vector<double>, std::vector<double>,\
-                                                  std::vector<double>, std::vector<double>, std::vector<double>);
-  std::vector<std::vector<double> > filletPath(std::vector<double> x_path_data,\
-                                               std::vector<double> y_path_data,\
-                                               std::vector<double> d_path_data);
-  std::vector<std::vector<double > > arc(double N, double E, double r, double aS, double aE);
+  std::vector<std::vector<float > > arc(float N, float E, float r, float aS, float aE);
   void stateCallback(const rosplane_msgs::State &msg);
+
 public:
   ros::Publisher mission_map_publisher_;
 
@@ -57,6 +61,8 @@ public:
   float Va_;
   RandGen rg_;
   ParamReader input_file_;
+  int path_id_;
+  int last_path_id_;
 private:
   gps_struct gps_converter_;
   RRT rrt_obj_;
@@ -65,6 +71,10 @@ private:
   visualization_msgs::Marker odom_mkr_;
   bool recieved_state_;
   bool has_map_;
+
+  std::vector<float> wp_distances_;
+  std::vector<float> cyl_distances_;
+  float min_cyl_dis_;
   //***************** CALLBACKS AND TIMERS *****************//
   ros::WallTimer update_viz_timer_;
   void updateViz(const ros::WallTimerEvent&);
@@ -73,11 +83,19 @@ private:
   //********************** FUNCTIONS ***********************//
 public:
   bool solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool addWps(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool addLanding(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool landNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool textfileNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+
   bool newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
-  void displayPath();
+  void displayPath(NED_s pos);
   void displayMap();
+
 };// end class PathPlanner
 } // end namespace rosplane
 

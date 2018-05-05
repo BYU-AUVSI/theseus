@@ -2,15 +2,36 @@
 
 namespace theseus
 {
-RRT::RRT(map_s map_in, unsigned int seed, ParamReader *input_file_in, RRT_input alg_input_in) // Setup the object
+RRT::RRT(map_s map_in, unsigned int seed) :
+  nh_(ros::NodeHandle())// Setup the object
 {
-	input_file_ = input_file_in;
-	alg_input_  = alg_input_in;
-	D_          = alg_input_.D;	    // Distance between each RRT waypoint
-	map_        = map_in;           // Get a copy of the terrain map
+  if(ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug))
+  {
+   ros::console::notifyLoggerLevelsChanged();
+  }
+  marker_pub_     = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 10);
+  nh_.param<float>("pp/segment_length", segment_length_, 100.0);
+  num_paths_      = 1;            // number of paths to solve between each waypoint
 	RandGen rg_in(seed);            // Make a random generator object that is seeded
-	rg_         = rg_in;            // Copy that random generator into the class.
-	ppSetup();                      // default stuff for every algorithm that needs to be called after it recieves the map.
+	rg_             = rg_in;        // Copy that random generator into the class.
+  map_            = map_in;
+  col_det_.newMap(map_in);
+  last_path_id_   = 1;              // just used for debugging
+  path_id_        = 1;
+  ending_chi_     = 0.0f;
+
+  gray_.N = 0.5f;
+  gray_.E = 0.5f;
+  gray_.D = 0.5f;
+  blue_.N = 0.0f;
+  blue_.E = 1.0f;
+  blue_.D = 1.0f;
+  green_.N = 0.0f;
+  green_.E = 1.0f;
+  green_.D = 0.0f;
+  orange_.N = 1.0f;
+  orange_.E = 140.0f/255.0f;
+  orange_.D = 0.0f;
 }
 RRT::RRT()
 {
@@ -18,824 +39,880 @@ RRT::RRT()
 }
 RRT::~RRT()
 {
-  // These lines free the memory in the vectors... We were having problems with memory in the mapper class
-  // These lines fixed it there so they were inserted here as well.
-  for (unsigned int i = 0; i < lineMinMax_.size(); i++)
-    std::vector<double>().swap(lineMinMax_[i]);
-  std::vector<std::vector<double> >().swap(lineMinMax_);
-  for (unsigned int i = 0; i < line_Mandb_.size(); i++)
-    std::vector<double>().swap(line_Mandb_[i]);
-  std::vector<std::vector<double> >().swap(line_Mandb_);
-  std::vector<double>().swap(path_distances_);
 	deleteTree();                          // Delete all of those tree pointer nodes
-	std::vector<node*>().swap(root_ptrs_); // Free the memory of the vector.
+	// std::vector<node*>().swap(root_ptrs_); // Free the memory of the vector.
 }
-void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit)         // This function solves for a path in between the waypoinnts (2 Dimensional)
+void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
-  ROS_WARN("STARTING SOLVER");
-  clearForNewPath();
-	initializeTree(pos);
-  taking_off_ = (-pos.D < input_file_->minFlyHeight);
-  if (flyZoneCheck(pos, 5.0) == false)
-    ROS_FATAL("Initial Starting position violates a boundary or an obstacle");
-  // printRRTSetup(pos, chi0);
-	NED_s second2last_post_smoothed;
-	second2last_post_smoothed.N = root_ptrs_[0]->NED.N - cos(chi0);
-	second2last_post_smoothed.E = root_ptrs_[0]->NED.E - sin(chi0);
-	second2last_post_smoothed.D = root_ptrs_[0]->NED.D;
-	for (unsigned int i = 0; i < map_.wps.size(); i++)
-	{
-		ROS_INFO("MAIN LOOP: %i",i);
-		path_clearance_ = input_file_->clearance;
-		node *second2last = root_ptrs_[i];					// This will be set as the second to last waypoint
-		double distance_in, fillet_angle;
-		bool direct_shot = false;
-		bool direct_connect = directConnection(i, &second2last_post_smoothed, &distance_in, &fillet_angle, &direct_shot, direct_hit);   //******* IMPORTANT
-		if (direct_connect)
-			second2last = closest_node_;
-		developTree(i, direct_connect,second2last,&second2last_post_smoothed,&distance_in,&fillet_angle, direct_hit);                   //******* IMPORTANT
-		smoother(direct_connect, i, &distance_in, &fillet_angle, &second2last_post_smoothed, direct_shot, direct_hit);                  //******* IMPORTANT
-		calcPathDistance(i);
-	}
-	all_wps_[map_.wps.size() - 1].push_back(map_.wps[map_.wps.size() - 1]);	// Add the final waypoint to the waypoint list.
-	computePerformance();
-}
-void RRT::printRRTSetup(NED_s pos, float chi0)
-{
-  // Print initial position
-  ROS_INFO("Initial North: %f, Initial East: %f, Initial Down: %f", pos.N, pos.E, pos.D);
+  std::vector<NED_s> all_rough_paths;
 
-  ROS_INFO("Number of Boundary Points: %lu",  map_.boundary_pts.size());
-  for (long unsigned int i = 0; i < map_.boundary_pts.size(); i++)
+  direct_hit_      = direct_hit;
+  path_clearance_  = input_file_.clearance;
+  ROS_DEBUG("Starting RRT solver");
+  clearForNewPath();
+	initializeTree(pos, chi0);
+  all_rough_paths.push_back(root_ptrs_[0]->p);
+  taking_off_ = (-pos.D < input_file_.minFlyHeight);
+  col_det_.taking_off_ = taking_off_;
+  if (taking_off_) {ROS_DEBUG("taking_off_ on initial set is true");}
+  else {ROS_DEBUG("taking_off_ on initial set is false");}
+  printRRTSetup(pos, chi0);
+  if (taking_off_ == false && direct_hit_ == true)
+    createFan(root_ptrs_[0],root_ptrs_[0]->p, chi0, path_clearance_);
+  long unsigned int iters_left = input_file_.iters_limit;
+
+  for (unsigned int i = 0; i < map_.wps.size(); i++)
   {
-    ROS_INFO("Boundary: %lu, North: %f, East: %f, Down: %f", i, map_.boundary_pts[i].N, map_.boundary_pts[i].E, map_.boundary_pts[i].D);
+    landing_now_ = landing;
+    col_det_.landing_now_ = landing_now_;
+    if (i > 0 &&taking_off_ == false && direct_hit_ == true)
+      createFan(root_ptrs_[i],root_ptrs_[i]->p, (root_ptrs_[i]->p - root_ptrs_[i]->parent->p).getChi(), path_clearance_);
+    ROS_DEBUG("Finding route to waypoint %lu", i + (long unsigned int) 1);
+    path_clearance_        = input_file_.clearance;
+    bool direct_connection = tryDirectConnect(root_ptrs_[i], root_ptrs_[i + 1], i);
+    ROS_INFO("trying to connect to N %f, E %f, D %f", root_ptrs_[i + 1]->p.N, root_ptrs_[i + 1]->p.E, root_ptrs_[i + 1]->p.D);
+    if (direct_connection == false)
+    {
+      int num_found_paths = 0;
+      long unsigned int added_nodes = 0;
+      ROS_DEBUG("Developing the tree");
+      while (num_found_paths < num_paths_)
+      {
+        num_found_paths += developTree(i);
+        added_nodes++;
+        ROS_DEBUG("number of nodes %lu, %lu", added_nodes, iters_left);
+        if ((float) added_nodes > iters_left/2.0f)
+        {
+          ROS_WARN("decreasing the clearance level");
+          path_clearance_  = path_clearance_/2.0f;
+          iters_left  = iters_left/2.0f;
+          added_nodes = 0;
+        }
+      }
+    }
+    std::vector<node*> rough_path  = findMinimumPath(i);
+    std::vector<node*> smooth_path = smoothPath(rough_path, i);
+    addPath(smooth_path, i);
+    if (-all_wps_[all_wps_.size() - 1].D > input_file_.minFlyHeight)
+    {
+      taking_off_ = false;
+      col_det_.taking_off_ = false;
+      ROS_DEBUG("taking off is false");
+    }
+    // clearRVizPaths();
+    // last_path_id_ = path_id_;
+    // path_id_ = 1; // just for debugging, displayPath();
+    // ROS_DEBUG("path_id_ reset, last_path_id_  = %i", last_path_id_);
+
+    for (int it = 1; it < rough_path.size(); it++)
+      all_rough_paths.push_back(rough_path[it]->p);
+
+    // plotting the waypoint sequences
+    displayTree(root_ptrs_[i]);
+    ROS_FATAL("REACHED 1 WAYPOINT");
+    // sleep(60.0);
+    sleep(1.0);
+    clearRVizPaths();
+    path_id_ = 1;
+    if (landing_now_)
+      break;
   }
-  ROS_INFO("Number of Waypoints: %lu", map_.wps.size());
-  for (long unsigned int i = 0; i < map_.wps.size(); i++)
+  if (landing_now_)
   {
-    ROS_INFO("WP: %lu, North: %f, East: %f, Down: %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
+
+    for (int j = 1; j < map_.wps.size(); j++)
+    {
+      ROS_DEBUG("pushing back another waypoint");
+      all_wps_.push_back(map_.wps[j]);
+      ROS_DEBUG("N: %f, E: %f, D: %f", all_wps_.back().N, all_wps_.back().E, all_wps_.back().D);
+      all_rough_paths.push_back(map_.wps[j]);
+    }
   }
-  ROS_INFO("Number of Cylinders: %lu", map_.cylinders.size());
-  for (long unsigned int i = 0; i <  map_.cylinders.size(); i++)
+  // find a place to safely loiter?
+
+  // Set up an extra straight line.
+  // NED_s first_after, second_after;
+  // float chi_last = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).getChi();
+  // first_after = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).normalize()*300.0f + all_wps_[all_wps_.size() - 1];
+  // second_after = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).normalize()*500.0f + all_wps_[all_wps_.size() - 1];
+  // all_wps_.push_back(first_after);
+  // all_wps_.push_back(second_after);
+
+  // for (int i = 0; i < map_.wps.size(); i++)
+  //   ROS_DEBUG("WP %i: %f, %f, %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
+
+  // clearRVizPaths();
+  // displayPath(all_rough_paths, blue_, 10.0f);
+  ending_point_ = all_wps_.back();
+  ending_chi_   = (all_wps_.back() - all_wps_[all_wps_.size() - 2]).getChi();
+  ROS_FATAL("FINISHED THE RRT ALGORITHM");
+  // sleep(15.0);
+}
+
+
+bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
+{
+  ROS_DEBUG("Attempting direct connect");
+  float clearance = path_clearance_;
+  node* start_of_line;
+  if (ps->dontConnect) // then try one of the grand children
   {
-    ROS_INFO("Cylinder: %lu, North: %f, East: %f, Radius: %f, Height: %f", i, map_.cylinders[i].N, map_.cylinders[i].E, map_.cylinders[i].R,  map_.cylinders[i].H);
+    ROS_DEBUG("finding the grand child that is closes");
+    start_of_line = findClosestNodeGChild(ps, pe_node->p);
   }
+  else
+  {
+    ROS_DEBUG("using ps");
+    start_of_line = ps;
+  }
+  ROS_DEBUG("checking the line");
+  if (col_det_.checkLine(start_of_line->p, pe_node->p, clearance))
+  {
+    ROS_DEBUG("line passed");
+    if (start_of_line->parent == NULL) // then this is the start
+    {
+      ROS_DEBUG("parent is null");
+      float chi = (pe_node->p - start_of_line->p).getChi();
+      ROS_DEBUG("checking after the waypoint");
+      if (col_det_.checkAfterWP(pe_node->p, chi, clearance))
+      {
+        if (landing_now_)
+        {
+          // check to see if the change in chi is okay
+          float chi1 = chi;
+          float chi2 = (map_.wps.back() - map_.wps[map_.wps.size() - 2]).getChi() - M_PI;
+          chi2 = chi2 - chi1;
+          while (chi2 < -2.0f*M_PI)
+            chi2 += 2.0f*M_PI;
+          while (chi2 > 2.0f*M_PI)
+            chi2 -= 2.0f*M_PI;
+          if (chi2 < 15.0f*M_PI/180.0 && chi2 > -15.0f*M_PI/180.0)
+          {
+            ROS_DEBUG("too close of chi1 and chi2");
+            return false;
+          }
+        }
+        ROS_DEBUG("direct connection success 1");
+        start_of_line->cost        = start_of_line->cost + (pe_node->p - start_of_line->p).norm();
+        start_of_line->connects2wp = true;
+        start_of_line->children.push_back(pe_node);
+        most_recent_node_          = pe_node;
+        return true;
+      }
+    }
+    else
+    {
+      fillet_s fil;
+      ROS_DEBUG("calculating fillet");
+      bool fil_possible = fil.calculate(start_of_line->parent->p, start_of_line->p, pe_node->p, input_file_.turn_radius);
+      fillet_s temp_fil = fil;
+      float slope = atan2f(-1.0f*(fil.z1.D - start_of_line->fil.z2.D), sqrtf(powf(start_of_line->fil.z2.N - \
+                           fil.z1.N, 2.0f) + powf(start_of_line->fil.z2.E - fil.z1.E, 2.0f)));
+      if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
+        return false;
+      slope = atan2f(-1.0f*(pe_node->p.D - fil.z2.D), sqrtf(powf(fil.z2.N - pe_node->p.N, 2.0f) \
+                     + powf(fil.z2.E - pe_node->p.E, 2.0f)));
+      if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
+        return false;
+      temp_fil.w_im1 = fil.z1;
+      ROS_DEBUG("cheking fillet");
+      if (fil_possible && col_det_.checkFillet(temp_fil, clearance))
+      {
+        ROS_DEBUG("fillet checked out, now trying neighboring fillets");
+        if (start_of_line->parent != NULL && start_of_line->fil.roomFor(fil) == false)
+        {
+          //printNode(start_of_line);
+          ROS_DEBUG("failed direct connection because of neighboring fillets");
+          return false;
+        }
+        float chi = (pe_node->p - start_of_line->p).getChi();
+        ROS_DEBUG("checking after the waypoint");
+        if (col_det_.checkAfterWP(pe_node->p, chi, clearance))
+        {
+          // check to see if the change in chi is okay
+          float chi1 = chi;
+          float chi2 = (map_.wps.back() - map_.wps[map_.wps.size() - 2]).getChi() - M_PI;
+          chi2 = chi2 - chi1;
+          while (chi2 < -2.0f*M_PI)
+            chi2 += 2.0f*M_PI;
+          while (chi2 > 2.0f*M_PI)
+            chi2 -= 2.0f*M_PI;
+          if (chi2 < 15.0f*M_PI/180.0 && chi2 > -15.0f*M_PI/180.0)
+          {
+            ROS_DEBUG("too close of chi1 and chi2, number 2");
+            return false;
+          }
+          ROS_DEBUG("direct connection success 2");
+          start_of_line->cost        = start_of_line->cost + (pe_node->p - start_of_line->p).norm() - fil.adj;
+          start_of_line->connects2wp = true;
+          start_of_line->children.push_back(pe_node);
+          most_recent_node_          = pe_node;
+          return true;
+        }
+      }
+    }
+  }
+  ROS_DEBUG("direct connection failed");
+  return false;
+}
+int RRT::developTree(unsigned int i)
+{
+  ROS_DEBUG("looking for next node");
+  bool added_new_node = false;
+  float clearance = path_clearance_;
+  while (added_new_node == false)
+  {
+    // generate a good point to test
+    NED_s random_point = randomPoint(i);
+    float min_d        = INFINITY;
+    node* closest_node = findClosestNode(root_ptrs_[i], random_point, root_ptrs_[i], &min_d);
+    if (taking_off_ == false && landing_now_ == false)
+      random_point.D     = redoRandomDownPoint(i,  closest_node->p.D); // this is so that more often a node passes the climb angle check
+    NED_s test_point   = (random_point - closest_node->p).normalize()*segment_length_ + closest_node->p;
+    added_new_node     = checkForCollision(closest_node, test_point, i, clearance, false);
+
+    // std::vector<NED_s> temp_path;
+    // if (closest_node->parent != NULL)
+    //   temp_path.push_back(closest_node->fil.z2);
+    // temp_path.push_back(closest_node->p);
+    // temp_path.push_back(test_point);
+    // displayPath(temp_path, orange_, 8.0f);
+
+  }
+  ROS_DEBUG("found a new node");
+  // std::vector<NED_s> temp_path;
+  // if (most_recent_node_->parent->parent != NULL)
+  //   temp_path.push_back(most_recent_node_->parent->fil.z2);
+  // temp_path.push_back(most_recent_node_->parent->p);
+  // temp_path.push_back(most_recent_node_->p);
+  // displayPath(temp_path, gray_, 8.0f);
+
+
+  ROS_DEBUG("trying direct connect for the new node");
+  bool connect_to_end = tryDirectConnect(most_recent_node_, root_ptrs_[i + 1], i);
+  if (connect_to_end == true)
+    return 1;
+  else
+    return 0;
+}
+std::vector<node*> RRT::findMinimumPath(unsigned int i)
+{
+  ROS_DEBUG("finding a minimum path");
+  // recursively go through the tree to find the connector
+  std::vector<node*> rough_path;
+  float minimum_cost = INFINITY;
+  node* almost_last  = findMinConnector(root_ptrs_[i], root_ptrs_[i], &minimum_cost);
+  ROS_DEBUG("found a minimum path");
+  root_ptrs_[i + 1]->parent  = almost_last;
+  smooth_rts_[i + 1]->parent = almost_last;
+  if (almost_last->parent != NULL)
+  {
+    fillet_s fil;
+    bool fil_b = fil.calculate(almost_last->parent->p, almost_last->p, root_ptrs_[i + 1]->p, input_file_.turn_radius);
+    root_ptrs_[i + 1]->fil    = fil;
+    smooth_rts_[i + 1]->fil    = fil;
+    // ROS_DEBUG("calculated fillet");
+  }
+
+	std::stack<node*> wpstack;
+	node *current_node = root_ptrs_[i + 1];
+  // //ROS_DEBUG("printing the root");
+  // printNode(root_ptrs_[i]);
+	while (current_node != root_ptrs_[i])
+  {
+    ROS_DEBUG("pushing parent");
+		// printNode(current_node);
+    wpstack.push(current_node);
+		current_node = current_node->parent;
+	}
+  rough_path.push_back(root_ptrs_[i]);
+  ROS_DEBUG("about to empty the stack");
+	while (!wpstack.empty())
+	{
+    //ROS_DEBUG("pushing to rough_path");
+		rough_path.push_back(wpstack.top());
+		wpstack.pop();
+	}
+  //ROS_DEBUG("created rough path");
+  return rough_path;
+}
+std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
+{
+  std::vector<NED_s> temp_neds;
+  for (int it = 0; it < rough_path.size(); it++)
+  {
+    temp_neds.push_back(rough_path[it]->p);
+    ROS_DEBUG("ROUGH PATH N: %f E: %f D: %f", rough_path[it]->p.N, rough_path[it]->p.E, rough_path[it]->p.D);
+  }
+  displayPath(temp_neds, blue_, 13.0f);
+  // sleep(1.0);
+  temp_neds.clear();
+  std::vector<node*> new_path;
+
+  // rough_path.erase(rough_path.begin());
+  // return rough_path;
+
+  ROS_ERROR("STARTING THE SMOOTHER");
+  new_path.push_back(smooth_rts_[i]);
+  // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+  // printNode(new_path.back());
+  std::vector<NED_s> temp_path; // used for plotting
+  if (direct_hit_)
+  {
+    int ptr;
+    if (i > 0)
+    {
+      ptr = 0;
+      fillet_s fil1, fil2;
+      bool passed1 = fil1.calculate(new_path.back()->parent->p, new_path.back()->p, rough_path[ptr + 1]->p, input_file_.turn_radius);
+      bool passed2 = fil2.calculate(new_path.back()->p, rough_path[ptr + 1]->p, rough_path[ptr + 2]->p, input_file_.turn_radius);
+      node *fake_child           = new node;
+      node *normal_gchild        = new node;
+      fake_child->p              = rough_path[ptr + 1]->p;
+      fake_child->fil            = fil1;
+      fake_child->parent         = new_path.back();
+      fake_child->cost           = (rough_path[ptr + 1]->p - new_path.back()->p).norm();
+      fake_child->dontConnect    = false;
+      fake_child->connects2wp    = false;
+      new_path.back()->children.push_back(fake_child);
+      normal_gchild->p           = rough_path[ptr + 2]->p;
+      normal_gchild->fil         = fil2;
+      normal_gchild->parent      = fake_child;
+      normal_gchild->cost        = normal_gchild->parent->cost + (rough_path[ptr + 2]->p - rough_path[ptr + 1]->p).norm() - fil2.adj;
+      normal_gchild->dontConnect = false;
+      normal_gchild->connects2wp = false;
+      fake_child->children.push_back(normal_gchild);
+
+      ptr = 2;
+      new_path.push_back(fake_child);
+      new_path.push_back(normal_gchild);
+    }
+    else
+      ptr = 0; // TODO there will be a problem if the fan is created for the first node...
+    while (ptr < rough_path.size() - 1)
+    {
+      ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
+      if (new_path.back()->parent != NULL)
+        temp_path.push_back(new_path.back()->fil.z2);
+      temp_path.push_back(new_path.back()->p);
+      temp_path.push_back(rough_path[ptr + 1]->p);
+      // displayPath(temp_path, orange_, 10.0f);
+      // sleep(1.0);
+      temp_path.clear();
+
+      ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
+      node* best_so_far;
+      if (checkWholePath(new_path.back(), rough_path, ptr + 1, i) == false)
+      // if (checkForCollision(new_path.back(), rough_path[ptr + 1]->p, i, path_clearance_, false) == false) // if there is a collision
+      {
+        ROS_DEBUG("Collision, adding the most recent node");
+        ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+        ROS_DEBUG("N: %f, E: %f, D: %f", best_so_far->p.N, best_so_far->p.E,best_so_far->p.D);
+        if (new_path.back()->parent != NULL)
+          temp_path.push_back(new_path.back()->fil.z2);
+        temp_path.push_back(new_path.back()->p);
+        temp_path.push_back(best_so_far->p);
+        // displayPath(temp_path, green_, 10.0f);
+        // sleep(1.0);
+        temp_path.clear();
+        new_path.push_back(best_so_far);
+        ROS_DEBUG("Adding most recent node");
+      }
+      else
+      {
+        best_so_far = most_recent_node_;
+        ptr++;
+      }
+    }
+    new_path.push_back(smooth_rts_[i + 1]);
+    ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+    for (int it = 0; it < new_path.size(); it++)
+    {
+      temp_neds.push_back(new_path[it]->p);
+      ROS_DEBUG("SMOOTH PATH N: %f E: %f D: %f", new_path[it]->p.N, new_path[it]->p.E, new_path[it]->p.D);
+    }
+    displayPath(temp_neds, green_, 15.0f);
+    // sleep(1.0);
+    temp_neds.clear();
+    // TODO see if it is possible to smooth the fan
+  }
+  else
+  {
+    int ptr = 0;
+    while (ptr < rough_path.size() - 1)
+    {
+      ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
+      if (new_path.back()->parent != NULL)
+        temp_path.push_back(new_path.back()->fil.z2);
+      temp_path.push_back(new_path.back()->p);
+      temp_path.push_back(rough_path[ptr + 1]->p);
+      // displayPath(temp_path, orange_, 10.0f);
+      // sleep(1.0);
+      temp_path.clear();
+      node* best_so_far;
+      if (checkWholePath(new_path.back(), rough_path, ptr + 1, i) == false)
+      // if (checkForCollision(new_path.back(), rough_path[ptr + 1]->p, i, path_clearance_, false) == false) // if there is a collision
+      {
+        ROS_DEBUG("Collision, adding the most recent node");
+        ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
+        ROS_DEBUG("N: %f, E: %f, D: %f", best_so_far->p.N, best_so_far->p.E,best_so_far->p.D);
+        if (new_path.back()->parent != NULL)
+          temp_path.push_back(new_path.back()->fil.z2);
+        temp_path.push_back(new_path.back()->p);
+        temp_path.push_back(best_so_far->p);
+        // displayPath(temp_path, green_, 12.0f);
+        // sleep(1.0);
+        temp_path.clear();
+
+        new_path.push_back(best_so_far);
+      }
+      else
+      {
+        best_so_far = most_recent_node_;
+        ptr++;
+        ROS_DEBUG("no collision");
+      }
+    }
+    new_path.push_back(smooth_rts_[i + 1]);
+    for (int it = 0; it < new_path.size(); it++)
+    {
+      temp_neds.push_back(new_path[it]->p);
+      ROS_DEBUG("SMOOTH PATH N: %f E: %f D: %f", new_path[it]->p.N, new_path[it]->p.E, new_path[it]->p.D);
+    }
+    displayPath(temp_neds, green_, 15.0f);
+    // sleep(1.0);
+  }
+  new_path.erase(new_path.begin());
+  return new_path;
+}
+bool RRT::checkWholePath(node* snode, std::vector<node*> rough_path, int ptr, int i)
+{
+  bool okay_path;
+  node* add_this_node_next;
+  most_recent_node_ = snode;
+  for (int j = ptr; j < rough_path.size(); j++)
+  {
+    ROS_DEBUG("checking N %f E %f D %f", most_recent_node_->p.N, most_recent_node_->p.E, most_recent_node_->p.D);
+    ROS_DEBUG("to       N %f E %f D %f", rough_path[j]->p.N, rough_path[j]->p.E, rough_path[j]->p.D);
+    okay_path = checkForCollision(most_recent_node_, rough_path[j]->p, i, path_clearance_, false);
+    if (okay_path == false)
+    {
+      ROS_DEBUG("path is bad");
+      return false;
+    }
+    if (j == ptr)
+      add_this_node_next = most_recent_node_;
+  }
+  // if (direct_hit_)
+  // {
+  //   float chi = (rough_path.back()->p - start_of_line->p).getChi();
+  //   if (checkAfterWP(rough_path.back()->p, chi, path_clearance_) == false)
+  //   {
+  //     return false;
+  //   }
+  // }
+  most_recent_node_ = add_this_node_next;
+  return true;
+}
+void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
+{
+  ROS_DEBUG("Adding the path");
+  ROS_DEBUG("smooth_path.size() %lu",smooth_path.size());
+  for (unsigned int j = 0; j < smooth_path.size(); j++)
+  {
+    if (direct_hit_ == true && j == smooth_path.size() - 1 && i != map_.wps.size() - 1 && j != 0)
+    {
+
+    }
+    // else if (direct_hit_ == true && i == 2 && j == 0)
+    // {
+    //
+    // }
+    else
+      all_wps_.push_back(smooth_path[j]->p);
+  }
+}
+// Secondary functions
+node* RRT::findClosestNodeGChild(node* root, NED_s p)
+{
+  float distance = INFINITY;
+  node* closest_gchild;
+  node* closest_node;
+  for (unsigned int j = 0; j < root->children.size(); j++)
+    for (unsigned int k = 0; k < root->children[j]->children.size(); k++)
+    {
+      float d_gchild = (p - root->children[j]->children[k]->p).norm();
+      closest_gchild = findClosestNode(root->children[j]->children[k], p, root->children[j]->children[k], &d_gchild);
+      if (d_gchild < distance)
+      {
+        closest_node = closest_gchild;
+        distance = d_gchild;
+      }
+    }
+    return closest_node;
+}
+bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance, bool connecting_to_end)
+{
+  // returns true if there was no collision detected.
+  // returns false if there was a collision collected.
+  node* start_of_line;
+  if (ps->dontConnect) // then try one of the grand children
+  {
+    // //ROS_DEBUG("finding one of the grand children");
+    start_of_line = findClosestNodeGChild(ps, pe);
+  }
+  else
+  {
+    // //ROS_DEBUG("using the starting point");
+    start_of_line = ps;
+  }
+  // //ROS_DEBUG("checking the line");
+  if (col_det_.checkLine(start_of_line->p, pe, clearance))
+  {
+    // ROS_FATAL("chekcLine in RRT passed");
+    // //ROS_DEBUG("line worked");
+    if (start_of_line->parent == NULL) // then this is the start
+    {
+      // //ROS_DEBUG("parent was null");
+      float chi = (pe - start_of_line->p).getChi();
+      // //ROS_DEBUG("checking after waypoint");
+      // //ROS_DEBUG("found a good connection");
+      node* ending_node        = new node;
+      ending_node->p           = pe;
+      // don't do the fillet
+      ending_node->parent      = start_of_line;
+      ending_node->cost        = start_of_line->cost + (pe - start_of_line->p).norm();
+      ending_node->dontConnect = false;
+      ending_node->connects2wp = (pe == map_.wps[i]);
+      start_of_line->children.push_back(ending_node);
+      most_recent_node_        = ending_node;
+      // //ROS_DEBUG("printing ending node");
+      // printNode(ending_node);
+      return true;
+    }
+    else
+    {
+      // //ROS_DEBUG("parent not null, caclulating fillet");
+      fillet_s fil;
+      bool fil_possible = fil.calculate(start_of_line->parent->p, start_of_line->p, pe, input_file_.turn_radius);
+      // ROS_WARN("n_beg: %f, e_beg: %f, d_beg: %f, n_end: %f, e_end: %f, d_end: %f, ",\
+      // fil.w_im1.N, fil.w_im1.E, fil.w_im1.D, fil.z1.N, fil.z1.E, fil.z1.D);
+      // printFillet(fil);
+
+      // if (fil_possible) { ROS_INFO("fillet possible");}
+      // else {ROS_WARN("fillet not possible");}
+      fillet_s temp_fil = fil;
+      float slope = atan2f(-1.0f*(fil.z1.D - start_of_line->fil.z2.D), sqrtf(powf(start_of_line->fil.z2.N - \
+                           fil.z1.N, 2.0f) + powf(start_of_line->fil.z2.E - fil.z1.E, 2.0f)));
+      if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
+        return false;
+      slope = atan2f(-1.0f*(pe.D - fil.z2.D), sqrtf(powf(fil.z2.N - pe.N, 2.0f) + powf(fil.z2.E - pe.E, 2.0f)));
+      if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
+        return false;
+      temp_fil.w_im1 = fil.z1;
+      if (fil_possible && col_det_.checkFillet(temp_fil, clearance))
+      {
+        //ROS_DEBUG("passed fillet check, checking for neighboring fillets");
+        if (start_of_line->parent->parent != NULL && start_of_line->fil.roomFor(fil) == false)
+        {
+          // printNode(start_of_line);
+          //ROS_DEBUG("testing spot N: %f, E %f, D %f", pe.N, pe.E, pe.D);
+          // ROS_FATAL("failed neighboring fillets");
+          return false;
+        }
+        //ROS_DEBUG("passed neighboring fillets");
+        float chi = (pe - start_of_line->p).getChi();
+        // //ROS_DEBUG("checking after wp");
+        //ROS_DEBUG("everything worked, adding another connection");
+        node* ending_node        = new node;
+        ending_node->p           = pe;
+        ending_node->fil         = fil;
+        ending_node->parent      = start_of_line;
+        ending_node->cost        = start_of_line->cost + (pe - start_of_line->p).norm() - fil.adj;
+        ending_node->dontConnect = false;
+        ending_node->connects2wp = (pe == map_.wps[i]);
+        start_of_line->children.push_back(ending_node);
+        most_recent_node_        = ending_node;
+        // //ROS_DEBUG("printing ending node");
+        // printNode(ending_node);
+        return true;
+      }
+      // else
+      //   ROS_ERROR("failed fillet");
+    }
+  }
+  else
+    //ROS_DEBUG("failed line check");
+  // //ROS_DEBUG("Adding node Failed");
+  return false;
+}
+NED_s RRT::randomPoint(unsigned int i)
+{
+  NED_s P;
+  P.N = rg_.randLin()*(col_det_.maxNorth_ - col_det_.minNorth_) + col_det_.minNorth_;
+	P.E = rg_.randLin()*(col_det_.maxEast_  - col_det_.minEast_)  + col_det_.minEast_;
+  if (taking_off_)
+    P.D = root_ptrs_[i]->p.D - sqrtf(P.N*P.N + P.E*P.E)*0.6f*input_file_.max_climb_angle;
+  else if (landing_now_)
+    P.D = root_ptrs_[i]->p.D + sqrtf(P.N*P.N + P.E*P.E)*0.6f*input_file_.max_descend_angle;
+  else
+    P.D = root_ptrs_[i]->p.D;
+  return P;
+}
+float RRT::redoRandomDownPoint(unsigned int i, float closest_D)
+{
+  if (-root_ptrs_[i + 1]->p.D > -closest_D)
+    return -(segment_length_*sinf(input_file_.max_climb_angle)*(rg_.randLin()*1.5f - 0.5f)*0.5f - closest_D);
+  if (-root_ptrs_[i + 1]->p.D < -closest_D)
+    return -(segment_length_*sinf(input_file_.max_descend_angle)*(rg_.randLin()*-1.5f + 0.5f)*0.5f - closest_D);
+  else
+    return -(segment_length_*sinf(input_file_.max_climb_angle)*(rg_.randLin()*1.5f - 0.75f)*0.5f - closest_D);
+}
+node* RRT::findClosestNode(node* nin, NED_s P, node* minNode, float* minD) // This recursive function return the closes node to the input point P, for some reason it wouldn't go in the cpp...
+{// nin is the node to measure, P is the point, minNode is the closes found node so far, minD is where to store the minimum distance
+  // Recursion
+  float distance;                                         // distance to the point P
+  for (unsigned int i = 0; i < nin->children.size(); i++) // For all of the children figure out their distances
+  {
+    distance = (P - nin->children[i]->p).norm();
+    if (distance < *minD)          // If we found a better distance, update it
+    {
+      minNode = nin->children[i];  // reset the minNode
+      *minD = distance;            // reset the minimum distance
+    }
+    minNode = findClosestNode(nin->children[i], P, minNode, minD); // Recursion for each child
+  }
+  return minNode;                  // Return the closest node
+}
+node* RRT::findMinConnector(node* nin, node* minNode, float* minCost) // This recursive function return the closes node to the input point P, for some reason it wouldn't go in the cpp...
+{// nin is the node to measure, minNode is the closes final node in the path so far, minD is where to store the minimum distance
+  // Recursion
+  float cost;                     // total cost of the function
+  if (nin->connects2wp == true)
+  {
+    //ROS_DEBUG("found a connector");
+    cost = nin->cost;
+    if (cost <= *minCost)          // If we found a better cost, update it
+    {
+      //ROS_DEBUG("found lower costing connector");
+      minNode = nin;              // reset the minNode
+      *minCost = cost;               // reset the minimum cost
+    }
+  }
+  else
+  {
+    // //ROS_DEBUG("checking all children for connectors");
+    for (unsigned int i = 0; i < nin->children.size(); i++) // For all of the children figure out their distances
+      minNode = findMinConnector(nin->children[i], minNode, minCost); // Recursion for each child
+    // //ROS_DEBUG("finished checking all children for connect  ors");
+  }
+  return minNode;                  // Return the closest node
+}
+void RRT::createFan(node* root, NED_s p, float chi, float clearance)
+{
+  ROS_DEBUG("Creating Fan");
+  bool found_at_least_1_good_path = false;
+  // Make sure that it is possible to go to the next waypoint
+
+  float alpha  = M_PI / 4.0;			// Start with 45.0 degrees // TODO this might cause errors depending on the turning radius
+  float R      = 3.0*input_file_.turn_radius;
+  int num_circle_trials = 10;				// Will try num_circle_trials on one side and num_circle_trials on the other side.
+  float dalpha = (M_PI - alpha) / num_circle_trials;
+
+  float approach_angle = -(chi + 1.0f*M_PI)  + M_PI/2.0f; //atan2(p.N - coming_from.N, p.E - coming_from.E) + M_PI;
+  float beta, lambda, Q, phi, theta, zeta, gamma, d;
+  NED_s cpa, cea, lea, fake_wp;
+  for (int j = 0; j < num_circle_trials; j++)
+  {
+    alpha  = alpha + dalpha;
+    beta   = M_PI / 2 - alpha;
+    lambda = M_PI - 2 * beta;
+    Q      = sqrtf(R*(R - input_file_.turn_radius*sinf(lambda) / sinf(beta)) + input_file_.turn_radius*input_file_.turn_radius);
+    phi    = M_PI - asinf(R*sinf(beta) / Q);
+    theta  = acosf(input_file_.turn_radius / Q);
+    zeta   = (2 * M_PI - phi - theta) / 2.0;
+    gamma  = M_PI - 2 * zeta;
+    d      = input_file_.turn_radius / tanf(gamma / 2.0) + 1.0f;
+
+    // Check the positive side
+    fake_wp.N = p.N - d*sinf(approach_angle);
+    fake_wp.E = p.E - d*cosf(approach_angle);
+    fake_wp.D = p.D;
+
+    cpa.N = p.N + input_file_.turn_radius*cosf(approach_angle);
+    cpa.E = p.E - input_file_.turn_radius*sinf(approach_angle);
+    cpa.D = p.D;
+
+    cea.N = fake_wp.N + d*sinf(gamma + approach_angle);
+    cea.E = fake_wp.E + d*cosf(gamma + approach_angle);
+    cea.D = p.D;
+
+    lea.N = p.N + R*sinf(approach_angle + alpha);
+    lea.E = p.E + R*cosf(approach_angle + alpha);
+    lea.D = p.D;
+
+    if (col_det_.checkArc(p, cea, input_file_.turn_radius, cpa, -1, clearance))
+      if (col_det_.checkLine(cea, lea, clearance))
+      {
+        fillet_s fil1, fil2;
+        bool passed1, passed2;
+        if (root->parent == NULL)
+        {
+          NED_s fake_parent;
+          fake_parent.N = root->p.N + 100.0f*cosf(chi + M_PI);
+          fake_parent.E = root->p.E + 100.0f*sinf(chi + M_PI);
+          fake_parent.D = root->p.D;
+          passed1 = fil1.calculate(fake_parent, p, fake_wp, input_file_.turn_radius);
+        }
+        else
+          passed1 = fil1.calculate(root->parent->p, p, fake_wp, input_file_.turn_radius);
+        passed2 = fil2.calculate(p, fake_wp, lea, input_file_.turn_radius);
+        node *fake_child        = new node;
+        node *normal_gchild     = new node;
+        fake_child->p           = fake_wp;
+        fake_child->fil         = fil1;
+        fake_child->parent      = root;
+        fake_child->cost        = (fake_wp - p).norm();
+        fake_child->dontConnect = false;
+        fake_child->connects2wp = false;
+        root->children.push_back(fake_child);
+        normal_gchild->p           = lea;
+        normal_gchild->fil         = fil2;
+        normal_gchild->parent      = fake_child;
+        normal_gchild->cost        = normal_gchild->parent->cost + (lea - fake_wp).norm() - fil2.adj;
+        normal_gchild->dontConnect = false;
+        normal_gchild->connects2wp = false;
+        fake_child->children.push_back(normal_gchild);
+
+        // std::vector<NED_s> temp_path;
+        // if (normal_gchild->parent->parent != NULL)
+        //   temp_path.push_back(normal_gchild->parent->parent->p);
+        // temp_path.push_back(normal_gchild->parent->p);
+        // temp_path.push_back(normal_gchild->p);
+        // displayPath(temp_path, gray_, 8.0f);
+      }
+    // Check the negative side
+    cpa.N = p.N - input_file_.turn_radius*cosf(approach_angle);
+    cpa.E = p.E + input_file_.turn_radius*sinf(approach_angle);
+    cpa.D = p.D;
+
+    cea.N = fake_wp.N + d*sinf(-gamma + approach_angle);
+    cea.E = fake_wp.E + d*cosf(-gamma + approach_angle);
+    cea.D = p.D;
+
+    lea.N = p.N + R*sinf(approach_angle - alpha);
+    lea.E = p.E + R*cosf(approach_angle - alpha);
+    lea.D = p.D;
+
+    if (col_det_.checkArc(p, cea, input_file_.turn_radius, cpa, 1, clearance))
+      if (col_det_.checkLine(cea, lea, clearance))
+      {
+        fillet_s fil1, fil2;
+        bool passed1, passed2;
+        if (root->parent == NULL)
+        {
+          NED_s fake_parent;
+          fake_parent.N = root->p.N + 100.0f*cosf(chi + M_PI);
+          fake_parent.E = root->p.E + 100.0f*sinf(chi + M_PI);
+          fake_parent.D = root->p.D;
+          passed1 = fil1.calculate(fake_parent, p, fake_wp, input_file_.turn_radius);
+        }
+        else
+          passed1 = fil1.calculate(root->parent->p, p, fake_wp, input_file_.turn_radius);
+        passed2 = fil2.calculate(p, fake_wp, lea, input_file_.turn_radius);
+        node *fake_child        = new node;
+        node *normal_gchild     = new node;
+        fake_child->p           = fake_wp;
+        fake_child->fil         = fil1;
+        fake_child->parent      = root;
+        fake_child->cost        = (fake_wp - p).norm();
+        fake_child->dontConnect = false;
+        fake_child->connects2wp = false;
+        root->children.push_back(fake_child);
+        normal_gchild->p           = lea;
+        normal_gchild->fil         = fil2;
+        normal_gchild->parent      = fake_child;
+        normal_gchild->cost        = normal_gchild->parent->cost + (lea - fake_wp).norm() - fil2.adj;
+        normal_gchild->dontConnect = false;
+        normal_gchild->connects2wp = false;
+        fake_child->children.push_back(normal_gchild);
+
+        // std::vector<NED_s> temp_path;
+        // if (normal_gchild->parent->parent != NULL)
+        //   temp_path.push_back(normal_gchild->parent->parent->p);
+        // temp_path.push_back(normal_gchild->parent->p);
+        // temp_path.push_back(normal_gchild->p);
+        // displayPath(temp_path, gray_, 8.0f);
+      }
+  }
+  ROS_DEBUG("Created the fan");
+}
+// Initializing and Clearing Data
+void RRT::initializeTree(NED_s pos, float chi0)
+{
+  bool fan_first_node = direct_hit_;
+  if (-pos.D < input_file_.minFlyHeight)
+    fan_first_node = false;
+	// Set up all of the roots
+	node *root_in0        = new node;        // Starting position of the tree (and the waypoint beginning)
+  node *root_in0_smooth = new node;
+  fillet_s emp_f;
+	root_in0->p           = pos;
+  root_in0->fil         = emp_f;
+  root_in0->fil.z2      = root_in0->p;
+	root_in0->parent      = NULL;            // No parent
+	root_in0->cost        = 0.0f;            // 0 distance.
+  root_in0->dontConnect = fan_first_node;
+  root_in0->connects2wp = false;
+  ROS_DEBUG("about to set smoother");
+  root_in0_smooth->equal(root_in0);
+  ROS_DEBUG("set smooth_rts");
+	root_ptrs_.push_back(root_in0);
+  smooth_rts_.push_back(root_in0_smooth);
+  int num_root = 0;
+  num_root++;
+  for (unsigned int i = 0; i < map_.wps.size(); i++)
+	{
+		node *root_in        = new node;       // Starting position of the tree (and the waypoint beginning)
+    node *root_in_smooth = new node;
+    root_in->p           = map_.wps[i];
+    root_in->fil         = emp_f;
+    root_in0->fil.z2     = root_in0->p;
+  	root_in->parent      = NULL;           // No parent
+  	root_in->cost        = 0.0f;           // 0 distance.
+    root_in->dontConnect = direct_hit_;
+    root_in->connects2wp = false;
+    root_in_smooth->equal(root_in);
+    root_ptrs_.push_back(root_in);
+    smooth_rts_.push_back(root_in_smooth);
+    num_root++;
+	}
+  printRoots();
 }
 void RRT::clearForNewPath()
 {
-  line_starts_.clear();
-  for (long unsigned int i = 0; i < all_wps_.size(); i++)
-    all_wps_[i].clear();
   all_wps_.clear();
-  path_distances_.clear();
-  clearTree();											  // Clear all of those tree pointer nodes
-  root_ptrs_.clear();
-}
-void RRT::clearForNewMap()
-{
-  for (unsigned int i = 0; i < lineMinMax_.size(); i++)
-    std::vector<double>().swap(lineMinMax_[i]);
-  std::vector<std::vector<double> >().swap(lineMinMax_);
-  for (unsigned int i = 0; i < line_Mandb_.size(); i++)
-    std::vector<double>().swap(line_Mandb_[i]);
-  std::vector<std::vector<double> >().swap(line_Mandb_);
+  clearTree();                    // Clear all of those tree pointer nodes
+  // std::vector<node*>().swap(root_ptrs_);
 }
 void RRT::newMap(map_s map_in)
 {
-  clearForNewMap();
-  map_        = map_in;          // Get a copy of the terrain map
-  ppSetup();                     // default stuff for every algorithm that needs to be called after it recieves the map.
+  map_ = map_in;
+  col_det_.newMap(map_in);
 }
 void RRT::newSeed(unsigned int seed)
 {
   RandGen rg_in(seed);          // Make a random generator object that is seeded
 	rg_         = rg_in;           // Copy that random generator into the class.
 }
-bool RRT::checkDirectFan(NED_s second_wp, NED_s primary_wp, NED_s coming_from, node* next_root, NED_s* cea_out, double* din, double* anglin)
-{
-	bool found_at_least_1_good_path = false;
-	double R = sqrt(pow(second_wp.N - primary_wp.N,2) + pow(second_wp.E - primary_wp.E,2) + pow(second_wp.D - primary_wp.D,2));
-
-	double approach_angle = atan2(primary_wp.N - coming_from.N, primary_wp.E - coming_from.E) + M_PI;
-	double approach_angleDEGREES = approach_angle*180.0 / M_PI;
-	double beta, lambda, Q, phi, theta, zeta, gamma, d;
-	NED_s cpa, cea, lea, fake_wp;
-
-	// What should alpha be?
-	double leave_angle = atan2(second_wp.N - primary_wp.N, second_wp.E - primary_wp.E);
-	double leave_angleDEGREES = leave_angle*180.0 / M_PI;
-	double alpha = atan2(second_wp.N - primary_wp.N, second_wp.E - primary_wp.E) - approach_angle;
-	//double alphaDEGREES = alpha*180.0 / M_PI;
-	while (alpha < -M_PI)
-		alpha = alpha + 2 * M_PI;
-	while (alpha > M_PI)
-		alpha = alpha - 2 * M_PI;
-
-	bool positive_angle = true;
-	if (alpha < 0.0)
-	{
-		positive_angle = false;
-		alpha = -1.0*alpha;
-	}
-	if (2.0*input_file_->turn_radius / R > 1.0 || 2.0*input_file_->turn_radius / R < -1.0)
-		return false;
-	double minAngle = asin(2.0*input_file_->turn_radius / R) + 8*M_PI/180.0;
-	if (alpha < minAngle || (alpha > M_PI- minAngle && alpha < M_PI + minAngle))
-		return false;
-
-	beta = M_PI / 2 - alpha;
-	lambda = M_PI - 2 * beta;
-	Q = sqrt(R*(R - input_file_->turn_radius*sin(lambda) / sin(beta)) + input_file_->turn_radius*input_file_->turn_radius);
-	phi = M_PI - asin(R*sin(beta) / Q);
-	theta = acos(input_file_->turn_radius / Q);
-	zeta = (2 * M_PI - phi - theta) / 2.0;
-	gamma = M_PI - 2 * zeta;
-	d = input_file_->turn_radius / tan(gamma / 2.0);
-
-	fake_wp.N = primary_wp.N - d*sin(approach_angle);
-	fake_wp.E = primary_wp.E - d*cos(approach_angle);
-	fake_wp.D = primary_wp.D;
-
-	// What should it be on the positive or on the negative side?
-	if (positive_angle)
-	{
-		// Check the positive side
-		cpa.N = primary_wp.N + input_file_->turn_radius*cos(approach_angle);
-		cpa.E = primary_wp.E - input_file_->turn_radius*sin(approach_angle);
-		cpa.D = primary_wp.D;
-
-		cea.N = fake_wp.N + d*sin(gamma + approach_angle);
-		cea.E = fake_wp.E + d*cos(gamma + approach_angle);
-		cea.D = primary_wp.D;
-
-		lea.N = primary_wp.N + R*sin(approach_angle + alpha);
-		lea.E = primary_wp.E + R*cos(approach_angle + alpha);
-		lea.D = primary_wp.D;
-
-		if (flyZoneCheck(primary_wp, cea, input_file_->turn_radius, cpa, clearance_, false))
-			if (flyZoneCheck(cea, lea, clearance_))
-			{
-				// Looks like things are going to work out for this maneuver!
-				found_at_least_1_good_path = true;
-				node *fake_child = new node;
-				//node *normal_gchild = new node;
-				fake_child->NED = fake_wp;
-				fake_child->available_dist = 0;
-				fake_child->parent = next_root;
-				fake_child->distance = 2.0*zeta*input_file_->turn_radius;
-				fake_child->path_type = 1;
-				next_root->children.push_back(fake_child);
-			}
-	}
-	else // Check the negative side
-	{
-		cpa.N = primary_wp.N - input_file_->turn_radius*cos(approach_angle);
-		cpa.E = primary_wp.E + input_file_->turn_radius*sin(approach_angle);
-		cpa.D = primary_wp.D;
-
-		cea.N = fake_wp.N + d*sin(-gamma + approach_angle);
-		cea.E = fake_wp.E + d*cos(-gamma + approach_angle);
-		cea.D = primary_wp.D;
-
-		lea.N = primary_wp.N + R*sin(approach_angle - alpha);
-		lea.E = primary_wp.E + R*cos(approach_angle - alpha);
-		lea.D = primary_wp.D;
-
-		if (flyZoneCheck(primary_wp, cea, input_file_->turn_radius, cpa, clearance_, false))
-			if (flyZoneCheck(cea, lea, clearance_))
-			{
-				// Looks like things are going to work out for this maneuver!
-				found_at_least_1_good_path = true;
-				node *fake_child = new node;
-				node *normal_gchild = new node;
-				fake_child->NED = fake_wp;
-				fake_child->available_dist = 0;
-				fake_child->parent = next_root;
-				fake_child->distance = 2.0*zeta*input_file_->turn_radius;
-				fake_child->path_type = 1;
-				next_root->children.push_back(fake_child);
-			}
-	}
-	*cea_out = cea;
-	*din = sqrt(pow(fake_wp.N - cea.N, 2) + pow(fake_wp.E - cea.E, 2) + pow(fake_wp.D - cea.D, 2));
-	*anglin = 2.0*zeta;
-	return found_at_least_1_good_path;
-}
-bool RRT::checkCreateFan(NED_s primary_wp, NED_s coming_from, node* next_root, bool direct_hit)
-{
-	bool found_at_least_1_good_path = false;
-	// Make sure that it is possible to go to the next waypoint
-
-	double alpha = M_PI / 4.0;			// Start with 45.0 degrees
-	double R = 3.0 * input_file_->turn_radius;
-	int num_circle_trials = 10;				// Will try num_circle_trials on one side and num_circle_trials on the other side.
-	double dalpha = (M_PI - alpha) / num_circle_trials;
-
-	double approach_angle = atan2(primary_wp.N - coming_from.N, primary_wp.E - coming_from.E) + M_PI;
-	double beta, lambda, Q, phi, theta, zeta, gamma, d;
-	NED_s cpa, cea, lea, fake_wp;
-	for (int j = 0; j < num_circle_trials; j++)
-	{
-		alpha = alpha + dalpha;
-		beta = M_PI / 2 - alpha;
-		lambda = M_PI - 2 * beta;
-		Q = sqrt(R*(R - input_file_->turn_radius*sin(lambda) / sin(beta)) + input_file_->turn_radius*input_file_->turn_radius);
-		phi = M_PI - asin(R*sin(beta) / Q);
-		theta = acos(input_file_->turn_radius / Q);
-		zeta = (2 * M_PI - phi - theta) / 2.0;
-		gamma = M_PI - 2 * zeta;
-		d = input_file_->turn_radius / tan(gamma / 2.0);
-
-		// Check the positive side
-		fake_wp.N = primary_wp.N - d*sin(approach_angle);
-		fake_wp.E = primary_wp.E - d*cos(approach_angle);
-		fake_wp.D = primary_wp.D;
-
-		cpa.N = primary_wp.N + input_file_->turn_radius*cos(approach_angle);
-		cpa.E = primary_wp.E - input_file_->turn_radius*sin(approach_angle);
-		cpa.D = primary_wp.D;
-
-		cea.N = fake_wp.N + d*sin(gamma + approach_angle);
-		cea.E = fake_wp.E + d*cos(gamma + approach_angle);
-		cea.D = primary_wp.D;
-
-		lea.N = primary_wp.N + R*sin(approach_angle + alpha);
-		lea.E = primary_wp.E + R*cos(approach_angle + alpha);
-		lea.D = primary_wp.D;
-
-		if (flyZoneCheck(primary_wp, cea, input_file_->turn_radius, cpa, clearance_, false))
-			if (flyZoneCheck(cea, lea, clearance_))
-			{
-				// Looks like things are going to work out for this maneuver!
-				found_at_least_1_good_path = true;
-        if (direct_hit)
-        {
-  				node *fake_child = new node;
-  				node *normal_gchild = new node;
-  				fake_child->NED = fake_wp;
-  				fake_child->available_dist = 0;
-  				fake_child->parent = next_root;
-  				fake_child->distance = 2.0*zeta*input_file_->turn_radius;
-  				fake_child->path_type = 1;
-  				fake_child->line_start = next_root->NED;
-  				next_root->children.push_back(fake_child);
-
-  				normal_gchild->NED = lea;
-  				normal_gchild->available_dist = sqrt(R*(R - input_file_->turn_radius*sin(lambda) / sin(beta)));
-  				normal_gchild->parent = fake_child;
-  				normal_gchild->distance = normal_gchild->available_dist;
-  				normal_gchild->path_type = 1;
-  				normal_gchild->line_start = cea;
-  				fake_child->children.push_back(normal_gchild);
-        }
-			}
-		// Check the negative side
-		cpa.N = primary_wp.N - input_file_->turn_radius*cos(approach_angle);
-		cpa.E = primary_wp.E + input_file_->turn_radius*sin(approach_angle);
-		cpa.D = primary_wp.D;
-
-		cea.N = fake_wp.N + d*sin(-gamma + approach_angle);
-		cea.E = fake_wp.E + d*cos(-gamma + approach_angle);
-		cea.D = primary_wp.D;
-
-		lea.N = primary_wp.N + R*sin(approach_angle - alpha);
-		lea.E = primary_wp.E + R*cos(approach_angle - alpha);
-		lea.D = primary_wp.D;
-
-		if (flyZoneCheck(primary_wp, cea, input_file_->turn_radius, cpa, clearance_, false))
-			if (flyZoneCheck(cea, lea, clearance_))
-			{
-				// Looks like things are going to work out for this maneuver!
-				found_at_least_1_good_path = true;
-        if (direct_hit)
-        {
-  				node *fake_child = new node;
-  				node *normal_gchild = new node;
-  				fake_child->NED = fake_wp;
-  				fake_child->available_dist = 0;
-  				fake_child->parent = next_root;
-  				fake_child->distance = 2.0*zeta*input_file_->turn_radius;
-  				fake_child->path_type = 1;
-  				fake_child->line_start = next_root->NED;
-  				next_root->children.push_back(fake_child);
-
-  				normal_gchild->NED = lea;
-  				normal_gchild->available_dist = sqrt(R*(R - input_file_->turn_radius*sin(lambda) / sin(beta)));
-  				normal_gchild->parent = fake_child;
-  				normal_gchild->distance = normal_gchild->available_dist;
-  				normal_gchild->path_type = 1;
-  				normal_gchild->line_start = cea;
-  				fake_child->children.push_back(normal_gchild);
-        }
-			}
-	}
-	return found_at_least_1_good_path;
-}
-bool RRT::checkFillet(NED_s par, NED_s mid, NED_s nex, double avail_dis, double* din, double* cangle, NED_s* line_start)
-{
-	bool found_feasible_link = true;
-	// Calculate the fillet and check to see if it is a good fit.
-	// a dot b = ||A|| * ||B|| * cos(theta)
-	double a_dot_b = (par.E - mid.E)*(nex.E - mid.E) + (par.N - mid.N)*(nex.N - mid.N) + (par.D - mid.D)*(nex.D - mid.D);
-	double A = sqrt(pow(par.E - mid.E, 2) + pow(par.N - mid.N, 2) + pow(par.D - mid.D, 2));
-	double B = sqrt(pow(nex.N - mid.N, 2) + pow(nex.E - mid.E, 2) + pow(nex.D - mid.D, 2));
-	double Fangle = acos((a_dot_b) / (A*B));
-	double turn_radius = input_file_->turn_radius;
-	double distance_in = turn_radius / tan(Fangle / 2.0);// Notice this equation was written incorrectly in the UAV book //sqrt(turn_radius*turn_radius / sin(Fangle / 2.0) / sin(Fangle / 2.0) - turn_radius*turn_radius);
-	if (distance_in > avail_dis || distance_in > sqrt(pow(mid.N - nex.N, 2) + pow(mid.E - nex.E, 2) + pow(mid.D - nex.D, 2)))
-		found_feasible_link = false;
-	else
-	{
-		NED_s ps, pe, cp;
-		double theta = atan2(nex.N - mid.N, nex.E - mid.E);
-		pe.N = (mid.N) + sin(theta)*distance_in;
-		pe.E = (mid.E) + cos(theta)*distance_in;
-		pe.D = mid.D;
-		double gamma = atan2(par.N - mid.N, par.E - mid.E);
-		ps.N = (mid.N) + sin(gamma)*distance_in;
-		ps.E = (mid.E) + cos(gamma)*distance_in;
-		ps.D = mid.D;
-		// Find out whether it is going to the right (cw) or going to the left (ccw)
-		// Use the cross product to see if it is cw or ccw
-		bool ccw;
-		double cross_product = ((mid.E - ps.E)*(pe.N - mid.N) - (mid.N - ps.N)*(pe.E - mid.E));
-		if (cross_product < 0)
-			ccw = false;
-		else
-			ccw = true;
-		if (ccw)
-		{
-			cp.N = (mid.N) + sin(gamma - Fangle / 2.0)*turn_radius / sin(Fangle / 2.0);
-			cp.E = (mid.E) + cos(gamma - Fangle / 2.0)*turn_radius / sin(Fangle / 2.0);
-		}
-		else
-		{
-			cp.N = (mid.N) + sin(gamma + Fangle / 2.0)*turn_radius / sin(Fangle / 2.0);
-			cp.E = (mid.E) + cos(gamma + Fangle / 2.0)*turn_radius / sin(Fangle / 2.0);
-		}
-		cp.D = mid.D;
-		if (flyZoneCheck(ps, pe, turn_radius, cp, clearance_, ccw) == false)
-			found_feasible_link = false;
-    ROS_INFO("pe N %f, E %f, D %f", pe.N, pe.E, pe.D);
-		*line_start = pe;
-	}
-	*din = distance_in;
-	*cangle = 2.0*atan(distance_in / turn_radius);
-	return found_feasible_link;
-}
-void RRT::initializeTree(NED_s pos)
-{
-	// Set up all of the roots
-	node *root_in = new node;             // Starting position of the tree (and the waypoint beginning)
-	NED_s starting_point;
-	starting_point.N = pos.N;
-	starting_point.E = pos.E;
-	starting_point.D = pos.D;
-
-	root_in->NED = starting_point;
-	root_in->parent = NULL;               // No parent
-	root_in->distance = 0.0;              // 0 distance.
-	root_in->available_dist = 0.0;        // No available distance, (No parent assumption)
-	root_in->path_type = 0;               // straight lines for now at the primary waypoints.
-	root_in->line_start = root_in->NED;   // The line start is set to it's own location, for now.
-	root_ptrs_.push_back(root_in);
-  int num_root = 0;
-  ROS_INFO("Root Number %i, North: %f, East %f Down: %f", num_root, root_ptrs_[num_root]->NED.N, root_ptrs_[num_root]->NED.E, root_ptrs_[num_root]->NED.D);
-	num_root++;
-  for (unsigned int i = 0; i < map_.wps.size() - 1; i++)
-	{
-		node *root_in = new node;           // Starting position of the tree (and the waypoint beginning)
-		root_in->NED = map_.wps[i];
-		root_in->parent = NULL;             // No parent
-		root_in->distance = 0.0;            // 0 distance.
-		root_in->available_dist = 0.0;      // No available distance, (No parent assumption)
-		root_in->path_type = 0;             // straight lines for now at the primary waypoints.
-		root_in->line_start = root_in->NED; // The line start is set to it's own location, for now.
-		root_ptrs_.push_back(root_in);
-    ROS_INFO("Root Number %i, North: %f, East %f Down: %f", num_root, root_ptrs_[num_root]->NED.N, root_ptrs_[num_root]->NED.E, root_ptrs_[num_root]->NED.D);
-    num_root++;
-	}
-  unsigned int i = map_.wps.size() - 1;
-  ROS_INFO("Waypoint %i, North: %f, East %f Down: %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
-}
-bool RRT::directConnection(unsigned int i, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool* direct_shot, bool direct_hit)
-{
-	// Variables created for this chuck of code in a function
-	bool reached_next_wp = false;
-	NED_s P, line_start;
-	node* root = root_ptrs_[i];
-	double distance;
-
-	// Make sure that the clearance level is right. Mostly this little bit checks to make sure that there is appropriate room to get waypoints close to the floor or ceiling.
-	clearance_ = input_file_->clearance;
-	clearance_ = (-map_.wps[i].D - input_file_->minFlyHeight < clearance_) ? -map_.wps[i].D - input_file_->minFlyHeight : clearance_;
-	clearance_ = (map_.wps[i].D + input_file_->maxFlyHeight < clearance_) ? map_.wps[i].D + input_file_->maxFlyHeight : clearance_;
-	if (i > 0)
-	{
-		clearance_ = (-map_.wps[i - 1].D - input_file_->minFlyHeight < clearance_) ? -map_.wps[i - 1].D - input_file_->minFlyHeight : clearance_;
-		clearance_ = (map_.wps[i - 1].D + input_file_->maxFlyHeight < clearance_) ? map_.wps[i - 1].D + input_file_->maxFlyHeight : clearance_;
-	}
-	if (clearance_ <= 0)
-		ROS_WARN("ERROR. CLEARANCE IS 0 OR LESS THAN 0.");
-
-	// Check to see if it is possible to go straight to the next path
-	ROS_INFO("Checking direct connect.");
-	NED_s coming_from;
-	if (i == 0)
-	{
-		coming_from = root->NED;
-		reached_next_wp = flyZoneCheck(root->NED, map_.wps[i], clearance_);
-		closest_node_ = root;
-		if (reached_next_wp)
-			reached_next_wp = checkSlope(root->line_start, map_.wps[i]);
-		line_start = root->NED;
-    ROS_INFO("1 N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
-	}
-	else
-	{
-		P = map_.wps[i];
-		distance = INFINITY; // Some crazy big number to start out with, maybe look into HUGE_VAL or Inf - worried about embedded implementation.
-		double distance_gchild;
-		bool found_clean_path = false;
-		// Check to see if you can make one turn radius and then go to the next waypoint.
-		NED_s cea;
-		if (i <= map_.wps.size() - 1 && checkDirectFan(map_.wps[i], root->NED, *second2last_post_smoothed, root, &cea, distance_in, fillet_angle))
-		{
-			line_start = cea;
-      ROS_INFO("2 N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
-			if (checkSlope(line_start, map_.wps[i]))
-			{
-        ROS_INFO("reached_next_wp = true");
-				closest_node_ = root->children[root->children.size() - 1];
-				found_clean_path = true;
-				*direct_shot = true;
-				coming_from = closest_node_->NED;
-				reached_next_wp = true;
-				closest_node_->available_dist = 0.0;
-				distance = sqrt(pow(root->NED.N - closest_node_->NED.N, 2) + pow(root->NED.E - closest_node_->NED.E, 2) + pow(root->NED.D - closest_node_->NED.D, 2));
-				closest_node_->distance = distance;
-			}
-		}
-		else
-		{
-			for (unsigned int j = 0; j < root->children.size(); j++)
-				for (unsigned int k = 0; k < root->children[j]->children.size(); k++)
-				{
-					distance_gchild = sqrt(pow(P.N - root->children[j]->children[k]->NED.N, 2) + pow(P.E - root->children[j]->children[k]->NED.E, 2) + pow(P.D - root->children[j]->children[k]->NED.D, 2));
-					closest_node_gchild_ = findClosestNode(root->children[j]->children[k], P, root->children[j]->children[k], &distance_gchild);
-					if (distance_gchild < distance)
-					{
-						closest_node_ = closest_node_gchild_;
-						distance = distance_gchild;
-					}
-				}
-			coming_from = closest_node_->NED;
-			reached_next_wp = flyZoneCheck(coming_from, map_.wps[i], clearance_);
-			if (reached_next_wp && checkFillet(closest_node_->parent->NED, closest_node_->NED, map_.wps[i], closest_node_->available_dist, distance_in, fillet_angle, &line_start))
-			{
-        ROS_INFO("3 N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
-        reached_next_wp = checkSlope(line_start, map_.wps[i]);
-      }
-      else
-        reached_next_wp = false;
-		}
-	}
-	if (reached_next_wp == true && i < map_.wps.size() - 1) // This if statement handles setting waypoints to fly out of the primary waypoints.
-		if (checkCreateFan(map_.wps[i], coming_from, root_ptrs_[i + 1], direct_hit) == false)
-			reached_next_wp = false;
-	if (reached_next_wp && i + 1 < root_ptrs_.size())
-	{
-    root_ptrs_[i + 1]->line_start = line_start;
-    ROS_INFO("N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
-    ROS_INFO("Reset line start");
-  }
-  if (reached_next_wp && i + 1 == root_ptrs_.size())
-    line_start_last_wp_ = line_start;
-	return reached_next_wp;
-}
-void RRT::developTree(unsigned int i, bool reached_next_wp, node* second2last, NED_s* second2last_post_smoothed, double* distance_in, double* fillet_angle, bool direct_hit)
-{
-	// Variables needed to create for this function
-	double distance;
-	NED_s P, line_start;
-	node* root = root_ptrs_[i];
-	double clearanceP = clearance_;
-	int clearance_drops = 0;
-	double added_nodes = 0.0;								// Keep a record of how many nodes are added so that the algorithm doesn't get stuck.
-	ROS_INFO("Developing branches");
-  if (reached_next_wp)
-  {
-    ROS_INFO("found a direct connection");
-    if (i + 1 == root_ptrs_.size())
-      line_start = line_start_last_wp_;
-    else
-      line_start = root_ptrs_[i + 1]->line_start;
-    ROS_INFO("N %f, E %f, D %f", line_start.N, line_start.E, line_start.D);
-  }
-
-	while (reached_next_wp == false)
-	{
-		node *vpos = new node;								// vpos is the next node to add to the tree
-		bool found_feasible_link = false;
-		// Once you found a node to add to the tree that doesn't intersect with an obstacle, add it to the tree
-		unsigned int p_count(0);
-		while (found_feasible_link == false)
-		{
-			// Generate random P until it is within boundaries and not on an obstacle.
-			P.N = rg_.randLin()*(maxNorth_ - minNorth_) + minNorth_;
-			P.E = rg_.randLin()*(maxEast_ - minEast_) + minEast_;
-			P.D = map_.wps[i].D;
-			while (flyZoneCheck(P, clearanceP) == false)
-			{
-				P.N = rg_.randLin()*(maxNorth_ - minNorth_) + minNorth_;
-				P.E = rg_.randLin()*(maxEast_ - minEast_) + minEast_;
-				P.D = map_.wps[i].D;
-			}
-			p_count++;
-			if (p_count == floor(iters_limit_ / 2.0) || p_count == floor(iters_limit_*3.0 / 4.0) || p_count == floor(iters_limit_*7.0 / 8.0))
-			{
-				clearanceP = clearanceP / 6.0;
-				ROS_WARN("DECREASING THE CLEARANCE LEVEL");
-        ros::shutdown();
-				clearance_ = clearance_ / 2.0;
-				ROS_WARN("CLEARANCE: %f",clearance_);
-				path_clearance_ = (clearance_ < path_clearance_) ? clearance_ : path_clearance_;
-			}
-			distance = sqrt(pow(P.N - root->NED.N, 2) + pow(P.E - root->NED.E, 2) + pow(P.D - root->NED.D, 2));
-
-			// Find the closest node to the point P, if you are not trying to get to waypoint 1 (which is the second waypoint), then don't accept the root or the children of the root.
-			if (i == 0 || direct_hit == false)
-				closest_node_ = findClosestNode(root, P, root, &distance);
-			else
-			{
-				distance = INFINITY; // Some crazy big number to start out with - maybe look into HUGE_VAL or Inf - worried about embedded implementation.
-				double distance_gchild;
-				for (unsigned int j = 0; j < root->children.size(); j++)
-					for (unsigned int k = 0; k < root->children[j]->children.size(); k++)
-					{
-						distance_gchild = sqrt(pow(P.N - root->children[j]->children[k]->NED.N, 2) + pow(P.E - root->children[j]->children[k]->NED.E, 2) + pow(P.D - root->children[j]->children[k]->NED.D, 2));
-						closest_node_gchild_ = findClosestNode(root->children[j]->children[k], P, root->children[j]->children[k], &distance_gchild);
-						if (distance_gchild < distance)
-						{
-							closest_node_ = closest_node_gchild_;
-							distance = distance_gchild;
-						}
-					}
-			}
-			double theta = atan2(P.N - closest_node_->NED.N, P.E - closest_node_->NED.E);
-
-			// Go a distance D_ along the line from closest node to P to find the next node position vpos
-			if (alg_input_.uniform2P)
-				D_ = rg_.randLin()*distance;
-			else if (alg_input_.gaussianD)
-				ROS_WARN("gaussianD is depreciated.");
-			vpos->NED.N = (closest_node_->NED.N) + sin(theta)*D_;
-			vpos->NED.E = (closest_node_->NED.E) + cos(theta)*D_;
-
-			if (map_.wps[i].D > closest_node_->NED.D - tan(input_file_->climb_angle)*D_ && map_.wps[i].D < closest_node_->NED.D + tan(input_file_->descend_angle)*D_)
-				vpos->NED.D = map_.wps[i].D;
-			else if (map_.wps[i].D > closest_node_->NED.D)
-				vpos->NED.D = closest_node_->NED.D + tan(input_file_->descend_angle)*D_;
-			else
-				vpos->NED.D = closest_node_->NED.D - tan(input_file_->descend_angle)*D_;
-
-			// If this path is good move on.
-			if (flyZoneCheck(closest_node_->NED, vpos->NED, clearance_))
-			{
-				found_feasible_link = true;
-				vpos->parent = closest_node_;
-				if (alg_input_.path_type == 1 && root != vpos->parent)								// If the path type is fillets, check to see if the fillet is possible.
-          found_feasible_link = checkFillet(closest_node_->parent->NED, closest_node_->NED, vpos->NED, closest_node_->available_dist, distance_in, fillet_angle, &line_start);
-      }
-		}
-		// add the new node to the tree
-		vpos->line_start = line_start;
-		closest_node_->children.push_back(vpos);
-		vpos->distance = sqrt(pow(closest_node_->NED.N - vpos->NED.N, 2) + pow(closest_node_->NED.E - vpos->NED.E, 2) + pow(closest_node_->NED.D - vpos->NED.D, 2));
-		if (alg_input_.path_type == 1 && vpos->parent != root)
-		{
-			// Adjust the vpos->distance to account for the turning radius ( a little bit smaller.)
-			vpos->available_dist = vpos->distance - *distance_in;
-			vpos->distance = vpos->distance - 2.0*(*distance_in) + (*fillet_angle)*input_file_->turn_radius;
-		}
-		else
-			vpos->available_dist = vpos->distance;
-
-		// Make provisions so that the algorithm doesn't hang
-		added_nodes++;
-		if (added_nodes == floor(iters_limit_ / 2.0) || added_nodes == floor(iters_limit_*3.0 / 4.0) || added_nodes == floor(iters_limit_*7.0 / 8.0))
-		{
-			ROS_WARN("DECREASING THE CLEARANCE LEVEL");
-			clearance_ = clearance_ / (2.0*++clearance_drops);
-			ROS_WARN("CLEARANCE: %f",clearance_);
-			path_clearance_ = (clearance_ < path_clearance_) ? clearance_ : path_clearance_;
-		}
-		if (added_nodes >= iters_limit_)
-		{
-			ROS_ERROR("WARNING -- ALGORITHM FAILED TO CONVERGE. RESULTS WILL VIOLATE AN OBSTACLE");
-			reached_next_wp = true;
-			second2last = vpos;
-			line_start = vpos->NED;
-		}
-
-		// Check to see if it is possible to go from this newly added node to the next primary waypoint
-		if (alg_input_.connect_to_end && flyZoneCheck(vpos->NED, map_.wps[i], clearance_) && checkSlope(line_start, map_.wps[i]))
-		{
-			reached_next_wp = true;								// Set the flag
-			second2last = vpos;
-			if (alg_input_.path_type == 1 && root != vpos)								// If the path type is fillets, check to see if the fillet is possible.
-				reached_next_wp = checkFillet(vpos->parent->NED, vpos->NED, map_.wps[i], vpos->available_dist, distance_in, fillet_angle,&line_start);
-		}								// Set the flag
-		if (!alg_input_.connect_to_end && sqrt(pow(map_.wps[i].N - vpos->NED.N, 2) + pow(map_.wps[i].E - vpos->NED.E, 2) + pow(map_.wps[i].D - vpos->NED.D, 2)) < D_ && flyZoneCheck(vpos->NED, map_.wps[i], clearance_) && checkSlope(line_start, map_.wps[i]))
-		{
-			reached_next_wp = true;								// Set the flag
-			second2last = vpos;
-			if (alg_input_.path_type == 1 && root != vpos)								// If the path type is fillets, check to see if the fillet is possible.
-				reached_next_wp = checkFillet(vpos->parent->NED, vpos->NED, map_.wps[i], vpos->available_dist, distance_in, fillet_angle, &line_start);
-		}
-		if (reached_next_wp == true && i < map_.wps.size() - 1) // This if statement handles setting waypoints to get out of the primary waypoints.
-		{
-			if (checkCreateFan(map_.wps[i], vpos->NED, root_ptrs_[i + 1], direct_hit) == false)
-				reached_next_wp = false;
-		}
-	}
-	// We can go to the next waypoint!
-	// The following code wraps up the algorithm.
-	clearance_ = input_file_->clearance;									// Bump up the clearance level again.
-	node *final_node = new node;
-	final_node->NED = map_.wps[i];
-	final_node->line_start = line_start;
-	second2last->children.push_back(final_node);
-	*second2last_post_smoothed = second2last->NED;
-	final_node->parent = second2last;
-	final_node->distance = sqrt(pow(final_node->NED.N - second2last->NED.N, 2) + pow(final_node->NED.E - second2last->NED.E, 2) + pow(final_node->NED.D - second2last->NED.D, 2));
-	if (alg_input_.path_type == 1 && final_node->parent != root)
-		final_node->distance = final_node->distance - 2.0*(*distance_in) + (*fillet_angle)*input_file_->turn_radius;
-	// populate all wps by working back up the tree
-	std::stack<node*> wpstack;
-	node *current_node = final_node;
-	while (current_node != root)
-	{
-		wpstack.push(current_node);
-		current_node = current_node->parent;
-	}
-	wpstack.push(root);
-
-	// Now put all of the waypoints into the all_wps_ vector
-	std::vector<NED_s> wps_to_PrimaryWP;
-	std::vector<NED_s> line_starts_to_PrimaryWP;
-	while (!wpstack.empty())
-	{
-		wps_to_PrimaryWP.push_back(wpstack.top()->NED);
-		line_starts_to_PrimaryWP.push_back(wpstack.top()->line_start);
-		wpstack.pop();
-	}
-	all_wps_.push_back(wps_to_PrimaryWP);
-	line_starts_.push_back(line_starts_to_PrimaryWP);
-	wps_to_PrimaryWP.clear();
-	line_starts_to_PrimaryWP.clear();
-}
-void RRT::smoother(bool skip_smoother, unsigned int i, double* distance_in, double* fillet_angle, NED_s* second2last_post_smoothed, bool direct_shot, bool direct_hit)
-{
-	node* root = root_ptrs_[i];
-	//skip_smoother = true; // Uncommmenting this line turns the smoother off. It can be helpful for debugging.
-
-	// Smooth Out the path (Algorithm 11 in the UAV book)
-	if (skip_smoother == false)
-	{
-		ROS_INFO("Smoothing Path");
-		std::vector<NED_s> path_smoothed;
-		std::vector<NED_s> line_starts_smoothed;
-		std::vector<double> available_ds;
-		unsigned int i_node = 0;	// i_node is which index of the SMOOTHED PATH you are on.
-		unsigned int j_node = 1;	// j_node is which index of the ROUGH PATH you are on.
-		double line_Distance;
-		path_smoothed.push_back(all_wps_[i][0]);
-		line_starts_smoothed.push_back(line_starts_[i][0]);
-		NED_s line_start;
-		if (i != 0)
-		{
-			path_smoothed.push_back(all_wps_[i][1]);
-			line_starts_smoothed.push_back(line_starts_[i][1]);
-			i_node++;
-			j_node++;
-			line_Distance = sqrt(pow(path_smoothed[i_node].N - path_smoothed[i_node - 1].N, 2.) + pow(path_smoothed[i_node].E - path_smoothed[i_node - 1].E, 2) + pow(path_smoothed[i_node].D - path_smoothed[i_node - 1].D, 2));
-			available_ds.push_back(line_Distance - *distance_in);
-
-			path_smoothed.push_back(all_wps_[i][2]);
-			line_starts_smoothed.push_back(line_starts_[i][2]);
-			i_node++;
-			j_node++;
-			line_Distance = sqrt(pow(path_smoothed[i_node].N - path_smoothed[i_node - 1].N, 2.) + pow(path_smoothed[i_node].E - path_smoothed[i_node - 1].E, 2) + pow(path_smoothed[i_node].D - path_smoothed[i_node - 1].D, 2));
-			available_ds.push_back(line_Distance - *distance_in);
-		}
-		while (j_node < all_wps_[i].size())
-		{
-			bool bad_path_flag = false;
-			if ((alg_input_.path_type == 0 || i_node == 0) && all_wps_[i].size() >= j_node + 2 && (flyZoneCheck(path_smoothed[i_node], all_wps_[i][j_node + 1], path_clearance_) == false || checkMaxSlope(line_starts_smoothed[i_node], all_wps_[i][j_node + 1]) == false))
-				bad_path_flag = true;
-			else if (alg_input_.path_type == 1 && all_wps_[i].size() >= j_node + 2 && (flyZoneCheck(path_smoothed[i_node], all_wps_[i][j_node + 1], path_clearance_) == false || checkMaxSlope(line_starts_smoothed[i_node], all_wps_[i][j_node + 1]) == false))
-				bad_path_flag = true;
-			if (alg_input_.path_type == 1 && all_wps_[i].size() >= j_node + 2 && i_node >= 1 && checkFillet(path_smoothed[i_node - 1], path_smoothed[i_node], all_wps_[i][j_node + 1], available_ds[i_node - 1], distance_in, fillet_angle, &line_start) == false)
-				bad_path_flag = true;
-			if (i != 0 && alg_input_.path_type == 1 && j_node == all_wps_[i].size() - 3 && bad_path_flag == false)
-			{
-				double temp_available_ds = sqrt(pow(path_smoothed[i_node].N - all_wps_[i][j_node + 2].N, 2) + pow(path_smoothed[i_node].E - all_wps_[i][j_node + 2].E, 2) + pow(path_smoothed[i_node].D - all_wps_[i][j_node + 2].D, 2)) - *distance_in;
-				if (checkFillet(path_smoothed[i_node], all_wps_[i][j_node + 1], all_wps_[i][j_node + 2], temp_available_ds, distance_in, fillet_angle,&line_start) == false)
-				{
-					bad_path_flag = true;
-					// If this is true then really you should check the next one back.
-					// Now we are working backwards to find a good path.
-					while (bad_path_flag)
-					{
-						j_node--;
-						temp_available_ds = sqrt(pow(path_smoothed[i_node].N - all_wps_[i][j_node + 1].N, 2) + pow(path_smoothed[i_node].E - all_wps_[i][j_node + 1].E, 2) + pow(path_smoothed[i_node].D - all_wps_[i][j_node + 1].D, 2)) - *distance_in;
-						if (flyZoneCheck(path_smoothed[i_node], all_wps_[i][j_node + 1], path_clearance_))
-							if (checkFillet(path_smoothed[i_node - 1], path_smoothed[i_node], all_wps_[i][j_node + 1], temp_available_ds, distance_in, fillet_angle, &line_start))
-								bad_path_flag = false;
-					}
-					bad_path_flag = true;
-				}
-			}
-			if (j_node + 1 == all_wps_[i].size() - 1 && bad_path_flag == false && i != map_.wps.size()-1)
-			{
-				int previous_fan_nodes = root_ptrs_[i + 1]->children.size();
-				if (checkCreateFan(map_.wps[i], path_smoothed[path_smoothed.size() - 1], root_ptrs_[i + 1], direct_hit))
-				{
-					// Delete the other nodes
-					for (unsigned int j = 0; j < root_ptrs_[i+1]->children.size(); j++)		// Delete every tree generated
-						deleteNode(root_ptrs_[i+1]->children[j]);
-					std::vector<node*>().swap(root_ptrs_[i+1]->children);
-					root_ptrs_[i+1]->children.clear();
-					checkCreateFan(map_.wps[i], path_smoothed[path_smoothed.size() - 1], root_ptrs_[i + 1], direct_hit);
-				}
-				else
-					bad_path_flag == true; // Make sure that jnode + 1 is added.
-			}
-			if (bad_path_flag) // Try adding the second to last node every time. Avoids problems with smoothing out the last fillet.
-			{
-				path_smoothed.push_back(all_wps_[i][j_node]);
-				line_starts_smoothed.push_back(line_start);
-				i_node++;
-				line_Distance = sqrt(pow(path_smoothed[i_node].N - path_smoothed[i_node - 1].N, 2.) + pow(path_smoothed[i_node].E - path_smoothed[i_node - 1].E, 2) + pow(path_smoothed[i_node].D - path_smoothed[i_node - 1].D, 2));
-				available_ds.push_back(line_Distance - *distance_in);
-			}
-			j_node++;
-		}
-		// Check to see if the fan can be created better
-		// If so, change path_smoothed[1] and delete path_smoothed[2]
-		NED_s cea;
-		if (i > 0 && i <= map_.wps.size() && direct_shot == false && path_smoothed.size() >= 4 && checkDirectFan(path_smoothed[3], root->NED, all_wps_[i - 1][all_wps_[i - 1].size() - 1], root, &cea, distance_in, fillet_angle))
-		{
-			if (path_smoothed.size() >= 4 && flyZoneCheck(cea, path_smoothed[3], path_clearance_))
-			{
-				path_smoothed[1] = root->children[root->children.size() - 1]->NED;
-				line_starts_smoothed[1] = cea;
-				path_smoothed.erase(path_smoothed.begin() + 2);
-				line_starts_smoothed.erase(line_starts_smoothed.begin() + 2);
-				ROS_INFO("SMOOTHED THE FAN");
-			}
-		}
-
-		all_wps_[i].swap(path_smoothed);
-		line_starts_[i].swap(line_starts_smoothed);
-		*second2last_post_smoothed = all_wps_[i][all_wps_[i].size() - 1];
-	}
-	else
-		all_wps_[i].erase(all_wps_[i].begin() + all_wps_[i].size() - 1);
-	if (taking_off_ == true)
-		taking_off_ = false;
-}
-bool RRT::checkSlope(NED_s beg, NED_s en)
-{
-	double slope = atan2(-1.0*(en.D - beg.D), sqrt(pow(beg.N - en.N, 2) + pow(beg.E - en.E, 2)));
-	if (slope < -1.0*input_file_->descend_angle || slope > input_file_->climb_angle)
-		return false;
-	return true;
-}
-bool RRT::checkMaxSlope(NED_s beg, NED_s en)
-{
-	double slope = atan2(-1.0*(en.D - beg.D), sqrt(pow(beg.N - en.N, 2) + pow(beg.E - en.E, 2)));
-	if (slope < -1.0*input_file_->max_descend_angle || slope > input_file_->max_climb_angle)
-		return false;
-	return true;
-}
-void RRT::calcPathDistance(unsigned int i)
-{
-	// Determine the true path distance. (This kind of covers up some mistakes above...)
-	double final_distance = 0;
-	for (unsigned j = 0; j < all_wps_[i].size() - 1; j++)
-	{
-		final_distance += sqrt(pow(all_wps_[i][j].N - all_wps_[i][j + 1].N, 2) + pow(all_wps_[i][j].E - all_wps_[i][j + 1].E, 2) + pow(all_wps_[i][j].D - all_wps_[i][j + 1].D, 2));
-	}
-	final_distance += sqrt(pow(all_wps_[i][all_wps_[i].size() - 1].N - map_.wps[i].N, 2) + pow(all_wps_[i][all_wps_[i].size() - 1].E - map_.wps[i].E, 2) + pow(all_wps_[i][all_wps_[i].size() - 1].D - map_.wps[i].D, 2));
-	path_distances_.push_back(final_distance);
-	ROS_INFO("PATH DISTANCE: %f",path_distances_[i]);
-}
 void RRT::deleteTree()
 {
-	for (unsigned int i = 0; i < root_ptrs_.size(); i++) // Delete every tree generated
-		deleteNode(root_ptrs_[i]);
+  if (root_ptrs_.size() > 0)
+    deleteNode(root_ptrs_[0]);
+  root_ptrs_.clear();
+  if (smooth_rts_.size() > 0)
+    deleteNode(smooth_rts_[0]);
+  smooth_rts_.clear();
 }
 void RRT::deleteNode(node* pn)                         // Recursively delete every node
 {
@@ -846,8 +923,13 @@ void RRT::deleteNode(node* pn)                         // Recursively delete eve
 }
 void RRT::clearTree()
 {
-	for (unsigned int i = 0; i < root_ptrs_.size(); i++) // Delete every tree generated
-		clearNode(root_ptrs_[i]);
+  //ROS_DEBUG("clearing tree");
+  if (root_ptrs_.size() > 0)
+    clearNode(root_ptrs_[0]);
+  root_ptrs_.clear();
+  if (smooth_rts_.size() > 0)
+    clearNode(smooth_rts_[0]);
+  smooth_rts_.clear();
 }
 void RRT::clearNode(node* pn)                         // Recursively delete every node
 {
@@ -856,566 +938,249 @@ void RRT::clearNode(node* pn)                         // Recursively delete ever
 	pn->children.clear();
   delete pn;
 }
-void RRT::ppSetup()
-{
-	// This function is called by the child class at the end of their constructor. There are certain things
-	// that need to be set first by that function and then the base class needs to do stuff - the base class constructor
-	// would not do it in the right order.
 
-	// This function pulls in the competition boundaries and finds the minimum and maxium North and East positions
-	// Even though the mapper class does this, the mapper class won't be put into ROSplane, so it is done here
-	// which should be put into ROSplane pathplanner
-	is3D_ = input_file_->is3D;
-	NED_s boundary_point;
-	bool setFirstValues = true;
-	for (unsigned int i = 0; i < map_.boundary_pts.size(); i++)
-	{
-		boundary_point = map_.boundary_pts[i];
-		if (setFirstValues == false)
-		{
-			maxNorth_ = (boundary_point.N > maxNorth_) ? boundary_point.N : maxNorth_; // if new N is greater than maxN, set maxN = new N
-			minNorth_ = (boundary_point.N < minNorth_) ? boundary_point.N : minNorth_;
-			maxEast_  = (boundary_point.E > maxEast_)  ? boundary_point.E : maxEast_;
-			minEast_  = (boundary_point.E < minEast_)  ? boundary_point.E : minEast_;
-		}
-		else
-		{
-			maxNorth_ = boundary_point.N;
-			minNorth_ = boundary_point.N;
-			maxEast_  = boundary_point.E;
-			minEast_  = boundary_point.E;
-			setFirstValues = false;
-		}
-	}
-	clearance_    = input_file_->clearance;		 // Clearance for the path (m)
-	minFlyHeight_ = input_file_->minFlyHeight; // 30.48 m = 100 ft. // This still needs to add in the take off altitude
-	maxFlyHeight_ = input_file_->maxFlyHeight; // 228.6 m = 750 ft. // This still needs to add in the take off altitude
-	iters_limit_  = input_file_->iters_limit;
-	// Also do all of the calculations on the boundary lines.
-	setupFlyZoneCheck();
+// Printing Functions
+void RRT::printRRTSetup(NED_s pos, float chi0)
+{
+  // Print initial position
+  ROS_DEBUG("Initial North: %f, Initial East: %f, Initial Down: %f", pos.N, pos.E, pos.D);
+
+  ROS_DEBUG("Number of Boundary Points: %lu",  map_.boundary_pts.size());
+  for (long unsigned int i = 0; i < map_.boundary_pts.size(); i++)
+  {
+    ROS_DEBUG("Boundary: %lu, North: %f, East: %f, Down: %f", \
+    i, map_.boundary_pts[i].N, map_.boundary_pts[i].E, map_.boundary_pts[i].D);
+  }
+  ROS_DEBUG("Number of Waypoints: %lu", map_.wps.size());
+  for (long unsigned int i = 0; i < map_.wps.size(); i++)
+  {
+    ROS_DEBUG("WP: %lu, North: %f, East: %f, Down: %f", i + (unsigned long int) 1, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
+  }
+  ROS_DEBUG("Number of Cylinders: %lu", map_.cylinders.size());
+  for (long unsigned int i = 0; i <  map_.cylinders.size(); i++)
+  {
+    ROS_DEBUG("Cylinder: %lu, North: %f, East: %f, Radius: %f, Height: %f", \
+    i, map_.cylinders[i].N, map_.cylinders[i].E, map_.cylinders[i].R,  map_.cylinders[i].H);
+  }
 }
-void RRT::setupFlyZoneCheck()				// This function sets up alll of the stuff needed for the flyZoneCheck functions - mostly calculates the y = mx + b for each boundary line
+void RRT::printRoots()
 {
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv These lines are used to prep the flyZoneCheck() algorithm
-	std::vector<double> NminNmaxEminEmax;       // Yeah, this is a riduculous name...
-	std::vector<double> mb;                     // Vector of slope and intercepts
-	nBPts_ = map_.boundary_pts.size();            // Number of Boundary Points
-	double m, b, w, m_w;
-	for (unsigned int i = 0; i < nBPts_; i++)    // Loop through all points
-	{
-		// Find the min and max of North and East coordinates on the line connecting two points.
-		NminNmaxEminEmax.push_back(std::min(map_.boundary_pts[i].N, map_.boundary_pts[(i + 1) % nBPts_].N));
-		NminNmaxEminEmax.push_back(std::max(map_.boundary_pts[i].N, map_.boundary_pts[(i + 1) % nBPts_].N));
-		NminNmaxEminEmax.push_back(std::min(map_.boundary_pts[i].E, map_.boundary_pts[(i + 1) % nBPts_].E));
-		NminNmaxEminEmax.push_back(std::max(map_.boundary_pts[i].E, map_.boundary_pts[(i + 1) % nBPts_].E));
-		lineMinMax_.push_back(NminNmaxEminEmax);
-		NminNmaxEminEmax.clear();
-		// Find the slope and intercept
-		m = (map_.boundary_pts[(i + 1) % nBPts_].N - map_.boundary_pts[i].N) / (map_.boundary_pts[(i + 1) % nBPts_].E - map_.boundary_pts[i].E);
-		b = -m*map_.boundary_pts[i].E + map_.boundary_pts[i].N;
-		w = (-1.0 / m);
-		m_w = m - w;
-		mb.push_back(m);
-		mb.push_back(b);
-		mb.push_back(w);
-		mb.push_back(m_w);
-		line_Mandb_.push_back(mb);
-		mb.clear();
-	}
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ These lines are used to set up the flyZoneCheck() algorithm.s
+  for (unsigned int i = 0; i < root_ptrs_.size(); i++)
+    ROS_DEBUG("Waypoint %i, North: %f, East %f Down: %f", \
+    i, root_ptrs_[i]->p.N, root_ptrs_[i]->p.E, root_ptrs_[i]->p.D);
 }
-
-//****************************************************************LINE*************************************************************************************
-//****************************************************************LINE*************************************************************************************
-//****************************************************************LINE*************************************************************************************
-bool RRT::flyZoneCheck(const NED_s ps, const NED_s pe, const double r) // Point start, point end, radius (clearance)
+void RRT::printNode(node* nin)
 {
-	// THIS FUNCTION IS REALLY IMPORTANT. IT DETERMINES IF A LINE CONNECTING ps AND pe INTERSECT ANY OBSTACLE OR GET WITHIN r OF ANY OBSTACLE.
-	// This function should be good for 3 dimensions.
-	// Preliminary Calculations about the line connecting ps and pe
-  double pathMinMax[4];
-	double path_Mandb[4];
-	pathMinMax[0] = std::min(ps.N, pe.N);
-	pathMinMax[1] = std::max(ps.N, pe.N);
-	pathMinMax[2] = std::min(ps.E, pe.E);
-	pathMinMax[3] = std::max(ps.E, pe.E);
-	path_Mandb[0] = (pe.N - ps.N) / (pe.E - ps.E);
-	path_Mandb[1] = pe.N - path_Mandb[0] * pe.E;
-	path_Mandb[2] = -1.0 / path_Mandb[0];
-	path_Mandb[3] = path_Mandb[0] - path_Mandb[2];
-	double Ei, Ni;
-
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Boundary Lines vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	bool withinBoundaries_ps, withinBoundaries_pe;
-	int crossed_lines_ps(0), crossed_lines_pe(0);	// This is a counter of the number of lines that the point is NORTH of.
-	for (unsigned int i = 0; i < nBPts_; i++)
-	{
-		// vvvvvvvvvvvvvvvv Ray Casting, count how many crosses south vvvvvvvvvvvvvvvv
-		if (ps.E >= lineMinMax_[i][2] && ps.E < lineMinMax_[i][3])
-		{
-			if (ps.N > line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
-				crossed_lines_ps++;
-			else if (ps.N == line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
-        return false;
-		}
-		if (pe.E >= lineMinMax_[i][2] && pe.E < lineMinMax_[i][3])
-		{
-			if (pe.N > line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
-				crossed_lines_pe++;
-			else if (pe.N == line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
-        return false;
-		}
-		// ^^^^^^^^^^^^^^^^ Ray Casting, count how many crosses south ^^^^^^^^^^^^^^^^
-
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvv Check if any point on the line gets too close to the boundary vvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		// Check distance between each endpoint
-		if (sqrt(pow(ps.N - map_.boundary_pts[i].N, 2) + pow(ps.E - map_.boundary_pts[i].E, 2) < r))
-      return false;
-		if (sqrt(pow(pe.N - map_.boundary_pts[i].N, 2) + pow(pe.E - map_.boundary_pts[i].E, 2) < r))
-      return false;
-		// Check if they intersect
-		if (line_Mandb_[i][0] != path_Mandb[0])
-		{
-			Ei = (path_Mandb[1] - line_Mandb_[i][1]) / (line_Mandb_[i][0] - path_Mandb[0]);
-			Ni = line_Mandb_[i][0] * Ei + line_Mandb_[i][1];
-			if (Ni > pathMinMax[0] && Ni < pathMinMax[1])
-				if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1])
-          return false;
-		}
-		// Check distance from bl to each path end point
-		bool lp_cleared;
-		double lMinMax[4], l_Mandb[4];
-		lMinMax[0] = lineMinMax_[i][0];
-		lMinMax[1] = lineMinMax_[i][1];
-		lMinMax[2] = lineMinMax_[i][2];
-		lMinMax[3] = lineMinMax_[i][3];
-		l_Mandb[0] = line_Mandb_[i][0];
-		l_Mandb[1] = line_Mandb_[i][1];
-		l_Mandb[2] = line_Mandb_[i][2];
-		l_Mandb[3] = line_Mandb_[i][3];
-		lp_cleared = lineAndPoint2d(map_.boundary_pts[i], map_.boundary_pts[(i + 1) % nBPts_], lMinMax, l_Mandb, ps, r);
-		if (lp_cleared == false)
-      return false;
-		lp_cleared = lineAndPoint2d(map_.boundary_pts[i], map_.boundary_pts[(i + 1) % nBPts_], lMinMax, l_Mandb, pe, r);
-		if (lp_cleared == false)
-      return false;
-		// Check distance from pl to each boundary end point
-		lp_cleared = lineAndPoint2d(ps, pe, pathMinMax, path_Mandb, map_.boundary_pts[i], r);
-		if (lp_cleared == false)
-      return false;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check if any point on the line gets too close to the boundary ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	}
-
-	// vvvvvvvvvvvvvvvv Finish up checking if the end points were both inside the boundary (ray casting) vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	withinBoundaries_ps = crossed_lines_ps % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
-	withinBoundaries_pe = crossed_lines_pe % 2;
-	if (withinBoundaries_ps == false || withinBoundaries_pe == false)
-    return false;
-	// ^^^^^^^^^^^^^^^^ Finish up checking if the end points were both inside the boundary (ray casting) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-	// vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
-	if (is3D_ && taking_off_ == false)
-	{
-		if (-ps.D < minFlyHeight_ + r || -ps.D > maxFlyHeight_ - r)
-      return false;
-		if (-pe.D < minFlyHeight_ + r || -pe.D > maxFlyHeight_ - r)
-      return false;
-	}
-	// vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
-
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Boundary Lines ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Cylinder Obstacles vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	bool clearThisCylinder;
-	NED_s cylinderPoint;
-	for (unsigned int i = 0; i < map_.cylinders.size(); i++)
-	{
-		cylinderPoint.N = map_.cylinders[i].N;
-		cylinderPoint.E = map_.cylinders[i].E;
-		cylinderPoint.D = -map_.cylinders[i].H;
-		clearThisCylinder = lineAndPoint2d(ps, pe, pathMinMax, path_Mandb, cylinderPoint, map_.cylinders[i].R + r);
-
-		// Check in 3D. Note that if the above is true, this check does not need to be performed.
-		if (is3D_ && clearThisCylinder == false)
-		{
-			double dD = (pe.D - ps.D) / sqrt(pow(ps.N - pe.N, 2) + pow(ps.E - pe.E, 2));
-			double bt = cylinderPoint.N - path_Mandb[2] * cylinderPoint.E;
-			Ei = (bt - path_Mandb[1]) / (path_Mandb[3]);
-			Ni = path_Mandb[2] * Ei + bt;
-			double bigLength = sqrt(pow(map_.cylinders[i].R + r, 2) - pow(Ni - cylinderPoint.N, 2) - pow(Ei - cylinderPoint.E, 2)); // What is bigLength????
-			double d2cyl;
-			// Check to see if the path is above the cylinder height or into the cylinder
-			if (sqrt(pow(ps.N - cylinderPoint.N, 2) + pow(ps.E - cylinderPoint.E, 2)) < map_.cylinders[i].R + r && sqrt(pow(pe.N - cylinderPoint.N, 2) + pow(pe.E - cylinderPoint.E, 2)) < map_.cylinders[i].R + r)
-			{// if BOTH of the endpoints is within the 2d cylinder
-				if (-ps.D < map_.cylinders[i].H + r)
-          return false;
-				if (-ps.D < map_.cylinders[i].H + r)
-          return false;
-			}
-			else
-			{// if at least one waypoint is outside of the 2d cylinder
-				if (sqrt(pow(ps.N - cylinderPoint.N, 2) + pow(ps.E - cylinderPoint.E, 2)) < map_.cylinders[i].R + r)
-				{// if the starting point is within the 2d cylinder
-					if (-ps.D < map_.cylinders[i].H + r)
-            return false;
-					// else (check to see if the line that intersects the cylinder is in or out)
-					double smallLength = sqrt(pow(Ni - ps.N, 2) + pow(Ei - ps.E, 2));
-					if (Ni > pathMinMax[0] && Ni < pathMinMax[1] && Ei > pathMinMax[2] && Ei < pathMinMax[3])
-						d2cyl = bigLength + smallLength;
-					else
-						d2cyl = bigLength - smallLength;
-					if (-(dD*d2cyl + ps.D) < map_.cylinders[i].H + r)
-            return false;
-				}
-				else if (sqrt(pow(pe.N - cylinderPoint.N, 2) + pow(pe.E - cylinderPoint.E, 2)) < map_.cylinders[i].R + r)
-				{// if the ending point is within the 2d cylinder
-					if (-pe.D < map_.cylinders[i].H + r)
-            return false;
-					// else check to see if the line that intersects the cylinder is in or out
-					double smallLength = sqrt(pow(Ni - pe.N, 2) + pow(Ei - pe.E, 2));
-					if (Ni > pathMinMax[0] && Ni < pathMinMax[1] && Ei > pathMinMax[2] && Ei < pathMinMax[3])
-						d2cyl = bigLength + smallLength;
-					else
-						d2cyl = bigLength - smallLength;
-					if (-(-dD*d2cyl + pe.D) < map_.cylinders[i].H + r)
-            return false;
-				}
-				// Now check the two intersection points
-				else
-				{
-					// Calculate the intersection point of the line and the perpendicular line connecting the point
-					double d_from_cyl2inter = sqrt(pow(cylinderPoint.N - Ni, 2) + pow(cylinderPoint.E - Ei, 2));
-					double daway_from_int = sqrt(pow(r + map_.cylinders[i].R, 2) - pow(d_from_cyl2inter, 2)); // WHAT IS THIS?
-
-					// Now test the height at int +- daway_from_int;
-					double land_D_ps2i = sqrt(pow(Ni - ps.N, 2) + pow(Ei - ps.E, 2));
-					double deltaD = dD*sqrt(pow(Ni - ps.N, 2) + pow(Ei - ps.E, 2));
-
-					double Di = ps.D + dD*sqrt(pow(Ni - ps.N, 2) + pow(Ei - ps.E, 2));
-
-					double height1 = -(Di + dD*daway_from_int);
-					double height2 = -(Di - dD*daway_from_int);
-
-					if (-(Di + dD*daway_from_int) < map_.cylinders[i].H + r)
-            return false;
-					if (-(Di - dD*daway_from_int) < map_.cylinders[i].H + r)
-            return false;
-					if (-Di < map_.cylinders[i].H + r)
-            return false;
-				}
-			}
-			clearThisCylinder = true;
-		}
-		if (clearThisCylinder == false)
-      return false;
-	}
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Cylinder Obstacles ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  return true; // The line is in the safe zone if it got to here!
+  ROS_DEBUG("NODE ADDRESS: %p", (void *)nin);
+  ROS_DEBUG("p.N %f, p.E %f, p.D %f", nin->p.N, nin->p.E, nin->p.D);
+  printFillet(nin->fil);
+  ROS_DEBUG("fil.w_im1.N %f, fil.w_im1.E %f, fil.w_im1.D %f", nin->fil.w_im1.N, nin->fil.w_im1.E, nin->fil.w_im1.D);
+  ROS_DEBUG("fil.w_i.N %f, fil.w_i.E %f, fil.w_i.D %f", nin->fil.w_i.N, nin->fil.w_i.E, nin->fil.w_i.D);
+  ROS_DEBUG("fil.w_ip1.N %f, fil.w_ip1.E %f, fil.w_ip1.D %f", nin->fil.w_ip1.N, nin->fil.w_ip1.E, nin->fil.w_ip1.D);
+  ROS_DEBUG("fil.z1.N %f, fil.z1.E %f, fil.z1.D %f", nin->fil.z1.N, nin->fil.z1.E, nin->fil.z1.D);
+  ROS_DEBUG("fil.z2.N %f, fil.z2.E %f, fil.z2.D %f", nin->fil.z2.N, nin->fil.z2.E, nin->fil.z2.D);
+  ROS_DEBUG("fil.c.N %f, fil.c.E %f, fil.c.D %f", nin->fil.c.N, nin->fil.c.E, nin->fil.c.D);
+  ROS_DEBUG("fil.q_im1.N %f, fil.q_im1.E %f, fil.q_im1.D %f", nin->fil.q_im1.N, nin->fil.q_im1.E, nin->fil.q_im1.D);
+  ROS_DEBUG("fil.q_i.N %f, fil.q_i.E %f, fil.q_i.D %f", nin->fil.q_i.N, nin->fil.q_i.E, nin->fil.q_i.D);
+  ROS_DEBUG("fil.R %f", nin->fil.R);
+  ROS_DEBUG("parent %p", (void *)nin->parent);
+  ROS_DEBUG("number of children %lu", nin->children.size());
+  ROS_DEBUG("cost %f", nin->cost);
+  if (nin->dontConnect) {ROS_DEBUG("dontConnect == true");}
+  else {ROS_DEBUG("dontConnect == false");}
+  if (nin->connects2wp) {ROS_DEBUG("connects2wp == true");}
+  else {ROS_DEBUG("connects2wp == false");}
 }
-//****************************************************************LINE*************************************************************************************
-//****************************************************************LINE*************************************************************************************
-//****************************************************************LINE*************************************************************************************
-
-bool RRT::flyZoneCheck(const NED_s NED, const double radius) // Point start, radius
+void RRT::printFillet(fillet_s fil)
 {
-	// This is a more simple version of the flyZoneCheck() that just checks if the point NED is at least radius away from any obstacle.
-	// First, Check Within the Boundaries
-	bool withinBoundaries;
-	// Look at the Point in Polygon Algorithm
-	// Focus on rays South.
-	int crossed_lines = 0;							// This is a counter of the number of lines that the point is NORTH of.
-	double bt, Ei, Ni, de1, de2, shortest_distance;
-	for (unsigned int i = 0; i < nBPts_; i++)
-	{
-		// Find out if the line is either North or South of the line
-		if (NED.E >= lineMinMax_[i][2] && NED.E < lineMinMax_[i][3]) // Only one equal sign solves both the above/ below a vertice problem and the vertical line problem
-		{
-			if (NED.N > line_Mandb_[i][0] * NED.E + line_Mandb_[i][1])
-				crossed_lines++;
-			else if (NED.N == line_Mandb_[i][0] * NED.E + line_Mandb_[i][1])	// On the rare chance that the point is ON the line
-				return false;
-		}
-		// Check to see if it is too close to the boundary lines
-		if (NED.E >= lineMinMax_[i][2] - radius && NED.E < lineMinMax_[i][3] + radius && NED.N >= lineMinMax_[i][0] - radius && NED.N < lineMinMax_[i][1] + radius)
-		{
-			bt = NED.N - line_Mandb_[i][2] * NED.E;
-			Ei = (bt - line_Mandb_[i][1]) / line_Mandb_[i][3];
-			Ni = line_Mandb_[i][2] * Ei + bt;
-			// 3 cases first point, second point, or on the line.
-			// If the intersection is on the line, dl is the shortest distance
-			// Otherwise it is one of the endpoints.
-			if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
-				shortest_distance = sqrt(pow(Ni - NED.N, 2) + pow(Ei - NED.E, 2));
-			else
-			{
-				de1 = sqrt(pow(map_.boundary_pts[i].N - NED.N, 2) + pow(map_.boundary_pts[i].E - NED.E, 2));
-				de2 = sqrt(pow(map_.boundary_pts[(i + 1) % nBPts_].N - NED.N, 2) + pow(map_.boundary_pts[(i + 1) % nBPts_].E - NED.E, 2));
-				shortest_distance = std::min(de1, de2);
-			}
-			if (shortest_distance < radius)
-				return false;
-		}
-	}
-	withinBoundaries = crossed_lines % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
-	if (withinBoundaries == false)
-		return false;
-	// Check to see if the point is within the right fly altitudes
-	if (is3D_ && taking_off_ == false)
-		if (-NED.D < minFlyHeight_ + radius || -NED.D > maxFlyHeight_ - radius)
-			return false;
-
-	// Second, Check for Cylinders
-	// Check if the point falls into the volume of the cylinder
-	for (unsigned int i = 0; i < map_.cylinders.size(); i++)
-		if (sqrt(pow(NED.N - map_.cylinders[i].N, 2) + pow(NED.E - map_.cylinders[i].E, 2)) < map_.cylinders[i].R + radius && -NED.D - radius < map_.cylinders[i].H)
-			return false;
-	return true; // The coordinate is in the safe zone if it got to here!
+  ROS_DEBUG("fil.w_im1.N %f, fil.w_im1.E %f, fil.w_im1.D %f",  fil.w_im1.N,  fil.w_im1.E,  fil.w_im1.D);
+  ROS_DEBUG("fil.w_i.N %f, fil.w_i.E %f, fil.w_i.D %f",  fil.w_i.N,  fil.w_i.E,  fil.w_i.D);
+  ROS_DEBUG("fil.w_ip1.N %f, fil.w_ip1.E %f, fil.w_ip1.D %f",  fil.w_ip1.N,  fil.w_ip1.E,  fil.w_ip1.D);
+  ROS_DEBUG("fil.z1.N %f, fil.z1.E %f, fil.z1.D %f",  fil.z1.N,  fil.z1.E,  fil.z1.D);
+  ROS_DEBUG("fil.z2.N %f, fil.z2.E %f, fil.z2.D %f",  fil.z2.N,  fil.z2.E,  fil.z2.D);
+  ROS_DEBUG("fil.c.N %f, fil.c.E %f, fil.c.D %f",  fil.c.N,  fil.c.E,  fil.c.D);
+  ROS_DEBUG("fil.q_im1.N %f, fil.q_im1.E %f, fil.q_im1.D %f",  fil.q_im1.N,  fil.q_im1.E,  fil.q_im1.D);
+  ROS_DEBUG("fil.q_i.N %f, fil.q_i.E %f, fil.q_i.D %f",  fil.q_i.N,  fil.q_i.E,  fil.q_i.D);
+  ROS_DEBUG("fil.R %f",  fil.R);
 }
-
-//****************************************************************ARC**************************************************************************************
-//****************************************************************ARC**************************************************************************************
-//****************************************************************ARC**************************************************************************************
-bool RRT::flyZoneCheck(const NED_s ps, const NED_s pe, const double aradius, const NED_s cp, const double r,const bool ccw) // Point start, point end, arc radius, center point, clearance
+void RRT::clearRVizPaths()
 {
-	// THIS FUNCTION IS REALLY IMPORTANT. IT DETERMINES IF AN ARC CONNECTING ps AND pe INTERSECT ANY OBSTACLE OR GET WITHIN r OF ANY OBSTACLE.
-	// Preliminary Calculations about the line connecting ps and pe
-	double Ei, Ni;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Boundary Lines vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	bool withinBoundaries_ps, withinBoundaries_pe;
-	int crossed_lines_ps(0), crossed_lines_pe(0);	// This is a counter of the number of lines that the point is NORTH of.
-	for (unsigned int i = 0; i < nBPts_; i++)
-	{
-		// vvvvvvvvvvvvvvvv Ray Casting, count how many crosses south vvvvvvvvvvvvvvvv
-		if (ps.E >= lineMinMax_[i][2] && ps.E < lineMinMax_[i][3])
-		{
-			if (ps.N > line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
-				crossed_lines_ps++;
-			else if (ps.N == line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
-				return false;
-		}
-		if (pe.E >= lineMinMax_[i][2] && pe.E < lineMinMax_[i][3])
-		{
-			if (pe.N > line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
-				crossed_lines_pe++;
-			else if (pe.N == line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
-				return false;
-		}
-		// ^^^^^^^^^^^^^^^^ Ray Casting, count how many crosses south ^^^^^^^^^^^^^^^^
-
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvv Check if any point on the line gets too close to the boundary vvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (cp.E >= lineMinMax_[i][2] - r - aradius && cp.E <= lineMinMax_[i][3] + r + aradius && cp.N >= lineMinMax_[i][0] - r - aradius && cp.N <= lineMinMax_[i][1] + r + aradius)
-		{
-			double bt;
-			// Calculate the intersection point of the line and the perpendicular line connecting the point
-			bt = cp.N - line_Mandb_[i][2] * cp.E;
-			Ei = (bt - line_Mandb_[i][1]) / (line_Mandb_[i][3]);
-			Ni = line_Mandb_[i][2] * Ei + bt;
-			if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
-			{
-				// a dot b = A*B*cos(theta)
-				if (lineIntersectsArc(Ni, Ei, cp, ps, pe, ccw))
-				{
-					if (sqrt(pow(Ni - cp.N, 2) + pow(Ei - cp.E, 2)) - aradius < r)
-					{
-						return false;
-					}
-				}
-				else
-				{
-					bt = ps.N - line_Mandb_[i][2] * ps.E;
-					Ei = (bt - line_Mandb_[i][1]) / (line_Mandb_[i][3]);
-					Ni = line_Mandb_[i][2] * Ei + bt;
-					if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
-					{
-						if (sqrt(pow(Ni - ps.N, 2) + pow(Ei - ps.E, 2)) < r)
-						{
-							return false;
-						}
-					}
-					else if (sqrt(pow(map_.boundary_pts[i].N - ps.N, 2) + pow(map_.boundary_pts[i].E - ps.E, 2)) < r)
-					{
-						return false;
-					}
-					else if (sqrt(pow(map_.boundary_pts[(i + 1) % nBPts_].N - ps.N, 2) + pow(map_.boundary_pts[(i + 1) % nBPts_].E - ps.E, 2)) < r) { return false; }
-					bt = pe.N - line_Mandb_[i][2] * pe.E;
-					Ei = (bt - line_Mandb_[i][1]) / (line_Mandb_[i][3]);
-					Ni = line_Mandb_[i][2] * Ei + bt;
-					if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
-					{
-						if (sqrt(pow(Ni - pe.N, 2) + pow(Ei - pe.E, 2)) < r)
-						{
-							return false;
-						}
-					}
-					else if (sqrt(pow(map_.boundary_pts[i].N - pe.N, 2) + pow(map_.boundary_pts[i].E - pe.E, 2)) < r)
-					{
-						return false;
-					}
-					//else if (sqrt(pow(map_.boundary_pts[(i + 1) % nBPts_].N - pe.N, 2) + pow(map_.boundary_pts[(i + 1) % nBPts_].E - pe.E, 2)) < r) { return false; }
-				}
-			}
-			else
-			{
-				if (lineIntersectsArc(map_.boundary_pts[i].N, map_.boundary_pts[i].E, cp, ps, pe, ccw))
-				{
-					if (sqrt(pow(map_.boundary_pts[i].N - cp.N, 2) + pow(map_.boundary_pts[i].E - cp.E, 2)) - aradius < r)
-					{
-						return false;
-					}
-				}
-				//if (lineIntersectsArc(map_.boundary_pts[(i + 1) % nBPts_].N, map_.boundary_pts[(i + 1) % nBPts_].E, cp, ps, pe, ccw))
-				//{
-				//	if (sqrt(pow(map_.boundary_pts[(i + 1) % nBPts_].N - cp.N, 2) + pow(map_.boundary_pts[(i + 1) % nBPts_].E - cp.E, 2)) - aradius < r) { return false; }
-				//}
-				if (sqrt(pow(map_.boundary_pts[i].N - ps.N, 2) + pow(map_.boundary_pts[i].E - ps.E, 2)) - aradius < r)
-				{
-					return false;
-				}
-				if (sqrt(pow(map_.boundary_pts[i].N - pe.N, 2) + pow(map_.boundary_pts[i].E - pe.E, 2)) - aradius < r)
-				{
-					return false;
-				}
-				//if (sqrt(pow(map_.boundary_pts[(i + 1) % nBPts_].N - ps.N, 2) + pow(map_.boundary_pts[(i + 1) % nBPts_].E - ps.E, 2)) - aradius < r) { return false; }
-				//if (sqrt(pow(map_.boundary_pts[(i + 1) % nBPts_].N - pe.N, 2) + pow(map_.boundary_pts[(i + 1) % nBPts_].E - pe.E, 2)) - aradius < r) { return false; }
-			}
-		}
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check if any point on the line gets too close to the boundary ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	}
-	// vvvvvvvvvvvvvvvv Finish up checking if the end points were both inside the boundary (ray casting) vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	withinBoundaries_ps = crossed_lines_ps % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
-	withinBoundaries_pe = crossed_lines_pe % 2;
-	if (withinBoundaries_ps == false || withinBoundaries_pe == false)
-		return false;
-	// ^^^^^^^^^^^^^^^^ Finish up checking if the end points were both inside the boundary (ray casting) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-	// vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
-	if (is3D_ && taking_off_ == false)
-	{
-		if (-ps.D < minFlyHeight_ + r || -ps.D > maxFlyHeight_ - r)
-			return false;
-		if (-pe.D < minFlyHeight_ + r || -pe.D > maxFlyHeight_ - r)
-			return false;
-	}
-	// vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
-
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Boundary Lines ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Cylinder Obstacles vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	bool clearThisCylinder;
-	for (unsigned int i = 0; i < map_.cylinders.size(); i++)
-	{
-		if (sqrt(pow(map_.cylinders[i].N - cp.N, 2) + pow(map_.cylinders[i].E - cp.E, 2)) > r + aradius + map_.cylinders[i].R)
-			clearThisCylinder = true;
-		else if (lineIntersectsArc(map_.cylinders[i].N, map_.cylinders[i].E, cp, ps, pe, ccw))
-		{
-			if (sqrt(pow(map_.cylinders[i].N - cp.N, 2) + pow(map_.cylinders[i].E - cp.E, 2)) - aradius - map_.cylinders[i].R < r)
-			{
-				clearThisCylinder = false;
-			}
-		}
-		else
-		{
-			if (sqrt(pow(map_.cylinders[i].N - ps.N, 2) + pow(map_.cylinders[i].E - ps.E, 2)) - map_.cylinders[i].R < r)
-			{
-				clearThisCylinder = false;
-			}
-			else if (sqrt(pow(map_.cylinders[i].N - pe.N, 2) + pow(map_.cylinders[i].E - pe.E, 2)) - map_.cylinders[i].R < r)
-			{
-				clearThisCylinder = false;
-			}
-			else { clearThisCylinder = true; }
-		}
-		if (is3D_ && clearThisCylinder == false)
-		{
-			if (ps.D < -map_.cylinders[i].H - r && pe.D < -map_.cylinders[i].H - r)
-				clearThisCylinder = true;
-		}
-		if (clearThisCylinder == false)
-			return false;
-	}
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Cylinder Obstacles ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	return true; // The line is in the safe zone if it got to here!
+  visualization_msgs::Marker clear_mkr;
+  ROS_DEBUG("clearing all paths");
+  clear_mkr.ns   = "planned_path_rrt";
+  ROS_DEBUG("1 to %i", path_id_);
+  for (int i = 0; i < path_id_; i++)
+  {
+    clear_mkr.id = i;
+    clear_mkr.action = visualization_msgs::Marker::DELETE;
+    marker_pub_.publish(clear_mkr);
+    sleep(0.95);
+    marker_pub_.publish(clear_mkr);
+  }
 }
-//****************************************************************ARC**************************************************************************************
-//****************************************************************ARC**************************************************************************************
-//****************************************************************ARC**************************************************************************************
-bool RRT::lineIntersectsArc(double Ni, double Ei, NED_s cp, NED_s ps, NED_s pe, bool ccw)
+void RRT::displayTree(node* root)
 {
-	// Find angle from cp to ps
-	double aC2s = atan2(ps.N - cp.N, ps.E - cp.E);
-	// Find angle from cp to pe
-	double aC2e = atan2(pe.N - cp.N, pe.E - cp.E);
-	// Find angle from cp to Ni, Ei
-	double aC2i = atan2(Ni - cp.N, Ei - cp.E);
-	// Do they overlap?
-	if (ccw)
-	{
-		if (aC2i >= aC2s && aC2i <= aC2e)
-			return true;
-		else if (aC2s > aC2e)
-		{
-			if ((aC2i >= aC2s || aC2i <= aC2e))
-				return true;
-		}
-	}
-	else
-	{
-		if (aC2i <= aC2s && aC2i >= aC2e)
-			return true;
-		else if (aC2e > aC2s)
-		{
-			if (aC2i <= aC2s || aC2i >= aC2e)
-				return true;
-		}
-	}
-	return false;
+  fringe_.clear();
+  addFringe(root);
+  for (int j = 0; j < fringe_.size(); j++)
+  {
+    tree_path_.clear();
+    addTreePath(root, fringe_[j]);
+    tree_path_.push_back(root->p);
+    std::reverse(tree_path_.begin(), tree_path_.end());
+    displayPath(tree_path_, gray_, 2.5f);
+    sleep(0.005);
+  }
 }
-bool RRT::lineAndPoint2d(NED_s ls, NED_s le, double MinMax[], double Mandb[], NED_s p, double r)
+void RRT::addFringe(node* nin)
 {
-	// This function is used a lot by the LINE flyZoneCheck().
-	// It checks to see if the point p is at least r away from the line segment connecting ls and le. 2 Dimensional Projection
-	// This function is pretty important to have right.
-	double bt, Ei, Ni, shortest_distance, de1, de2;
-	// If the point is close enough to even consider calculating - if it is far away, it is clear.
-	if (p.E >= MinMax[2] - r && p.E <= MinMax[3] + r && p.N >= MinMax[0] - r && p.N <= MinMax[1] + r)
-	{
-		// Calculate the intersection point of the line and the perpendicular line connecting the point
-		bt = p.N - Mandb[2] * p.E;
-		Ei = (bt - Mandb[1]) / (Mandb[3]);
-		Ni = Mandb[2] * Ei + bt;
+  if (nin->children.size() == 0)
+    fringe_.push_back(nin);
+  else
+  {
+    tree_path_.clear();
+    for (unsigned int i = 0; i < nin->children.size(); i++)
+      addFringe(nin->children[i]);
+  }
+}
+void RRT::addTreePath(node* root, node* nin)
+{
+  if (nin->p != root->p)
+  {
+    tree_path_.push_back(nin->p);
+    addTreePath(root, nin->parent);
+  }
+}
+void RRT::displayPath(std::vector<NED_s> path, NED_s color, float width)
+{
+  visualization_msgs::Marker planned_path_mkr, aWPS_mkr;
+  // if (path_id_ == 1)
+  //   clearRVizPaths();
+  // Set the frame ID and timestamp.  See the TF tutorials for information on these.
+  planned_path_mkr.header.frame_id = aWPS_mkr.header.frame_id = "/local_ENU";
+  // Set the namespace and id for this obs_mkr.  This serves to create a unique ID
+  // Any obs_mkr sent with the same namespace and id will overwrite the old one
+  planned_path_mkr.ns   = "planned_path_rrt";
+  aWPS_mkr.ns           = "all_wps";
+  uint32_t cyl          = visualization_msgs::Marker::CYLINDER;
+  uint32_t pts          = visualization_msgs::Marker::POINTS;
+  uint32_t lis          = visualization_msgs::Marker::LINE_STRIP;
+  planned_path_mkr.type = lis;
+  aWPS_mkr.type         = pts;
+  // Set the obs_mkr action.  Options are ADD (Which is really create or modify), DELETE, and new in ROS Indigo: 3 (DELETEALL)
+  planned_path_mkr.action = aWPS_mkr.action = visualization_msgs::Marker::ADD;
+  planned_path_mkr.pose.orientation.x = aWPS_mkr.pose.orientation.x = 0.0;
+  planned_path_mkr.pose.orientation.y = aWPS_mkr.pose.orientation.y = 0.0;
+  planned_path_mkr.pose.orientation.z = aWPS_mkr.pose.orientation.z = 0.0;
+  planned_path_mkr.pose.orientation.w = aWPS_mkr.pose.orientation.w = 1.0;
+  // Set the color -- be sure to set alpha to something non-zero!
+  planned_path_mkr.color.r    = color.N;
+  planned_path_mkr.color.g    = color.E;
+  planned_path_mkr.color.b    = color.D;
+  planned_path_mkr.color.a    = 1.0;
+  aWPS_mkr.scale.x            = 10.0; // point width
+  aWPS_mkr.scale.y            = 10.0; // point height
+  planned_path_mkr.scale.x    = width; // line width
 
-		// Find the distance between the point and the line segment
-		// 3 cases. Closest point will be the first point(line beginning), second point (line ending), or on the line.
-		// If the intersection is on the line, dl is the shortest distance
-		// Otherwise it is one of the endpoints.
-		if (Ni > MinMax[0] && Ni < MinMax[1] && Ei > MinMax[2] && Ei < MinMax[3])
-			shortest_distance = sqrt(pow(Ni - p.N, 2) + pow(Ei - p.E, 2));
-		else
-		{
-			de1 = sqrt(pow(ls.N - p.N, 2) + pow(ls.E - p.E, 2));
-			de2 = sqrt(pow(le.N - p.N, 2) + pow(le.E - p.E, 2));
-			shortest_distance = std::min(de1, de2);
-		}
-		if (shortest_distance < r)
-			return false;
-	}
-	return true;	// It is at least r away from the line if it got to here.
+  aWPS_mkr.color.r            = 0.0f;
+  aWPS_mkr.color.g            = 0.0f;
+  aWPS_mkr.color.b            = 1.0f;
+  aWPS_mkr.color.a            = 1.0;
+  planned_path_mkr.lifetime = aWPS_mkr.lifetime = ros::Duration();
+
+  while (marker_pub_.getNumSubscribers() < 1)
+  {
+    if (!ros::ok())
+      return;
+    ROS_WARN_ONCE("Please create a subscriber to the marker");
+    sleep(1);
+  }
+  // all waypoints
+  if (false)
+  {
+    aWPS_mkr.header.stamp = ros::Time::now();
+    aWPS_mkr.id           =  0;
+    aWPS_mkr.scale.x      =  10.0; // point width
+    aWPS_mkr.scale.y      =  10.0; // point height
+    for (long unsigned int i = 0; i < path.size(); i++)
+  	{
+      geometry_msgs::Point p;
+      p.y =  path[i].N;
+      p.x =  path[i].E;
+      p.z = -path[i].D;
+      aWPS_mkr.points.push_back(p);
+    }
+    marker_pub_.publish(aWPS_mkr);
+    sleep(1.0);
+  }
+
+  // Plot desired path
+  planned_path_mkr.header.stamp = ros::Time::now();
+  // ROS_DEBUG("path_id_ %i", path_id_);
+  planned_path_mkr.id         = path_id_++;
+  std::vector<NED_s> vis_path;
+  vis_path.push_back(path[0]);
+  for (int i = 1; i < path.size() - 1; i++)
+  {
+    fillet_s fil;
+    fil.calculate(path[i - 1], path[i], path[i + 1], input_file_.turn_radius);
+    vis_path.push_back(fil.z1);
+
+    std::vector<std::vector<float> > NcEc;
+    if (fil.lambda == -1)
+    {
+      NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z2 - fil.c).getChi(), (fil.z1 - fil.c).getChi());
+      // need to flip the vectors
+      std::reverse(NcEc[0].begin(),NcEc[0].end());
+      std::reverse(NcEc[1].begin(),NcEc[1].end());
+    }
+    if (fil.lambda ==  1)
+    {
+      NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z1 - fil.c).getChi(), (fil.z2 - fil.c).getChi());
+    }
+    std::vector<float> Nc = NcEc[0];
+    std::vector<float> Ec = NcEc[1];
+    NED_s pos;
+    for (int j = 0; j < Nc.size(); j++)
+    {
+      pos.N = Nc[j];
+      pos.E = Ec[j];
+      pos.D = fil.c.D;
+      vis_path.push_back(pos);
+    }
+    vis_path.push_back(fil.z2);
+  }
+  vis_path.push_back(path[path.size() - 1]);
+
+  for (int i = 0; i < vis_path.size(); i++)
+  {
+    geometry_msgs::Point p;
+    p.x =  vis_path[i].E;
+    p.y =  vis_path[i].N;
+    p.z = -vis_path[i].D;
+    planned_path_mkr.points.push_back(p);
+  }
+  marker_pub_.publish(planned_path_mkr);
+  sleep(0.05);
 }
-void RRT::computePerformance()
+std::vector<std::vector<float > > RRT::arc(float N, float E, float r, float aS, float aE)
 {
-	total_nWPS_ = 0;
-	for (unsigned int i = 0; i < all_wps_.size(); i++)
-		total_nWPS_ += all_wps_[i].size();
-	total_path_length_ = 0;
-	for (unsigned int i = 0; i < path_distances_.size(); i++)
-		total_path_length_ += path_distances_[i];
+  std::vector<float> Nc, Ec;
+  while (aE < aS)
+    aE += 2.0f*M_PI;
+  if (aE - aS == 0.0)
+  {
+    Ec.push_back(r*sin(aS)+ E);
+    Nc.push_back(r*cos(aS)+ N);
+  }
+  for (float th = aS; th <= aE; th += M_PI/35.0)
+  {
+    Ec.push_back(r*sin(th)+ E);
+    Nc.push_back(r*cos(th)+ N);
+  }
+  std::vector<std::vector<float> > NcEc;
+  NcEc.push_back(Nc);
+  NcEc.push_back(Ec);
+  return NcEc;
 }
 } // end namespace theseus

@@ -27,9 +27,7 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 
 	// Some settings for Generating the Map
 	waypoint_clearance = input_file->waypoint_clearance;// (m) This is the minimum clearance that each waypoint has with other obstacles... Just to make things reasonable.
-	is3D               = input_file->is3D;              // This make the board 3D, which pretty much just means the cylinders have a specific height and waypoints can be above them.
-
-														// Set up some competition constants
+	// Set up some competition constants
 	minCylRadius = input_file->minCylRadius; // 9.144 m = 30 ft.
 	maxCylRadius = input_file->maxCylRadius; // 91.44 m = 300 ft.
 	minCylHeight = input_file->minCylHeight; // 9.144 m = 30 ft.
@@ -141,11 +139,7 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 			cyl.E = rg.randLin()*(maxEast - minEast) + minEast;
 			cyl.R = rg.randLin()*(maxCylRadius - minCylRadius) + minCylRadius;
 		}
-		// If we are doing 3 dimensions then generate random height, otherwise give it the maximum height
-		if (is3D)
-			cyl.H = rg.randLin()*(maxCylHeight - minCylHeight) + minCylHeight;
-		else
-			cyl.H = maxFlyHeight;
+		cyl.H = rg.randLin()*(maxCylHeight - minCylHeight) + minCylHeight;
 		// Put the cylinder into the terrain map
 		map.cylinders.push_back(cyl);
 	}
@@ -156,19 +150,13 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 	{
 		wp.N = rg.randLin()*(maxNorth - minNorth) + minNorth;
 		wp.E = rg.randLin()*(maxEast - minEast) + minEast;
-		if (is3D)
-			wp.D = (rg.randLin()*((maxFlyHeight-waypoint_clearance) - (minFlyHeight+waypoint_clearance)) + minFlyHeight + waypoint_clearance)*-1.0; // Put the MSL into down (make it negative)
-		else
-			wp.D = 0;
+		wp.D = (rg.randLin()*((maxFlyHeight-waypoint_clearance) - (minFlyHeight+waypoint_clearance)) + minFlyHeight + waypoint_clearance)*-1.0; // Put the MSL into down (make it negative)
 		// Check to see if the placement is good, keep generating a new one until it fits
 		while (flyZoneCheck(wp, waypoint_clearance) == false)
 		{
 			wp.N = rg.randLin()*(maxNorth - minNorth) + minNorth;
 			wp.E = rg.randLin()*(maxEast - minEast) + minEast;
-			if (is3D)
-				wp.D = (rg.randLin()*((maxFlyHeight - waypoint_clearance) - (minFlyHeight + waypoint_clearance)) + minFlyHeight + waypoint_clearance)*-1.0; // Put the MSL into down (make it negative)
-			else
-				wp.D = 0;
+			wp.D = (rg.randLin()*((maxFlyHeight - waypoint_clearance) - (minFlyHeight + waypoint_clearance)) + minFlyHeight + waypoint_clearance)*-1.0; // Put the MSL into down (make it negative)
 		}
 		//Push the waypoint into the terrain map
 		map.wps.push_back(wp);

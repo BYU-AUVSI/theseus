@@ -1,27 +1,24 @@
 pp:
   Va: 20.0
-  turn_radius: 75.0          # Turn radius of the plane to plan for in the path.
-  climb_angle: 10.0          # Angle in degrees the plane will typically ascend
-  descend_angle: 8.0         # Angle in degrees the plane will typically descend
-  max_climb_angle: 12.0      # Maximum angle the plane will ascend, must be greater than climb_angle
-  max_descend_angle: 12.0    # Maximum angle the plane will descend, must be greater than descend_angle
-  clearance: 30.0            # Minimum distance the algorithm has to stay away from any obstacle
-  iters_limit: 5000.0        # This is a maximum iteration limit - so impossible maps don't hang the program
-  seed: 123                  # Seed the random generators for all of the simulation seeds
-  simulating: true           # This determines if to make a map or pull from the judges server.
+  turn_radius: 25.0          # Turn radius of the plane to plan for in the path.
+  segment_length: 80.0       # Turn radius of the plane to plan for in the path.
+  max_climb_angle: 18.0      # Maximum angle the plane will ascend, must be greater than climb_angle
+  max_descend_angle: 15.0    # Maximum angle the plane will descend, must be greater than descend_angle
+  clearance: 15.0            # Minimum distance the algorithm has to stay away from any obstacle
+  iters_limit: 2500          # This is a maximum iteration limit - so impossible maps don't hang the program
+  seed: 12345                # Seed the random generators for all of the simulation seeds
 ppsim:
   # Map Settings
-  numWps: 4                  # Number of waypoints to plan.
+  numWps: 10                 # Number of waypoints to plan.
   N0: 0.0                    # initial starting place for the plane, North in NED
   E0: 0.0                    # initial starting place for the plane, East in NED
   D0: 0.0                    # initial starting place for the plane, Down in NED
   chi0: 0.0                  # initial starting heading for the plane, degrees clockwise from N
-  is3D: true                 # false = 2 dimensions, true = 3 dimensions
   minCylRadius: 9.144        # 9.144 m = 30 ft.
   maxCylRadius: 91.44        # 91.44 m = 300 ft.
   minCylHeight: 9.144        # 9.144 m = 30 ft.
   maxCylHeight: 228.6        # 228.6 m = 750 ft.
   minFlyHeight: 30.48        # 23.7744 m = 100 - 22 ft. (positive value)
   maxFlyHeight: 228.6        # 221.8944 m = 750 - 22 ft. (positive value)
-  waypoint_clearance: 35.0   # Minimum Distance a waypoint will be placed away from an obstacle (to make it possible)
-  nCyli: 10                  # Number of Cylindrical Obstacles
+  waypoint_clearance: 30.0   # Minimum Distance a waypoint will be placed away from an obstacle (to make it possible)
+  nCyli: 20                  # Number of Cylindrical Obstacles

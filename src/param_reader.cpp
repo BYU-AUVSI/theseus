@@ -9,10 +9,6 @@ ParamReader::ParamReader() :
     ROS_WARN("No param named 'Va'");
   if (!(ros::param::get("pp/turn_radius",turn_radius)))
     ROS_WARN("No param named 'turn_radius'");
-  if (!(ros::param::get("pp/climb_angle",climb_angle)))
-    ROS_WARN("No param named 'climb_angle'");
-  if (!(ros::param::get("pp/descend_angle",descend_angle)))
-    ROS_WARN("No param named 'descend_angle'");
   if (!(ros::param::get("pp/max_climb_angle",max_climb_angle)))
     ROS_WARN("No param named 'max_climb_angle'");
   if (!(ros::param::get("pp/max_descend_angle",max_descend_angle)))
@@ -23,13 +19,9 @@ ParamReader::ParamReader() :
     ROS_WARN("No param named 'iters_limit'");
   if (!(ros::param::get("pp/seed",seed)))
     ROS_WARN("No param named 'seed'");
-  if (!(ros::param::get("pp/simulating",simulating)))
-    ROS_WARN("No param named 'simulating'");
 
   if (!(ros::param::get("ppsim/numWps",numWps)))
     ROS_WARN("No param named 'numWps'");
-  if (!(ros::param::get("ppsim/is3D",is3D)))
-    ROS_WARN("No param named 'is3D'");
   if (!(ros::param::get("ppsim/minCylRadius",minCylRadius)))
     ROS_WARN("No param named 'minCylRadius'");
   if (!(ros::param::get("ppsim/maxCylRadius",maxCylRadius)))
@@ -60,8 +52,6 @@ ParamReader::ParamReader() :
   }
 
 	double deg2rad    = M_PI/180.0;
-	climb_angle       = climb_angle*deg2rad;
-	descend_angle     = descend_angle*deg2rad;
 	max_climb_angle   = max_climb_angle*deg2rad;
 	max_descend_angle = max_descend_angle*deg2rad;
 }
