@@ -14,30 +14,12 @@
 #include <theseus/rand_gen.h>
 #include <theseus/param_reader.h>
 #include <theseus/collision_detection.h>
+#include <theseus/rrt_plotter.h>
+#include <theseus/node_s.h>
 
 namespace theseus
 {
 // Class Definition
-struct node                    // This is the node struct for each spot on the tree
-{
-  NED_s p;                     // North, East Down of the node position
-  fillet_s fil;                // *fillet information for the PARENT
-  std::vector<node*> children; // Vector of all of the children nodes
-  node* parent;                // *Pointer to the parent of this node
-  float cost;                  // Distance from this node to its parent
-  bool dontConnect;            // true means closest nodes generated won't connect to this node
-  bool connects2wp;            // true if this node connects to the next waypoint
-  void equal(node* n)
-  {
-    p           = n->p;
-    fil         = n->fil;
-    children    = n->children;
-    parent      = n->parent;
-    cost        = n->cost;
-    dontConnect = n->dontConnect;
-    connects2wp = n->connects2wp;
-  }
-};
 class RRT
 {
 public:
@@ -84,23 +66,9 @@ private:
   void printRRTSetup(NED_s pos, float chi0); // used for debugging
   void printRoots();                         // prints all of the root nodes
   void printNode(node* nin);                 // prints the node
-  void displayPath(std::vector<NED_s> path, NED_s color, float width); // plots the proposed path
-  std::vector<std::vector<float > > arc(float N, float E, float r, float aS, float aE);
   void printFillet(fillet_s fil);
-  void clearRVizPaths();
-  int path_id_;
-  int last_path_id_;
-  std::vector<node*> fringe_;
-  std::vector<NED_s> tree_path_;
-  void addTreePath(node* root, node* nin);
-  void addFringe(node* nin);
-  void displayTree(node* root);
-  NED_s gray_;
-  NED_s blue_;
-  NED_s green_;
-  NED_s orange_;
-
-
+  rrtPlotter plt;
+  rrtColors clr;
 
   float segment_length_;          // If used, this is the distance the algorithm uses between each node
   ParamReader input_file_;        // address of the input file

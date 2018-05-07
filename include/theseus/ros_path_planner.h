@@ -1,28 +1,26 @@
 #ifndef ROS_PATH_PLANNER_H
 #define ROS_PATH_PLANNER_H
 
-#include <ros/ros.h>
-#include <visualization_msgs/Marker.h>
-#include <rosplane_msgs/Waypoint.h>
-#include <rosplane_msgs/State.h>
-#include <uav_msgs/JudgeMission.h>
-#include <uav_msgs/GeneratePath.h>
-#include <uav_msgs/UploadPath.h>
-#include <theseus/AuvsiMap.h>
-#include <theseus/AuvsiStaticObstacle.h>
-#include <theseus/AuvsiBoundaries.h>
-#include <theseus/RRT.h>
 #include <vector>
 #include <math.h>
 #include <algorithm>
-#include <algorithm>
-#include <std_srvs/Trigger.h>
+#include <fstream>
+#include <ros/ros.h>
+
+#include <theseus/RRT.h>
 #include <theseus/mapper.h>
 #include <theseus/rand_gen.h>
 #include <theseus/param_reader.h>
 #include <theseus/gps_struct.h>
 #include <theseus/fillet_s.h>
-#include <fstream>
+#include <theseus/rrt_plotter.h>
+
+#include <rosplane_msgs/Waypoint.h>
+#include <rosplane_msgs/State.h>
+#include <uav_msgs/JudgeMission.h>
+#include <uav_msgs/GeneratePath.h>
+#include <uav_msgs/UploadPath.h>
+#include <std_srvs/Trigger.h>
 
 namespace theseus
 {
@@ -39,7 +37,6 @@ private:
   ros::ServiceServer plan_mission_service_;
   ros::Subscriber state_subscriber_;
   ros::Publisher waypoint_publisher_;
-  ros::Publisher marker_pub_;
   ros::ServiceServer path_solver_service1_;
   ros::ServiceServer path_solver_service2_;
   ros::ServiceServer path_solver_service3_;
@@ -51,7 +48,6 @@ private:
   ros::ServiceServer replot_map_service_;
   ros::ServiceServer wp_distance_service_;
   map_s myWorld_;
-  std::vector<std::vector<float > > arc(float N, float E, float r, float aS, float aE);
   void stateCallback(const rosplane_msgs::State &msg);
 
 public:
@@ -61,14 +57,13 @@ public:
   float Va_;
   RandGen rg_;
   ParamReader input_file_;
-  int path_id_;
-  int last_path_id_;
 private:
+  rrtPlotter plt;
+  rrtColors clr;
   gps_struct gps_converter_;
   RRT rrt_obj_;
   float odometry_[3];
   float chi0_;
-  visualization_msgs::Marker odom_mkr_;
   bool recieved_state_;
   bool has_map_;
 
@@ -93,8 +88,6 @@ public:
   bool displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
-  void displayPath(NED_s pos);
-  void displayMap();
 
 };// end class PathPlanner
 } // end namespace rosplane

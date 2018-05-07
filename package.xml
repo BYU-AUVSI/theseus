@@ -14,14 +14,12 @@
   <build_depend>std_msgs</build_depend>
   <build_depend>std_srvs</build_depend>
   <build_depend>uav_msgs</build_depend>
-  <build_depend>message_generation</build_depend>
   <build_depend>visualization_msgs</build_depend>
   <run_depend>roscpp</run_depend>
   <run_depend>rosplane_msgs</run_depend>
   <run_depend>std_msgs</run_depend>
   <run_depend>std_srvs</run_depend>
   <run_depend>uav_msgs</run_depend>
-  <run_depend>message_generation</run_depend>
   <run_depend>visualization_msgs</run_depend>
 
   <export>

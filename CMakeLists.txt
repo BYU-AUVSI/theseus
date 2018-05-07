@@ -14,7 +14,6 @@ find_package(catkin REQUIRED COMPONENTS
   std_srvs
   uav_msgs
   visualization_msgs
-  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -51,12 +50,9 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(
- FILES
- AuvsiBoundaries.msg
- AuvsiStaticObstacle.msg
- AuvsiMap.msg
-)
+#add_message_files(
+# FILES
+#)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -73,13 +69,13 @@ add_message_files(
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
- DEPENDENCIES
- rosplane_msgs
- visualization_msgs
- std_msgs
- uav_msgs
-)
+#generate_messages(
+# DEPENDENCIES
+# rosplane_msgs
+# visualization_msgs
+# std_msgs
+# uav_msgs
+#)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -149,9 +145,10 @@ add_executable(theseus_path_planner
                src/rand_gen.cpp
                src/RRT.cpp
                src/collision_detection.cpp
+               src/rrt_plotter.cpp
                )
 add_dependencies(theseus_path_planner ${catkin_EXPORTED_TARGETS})
-add_dependencies(theseus_path_planner theseus_generate_messages_cpp)
+#add_dependencies(theseus_path_planner theseus_generate_messages_cpp)
 target_link_libraries(theseus_path_planner ${catkin_LIBRARIES})
 
 ## Rename C++ executable without prefix
