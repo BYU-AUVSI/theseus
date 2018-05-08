@@ -116,7 +116,7 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
     mission_map.cylinders.push_back(cyl);
   }
   bool direct_hit;
-  if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT || req.mission.mission_type == req.mission.MISSION_TYPE_LAND)
+  if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT)
     direct_hit = true;
   else
     direct_hit = false;
@@ -138,6 +138,23 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
     ned.E = mission_map.wps.back().E + landing_strip*sinf(chi);
     ned.D = 0.0f;
     mission_map.wps.push_back(ned);
+  }
+  if (req.mission.mission_type == req.mission.MISSION_TYPE_SEARCH)
+  {
+    rrt_obj_.newMap(mission_map);
+    mission_map.wps.clear();
+    for (int i = 0; i < num_waypoints; i++)
+    {
+      lat = req.mission.waypoints[i].point.latitude;
+      lon = req.mission.waypoints[i].point.longitude;
+      alt = req.mission.waypoints[i].point.altitude;
+      gps_converter_.gps2ned(lat, lon, alt, N, E, D);
+      ned.N = N;
+      ned.E = E;
+      ned.D = D;
+      if (rrt_obj_.checkPoint(ned, input_file_.clearance + 0.5f*input_file_.turn_radius))
+        mission_map.wps.push_back(ned);
+    }
   }
 
   myWorld_ = mission_map;
@@ -350,10 +367,29 @@ bool RosPathPlanner::addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trig
   while (fin.eof() == false)
   {
     fin >> wp.N >> wp.E >> wp.D;
+    if (fin.eof())
+    {
+      ROS_WARN("break");
+      break;
+    }
     myWorld_.wps.push_back(wp);
+    ROS_WARN("testfile wp %f %f %f", wp.N, wp.E, wp.D);
   }
   fin.close();
+  bool searching = true;
+  if (searching == true)
+  {
+    rrt_obj_.newMap(myWorld_);
+    std::vector<NED_s> all_wps = myWorld_.wps;
+    myWorld_.wps.clear();
+    for (int j = 0; j < all_wps.size(); j++)
+    {
+      if (rrt_obj_.checkPoint(all_wps[j], input_file_.clearance + 0.5f*input_file_.turn_radius))
+        myWorld_.wps.push_back(all_wps[j]);
+    }
+  }
   rrt_obj_.newMap(myWorld_);
+
   bool direct_hit = false;
   bool landing = false;
   plt.displayMap(myWorld_);
@@ -467,6 +503,8 @@ bool RosPathPlanner::textfileNow(std_srvs::Trigger::Request &req, std_srvs::Trig
   while (fin.eof() == false)
   {
     fin >> wp.N >> wp.E >> wp.D;
+    if (fin.eof())
+      break;
     myWorld_.wps.push_back(wp);
   }
   fin.close();
@@ -536,7 +574,7 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
     new_waypoint.w[1] = rrt_obj_.all_wps_[i].E;
     new_waypoint.w[2] = rrt_obj_.all_wps_[i].D;
 
-    new_waypoint.Va_d = 16.0; // TODO find a good initial spot for this Va
+    new_waypoint.Va_d = 20.0; // TODO find a good initial spot for this Va
     if (i == 0)
       new_waypoint.set_current = true;
     else

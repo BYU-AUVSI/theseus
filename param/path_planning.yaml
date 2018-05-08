@@ -1,9 +1,9 @@
 pp:
   Va: 20.0
-  turn_radius: 50.0          # Turn radius of the plane to plan for in the path.
-  segment_length: 150.0       # Turn radius of the plane to plan for in the path.
-  max_climb_angle: 18.0      # Maximum angle the plane will ascend, must be greater than climb_angle
-  max_descend_angle: 15.0    # Maximum angle the plane will descend, must be greater than descend_angle
+  turn_radius: 25.0          # Turn radius of the plane to plan for in the path.
+  segment_length: 80.0       # Turn radius of the plane to plan for in the path.
+  max_climb_angle: 22.0      # Maximum angle the plane will ascend, must be greater than climb_angle
+  max_descend_angle: 18.0    # Maximum angle the plane will descend, must be greater than descend_angle
   clearance: 15.0            # Minimum distance the algorithm has to stay away from any obstacle
   iters_limit: 2500          # This is a maximum iteration limit - so impossible maps don't hang the program
   seed: 12345                # Seed the random generators for all of the simulation seeds
@@ -21,4 +21,4 @@ ppsim:
   minFlyHeight: 30.48        # 23.7744 m = 100 - 22 ft. (positive value)
   maxFlyHeight: 228.6        # 221.8944 m = 750 - 22 ft. (positive value)
   waypoint_clearance: 30.0   # Minimum Distance a waypoint will be placed away from an obstacle (to make it possible)
-  nCyli: 0                  # Number of Cylindrical Obstacles
+  nCyli: 10                   # Number of Cylindrical Obstacles

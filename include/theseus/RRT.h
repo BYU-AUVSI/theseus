@@ -29,6 +29,7 @@ public:
 	void solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing); // Solves the static path
   void newMap(map_s map_in);                                              // creates a new map
   void newSeed(unsigned int seed);
+  bool checkPoint(NED_s point, float clearance);
   std::vector<NED_s> all_wps_;                // final path waypoints
   map_s map_;
   bool landing_now_;
@@ -45,6 +46,7 @@ private:
   void addPath(std::vector<node*> smooth_path, unsigned int i);
 
   // secondary functions
+  void resetParent(node* nin, node* new_parent);
   node* findClosestNodeGChild(node* root, NED_s p);
   bool checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance, bool connecting_to_end);
   NED_s randomPoint(unsigned int i);

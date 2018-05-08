@@ -225,7 +225,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 	withinBoundaries_pe = crossed_lines_pe % 2;
 	if (withinBoundaries_ps == false || withinBoundaries_pe == false)
   {
-    ROS_DEBUG("line exit 9");
+    // ROS_DEBUG("line exit 9");
     return false;
   }
 	// ^^^^^^^^^^^^^^^^ Finish up checking if the end points were both inside the boundary (ray casting) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
