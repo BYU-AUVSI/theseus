@@ -573,8 +573,7 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
     new_waypoint.w[0] = rrt_obj_.all_wps_[i].N;
     new_waypoint.w[1] = rrt_obj_.all_wps_[i].E;
     new_waypoint.w[2] = rrt_obj_.all_wps_[i].D;
-
-    new_waypoint.Va_d = 20.0; // TODO find a good initial spot for this Va
+    nh_.param<float>("pp/Va", new_waypoint.Va_d, 20.0);
     if (i == 0)
       new_waypoint.set_current = true;
     else

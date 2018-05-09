@@ -287,6 +287,78 @@ void rrtPlotter::displayPath(std::vector<NED_s> path, NED_s color, float width)
   marker_pub_.publish(planned_path_mkr);
   sleep(0.05);
 }
+void rrtPlotter::drawCircle(NED_s cp, float r)
+{
+  std::vector<std::vector<float> > points = arc(cp.N, cp.E, r, 0.0f, 2.0f*M_PI + 0.1f);
+  ROS_INFO("Displaying Circle");
+  visualization_msgs::Marker pWPS_mkr, cir_mkr;
+
+  // Set the frame ID and timestamp.  See the TF tutorials for information on these.
+  pWPS_mkr.header.frame_id = cir_mkr.header.frame_id = "/local_ENU";
+  // Set the namespace and id for this obs_mkr.  This serves to create a unique ID
+  // Any obs_mkr sent with the same namespace and id will overwrite the old one
+  pWPS_mkr.ns           = "cp";
+  cir_mkr.ns            = "path";
+  uint32_t pts          = visualization_msgs::Marker::POINTS;
+  uint32_t lis          = visualization_msgs::Marker::LINE_STRIP;
+  pWPS_mkr.type         = pts;
+  cir_mkr.type          = lis;
+  // Set the obs_mkr action.  Options are ADD (Which is really create or modify), DELETE, and new in ROS Indigo: 3 (DELETEALL)
+  pWPS_mkr.action = cir_mkr.action  = visualization_msgs::Marker::ADD;
+  pWPS_mkr.pose.orientation.x = cir_mkr.pose.orientation.x = 0.0;
+  pWPS_mkr.pose.orientation.y = cir_mkr.pose.orientation.y = 0.0;
+  pWPS_mkr.pose.orientation.z = cir_mkr.pose.orientation.z = 0.0;
+  pWPS_mkr.pose.orientation.w = cir_mkr.pose.orientation.w = 1.0;
+  // Set the color -- be sure to set alpha to something non-zero!
+  pWPS_mkr.color.r            = 0.5f;
+  pWPS_mkr.color.g            = 0.0f;
+  pWPS_mkr.color.b            = 0.5f;
+  pWPS_mkr.color.a            = 1.0;
+  cir_mkr.color.r             = 0.5f;
+  cir_mkr.color.g             = 0.5f;
+  cir_mkr.color.b             = 0.0f;
+  cir_mkr.color.a             = 1.0;
+  pWPS_mkr.lifetime = cir_mkr.lifetime  = ros::Duration();
+
+  int id = 0;
+  while (marker_pub_.getNumSubscribers() < 1)
+  {
+    if (!ros::ok())
+      return;
+    ROS_WARN_ONCE("Please create a subscriber to the marker");
+    sleep(1);
+  }
+  // primary waypoints
+  pWPS_mkr.header.stamp = ros::Time::now();
+  pWPS_mkr.id           =  0;
+  pWPS_mkr.scale.x      =  10.0; // point width
+  pWPS_mkr.scale.y      =  10.0; // point height
+  geometry_msgs::Point p;
+  p.y =  cp.N;
+  p.x =  cp.E;
+  p.z = -cp.D;
+  pWPS_mkr.points.push_back(p);
+  marker_pub_.publish(pWPS_mkr);
+  sleep(0.05);
+
+  // Circle
+  cir_mkr.header.stamp = ros::Time::now();
+  cir_mkr.id           =  0;
+  cir_mkr.scale.x      =  10.0; // line width
+  std::vector<float> Nc = points[0];
+  std::vector<float> Ec = points[1];
+  NED_s pos;
+  for (int j = 0; j < Nc.size(); j++)
+  {
+    geometry_msgs::Point p;
+    p.y = Nc[j];
+    p.x = Ec[j];
+    p.z = -cp.D;
+    cir_mkr.points.push_back(p);
+  }
+  marker_pub_.publish(cir_mkr);
+  sleep(0.05);
+}
 std::vector<std::vector<float > > rrtPlotter::arc(float N, float E, float r, float aS, float aE)
 {
   std::vector<float> Nc, Ec;

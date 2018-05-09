@@ -44,6 +44,7 @@ private:
   std::vector<node*> findMinimumPath(unsigned int i);
   std::vector<node*> smoothPath(std::vector<node*> rough_path, int i);
   void addPath(std::vector<node*> smooth_path, unsigned int i);
+  NED_s findLoiterSpot(NED_s cp, float radius);
 
   // secondary functions
   void resetParent(node* nin, node* new_parent);

@@ -41,6 +41,7 @@ public:
   void displayPath(std::vector<NED_s> path, NED_s color, float width);
   void displayPath(NED_s ps, std::vector<NED_s> path, NED_s color, float width);
   void displayPath(NED_s ps, std::vector<node*> path, NED_s color, float width);
+  void drawCircle(NED_s cp, float r);
   void clearRViz(map_s map);
   void displayTree(node* root);
 
