@@ -16,6 +16,7 @@
 #include <theseus/rrt_plotter.h>
 
 #include <rosplane_msgs/Waypoint.h>
+#include <rosplane_msgs/NewWaypoints.h>
 #include <rosplane_msgs/State.h>
 #include <uav_msgs/JudgeMission.h>
 #include <uav_msgs/GeneratePath.h>
@@ -36,7 +37,7 @@ private:
   //************** SUBSCRIBERS AND PUBLISHERS **************//
   ros::ServiceServer plan_mission_service_;
   ros::Subscriber state_subscriber_;
-  ros::Publisher waypoint_publisher_;
+  ros::ServiceClient waypoint_client_;
   ros::ServiceServer path_solver_service1_;
   ros::ServiceServer path_solver_service2_;
   ros::ServiceServer path_solver_service3_;

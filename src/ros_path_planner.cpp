@@ -11,7 +11,7 @@ RosPathPlanner::RosPathPlanner() :
   recieved_state_         = false;
   has_map_                = false;
   state_subscriber_       = nh_.subscribe("/state",100,&theseus::RosPathPlanner::stateCallback, this);
-  waypoint_publisher_     = nh_.advertise<rosplane_msgs::Waypoint>("/waypoint_path", 1);
+  waypoint_client_        = nh_.serviceClient<rosplane_msgs::NewWaypoints>("/waypoint_path");
 
   path_solver_service1_   = nh_.advertiseService("solve_static",&theseus::RosPathPlanner::solveStatic, this);
   path_solver_service2_   = nh_.advertiseService("add_wps",&theseus::RosPathPlanner::addWps, this);
@@ -369,7 +369,6 @@ bool RosPathPlanner::addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trig
     fin >> wp.N >> wp.E >> wp.D;
     if (fin.eof())
     {
-      ROS_WARN("break");
       break;
     }
     myWorld_.wps.push_back(wp);
@@ -563,10 +562,10 @@ bool RosPathPlanner::displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trig
 }
 bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res)
 {
+  rosplane_msgs::NewWaypoints srv;
+  rosplane_msgs::Waypoint new_waypoint;
   for (long unsigned int i = 0; i < rrt_obj_.all_wps_.size(); i++)
   {
-    ros::Duration(0.5).sleep();
-    rosplane_msgs::Waypoint new_waypoint;
     new_waypoint.landing = false;
     if (rrt_obj_.landing_now_ && i >= rrt_obj_.all_wps_.size() - 1 - 1) // landing = true on the last 2 waypoints
       new_waypoint.landing = true;
@@ -574,15 +573,34 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
     new_waypoint.w[1] = rrt_obj_.all_wps_[i].E;
     new_waypoint.w[2] = rrt_obj_.all_wps_[i].D;
     nh_.param<float>("pp/Va", new_waypoint.Va_d, 20.0);
+
+    new_waypoint.loiter_point  = true;
+    new_waypoint.priority      = 5;
     if (i == 0)
       new_waypoint.set_current = true;
     else
       new_waypoint.set_current = false;
     new_waypoint.clear_wp_list = false;
-    waypoint_publisher_.publish(new_waypoint);
+    srv.request.waypoints.push_back(new_waypoint);
   }
-
-  res.success = true;
+  if (srv.request.waypoints.back().loiter_point == true)
+  {
+    srv.request.waypoints.back().loiter_point = false;
+    new_waypoint.set_current  = false;
+    srv.request.waypoints.push_back(new_waypoint);
+  }
+  bool found_service = ros::service::waitForService("/waypoint_path", ros::Duration(1.0));
+  while (found_service == false)
+  {
+    ROS_WARN("No waypoint server found. Checking again.");
+    found_service = ros::service::waitForService("/waypoint_path", ros::Duration(1.0));
+  }
+  bool sent_correctly = waypoint_client_.call(srv);
+  if (sent_correctly)
+    ROS_INFO("Waypoints succesfully sent");
+  else
+    ROS_ERROR("Waypoint server unsuccessful");
+  res.success = sent_correctly;
   return true;
 }
 void RosPathPlanner::stateCallback(const rosplane_msgs::State &msg)

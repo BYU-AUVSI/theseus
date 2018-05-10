@@ -9,7 +9,7 @@ pp:
   seed: 12345                # Seed the random generators for all of the simulation seeds
 ppsim:
   # Map Settings
-  numWps: 4                 # Number of waypoints to plan.
+  numWps: 1                 # Number of waypoints to plan.
   N0: 0.0                    # initial starting place for the plane, North in NED
   E0: 0.0                    # initial starting place for the plane, East in NED
   D0: 0.0                    # initial starting place for the plane, Down in NED
@@ -21,4 +21,4 @@ ppsim:
   minFlyHeight: 30.48        # 23.7744 m = 100 - 22 ft. (positive value)
   maxFlyHeight: 228.6        # 221.8944 m = 750 - 22 ft. (positive value)
   waypoint_clearance: 30.0   # Minimum Distance a waypoint will be placed away from an obstacle (to make it possible)
-  nCyli: 10                  # Number of Cylindrical Obstacles
+  nCyli: 0                  # Number of Cylindrical Obstacles
