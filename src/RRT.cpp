@@ -5,28 +5,30 @@ namespace theseus
 RRT::RRT(map_s map_in, unsigned int seed) :
   nh_(ros::NodeHandle())// Setup the object
 {
-  if(ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug))
-  {
-   ros::console::notifyLoggerLevelsChanged();
-  }
-  nh_.param<float>("pp/segment_length", segment_length_, 100.0);
-  num_paths_      = 1;            // number of paths to solve between each waypoint use 1 for now, not sure if more than 1 works, memory leaks..
-	RandGen rg_in(seed);            // Make a random generator object that is seeded
+  RandGen rg_in(seed);            // Make a random generator object that is seeded
 	rg_             = rg_in;        // Copy that random generator into the class.
   map_            = map_in;
   col_det_.newMap(map_in);
-  ending_chi_     = 0.0f;
+  setup();
 }
 RRT::RRT()
 {
+  setup();
+}
+void RRT::setup()
+{
+  emergency_priority_ = 5;
+  mission_priority_   = 4;
+  landing_priority_   = 3;
+  loitering_priority_ = 4;
   if(ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug))
   {
    ros::console::notifyLoggerLevelsChanged();
   }
   nh_.param<float>("pp/segment_length", segment_length_, 100.0);
   num_paths_      = 1;            // number of paths to solve between each waypoint use 1 for now, not sure if more than 1 works, memory leaks..
-	RandGen rg_in(1);               // Make a random generator object that is seeded
-	rg_             = rg_in;        // Copy that random generator into the class.
+  RandGen rg_in(1);               // Make a random generator object that is seeded
+  rg_             = rg_in;        // Copy that random generator into the class.
   ending_chi_     = 0.0f;
 }
 RRT::~RRT()
@@ -36,8 +38,14 @@ RRT::~RRT()
 }
 void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
-  float loiter_radius = 5.0f*input_file_.turn_radius;
+  emergency_priority_ = 5;
+  mission_priority_   = 4;
+  landing_priority_   = 3;
+  loitering_priority_ = 3;
+
+  float loiter_radius = 5.0f*input_file_.turn_radius; // TODO get this from a file
   bool last_wp_safe_to_loiter = true;
+  secondary_wps_indx_ = map_.wps.size();
   if (landing == false)
   {
     NED_s final_wp;
@@ -98,12 +106,12 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
     // plotting the waypoint sequences
     std::vector<node*> rough_path  = findMinimumPath(i);
 
-    ROS_DEBUG("DISPLAYING ROUGH PATH");
+    // ROS_DEBUG("DISPLAYING ROUGH PATH");
     // plt.displayPath(rough_path, clr.blue, 13.0f);
 
     std::vector<node*> smooth_path = smoothPath(rough_path, i);
     addPath(smooth_path, i);
-    if (taking_off_ == true && -all_wps_[all_wps_.size() - 1].D > input_file_.minFlyHeight)
+    if (taking_off_ == true && -all_wps_.back().D > input_file_.minFlyHeight)
     {
       taking_off_ = false;
       col_det_.taking_off_ = false;
@@ -113,12 +121,12 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
       all_rough_paths.push_back(rough_path[it]->p);
 
     // plt.displayTree(root_ptrs_[i]);
-    ROS_DEBUG("DISPLAYING SMOOTH PATH");
+    // ROS_DEBUG("DISPLAYING SMOOTH PATH");
     // plt.displayPath(rough_path[0]->p, smooth_path, clr.green, 15.0f);
     // plt.clearRViz(map_);
     if (landing_now_)
       break;
-    if (landing_now_ == false && i == map_.wps.size() - 2 && last_wp_safe_to_loiter == false)
+    if (landing_now_ == false && i < secondary_wps_indx_)
     {
       ending_point_ = all_wps_.back();
       ending_chi_   = (all_wps_.back() - all_wps_[all_wps_.size() - 2]).getChi();
@@ -130,32 +138,21 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
     {
       ROS_DEBUG("pushing back another waypoint");
       all_wps_.push_back(map_.wps[j]);
+      all_priorities_.push_back(landing_priority_);
       ROS_DEBUG("N: %f, E: %f, D: %f", all_wps_.back().N, all_wps_.back().E, all_wps_.back().D);
       all_rough_paths.push_back(map_.wps[j]);
     }
     ending_point_ = all_wps_.back();
     ending_chi_   = (all_wps_.back() - all_wps_[all_wps_.size() - 2]).getChi();
   }
-  else if (last_wp_safe_to_loiter == true)
-  {
-    ending_point_ = all_wps_.back();
-    ending_chi_   = (all_wps_.back() - all_wps_[all_wps_.size() - 2]).getChi();
-  }
+  if (last_wp_safe_to_loiter == false)
+    map_.wps.pop_back();
 
   // for (int i = 0; i < map_.wps.size(); i++)
   //   ROS_DEBUG("WP %i: %f, %f, %f", i, map_.wps[i].N, map_.wps[i].E, map_.wps[i].D);
 
   // plt.clearRViz(map_);
   // plt.displayPath(all_rough_paths, clr.blue, 10.0f);
-
-  // Set up an extra straight line.
-  // NED_s first_after, second_after;
-  // float chi_last = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).getChi();
-  // first_after = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).normalize()*300.0f + all_wps_[all_wps_.size() - 1];
-  // second_after = (all_wps_[all_wps_.size() - 1] - all_wps_[all_wps_.size() - 2]).normalize()*500.0f + all_wps_[all_wps_.size() - 1];
-  // all_wps_.push_back(first_after);
-  // all_wps_.push_back(second_after);
-
   ROS_FATAL("FINISHED THE RRT ALGORITHM");
   if (landing_now_ == false)
     plt.drawCircle(all_wps_.back(), loiter_radius);
@@ -520,16 +517,18 @@ void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
   // ROS_DEBUG("smooth_path.size() %lu",smooth_path.size());
   for (unsigned int j = 0; j < smooth_path.size(); j++)
   {
-    if (direct_hit_ == true && j == smooth_path.size() - 1 && i != map_.wps.size() - 1 && j != 0)
-    {
-      // this is really confusing..
-    }
-    // else if (direct_hit_ == true && i == 2 && j == 0)
+    // if (direct_hit_ == true && j == smooth_path.size() - 1 && i != map_.wps.size() - 1 && j != 0)
     // {
-    //
+    //   // this is really confusing.. and I can't remember why we do this...
     // }
-    else
+    // else
+    {
       all_wps_.push_back(smooth_path[j]->p);
+      if (i < secondary_wps_indx_)
+        all_priorities_.push_back(mission_priority_);
+      else
+        all_priorities_.push_back(loitering_priority_);
+    }
   }
 }
 // Secondary functions
@@ -739,6 +738,7 @@ node* RRT::findMinConnector(node* nin, node* minNode, float* minCost) // This re
 }
 NED_s RRT::findLoiterSpot(NED_s cp, float radius)
 {
+  ROS_DEBUG("finding loiter spot");
   bool center, first_half, second_half;
   center  = col_det_.checkPoint(cp,input_file_.clearance);
 
@@ -951,6 +951,7 @@ void RRT::initializeTree(NED_s pos, float chi0)
 void RRT::clearForNewPath()
 {
   all_wps_.clear();
+  all_priorities_.clear();
   clearTree();                    // Clear all of those tree pointer nodes
   // std::vector<node*>().swap(root_ptrs_);
 }

@@ -95,8 +95,8 @@ void rrtPlotter::displayMap(map_s map)
   // primary waypoints
   pWPS_mkr.header.stamp = ros::Time::now();
   pWPS_mkr.id           =  0;
-  pWPS_mkr.scale.x      =  25.0; // point width
-  pWPS_mkr.scale.y      =  25.0; // point height
+  pWPS_mkr.scale.x      =  10.0; // point width
+  pWPS_mkr.scale.y      =  10.0; // point height
   ROS_INFO("Number of Waypoints: %lu", map.wps.size());
   for (long unsigned int i = 0; i < map.wps.size(); i++)
   {
@@ -133,6 +133,7 @@ void rrtPlotter::displayMap(map_s map)
   bds_mkr.points.push_back(p0);
   marker_pub_.publish(bds_mkr);
   sleep(0.05);
+  ROS_DEBUG("finished displayMap");
 }
 void rrtPlotter::odomCallback(geometry_msgs::Point p)
 {

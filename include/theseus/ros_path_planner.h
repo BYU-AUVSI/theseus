@@ -75,6 +75,7 @@ private:
   ros::WallTimer update_viz_timer_;
   void updateViz(const ros::WallTimerEvent&);
   bool sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res);
+  bool sendWaypointsCore(bool now);
 
   //********************** FUNCTIONS ***********************//
 public:
@@ -89,6 +90,8 @@ public:
   bool displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
+private:
+  void getInitialMap();
 
 };// end class PathPlanner
 } // end namespace rosplane

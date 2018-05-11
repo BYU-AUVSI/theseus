@@ -174,22 +174,12 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
   pos.D = -odometry_[2];
   plt.displayMap(myWorld_);
   rrt_obj_.solveStatic(pos, chi0_, true, landing);
-  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 15.0);
+  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
   return true;
 }
 bool RosPathPlanner::newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
 {
-  mapper myWorld(rg_.UINT(), &input_file_);
-  myWorld_ = myWorld.map;
-  rrt_obj_.newMap(myWorld_);
-  has_map_ = true;
-  wp_distances_.clear();
-  cyl_distances_.clear();
-  for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
-    wp_distances_.push_back(INFINITY);
-  for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
-    cyl_distances_.push_back(INFINITY);
-    min_cyl_dis_ = INFINITY;
+  getInitialMap();
   ROS_INFO("RECIEVED NEW RANDOM MAP");
   plt.clearRViz(myWorld_);
   res.success = true;
@@ -205,19 +195,10 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   }
   if (has_map_ == false)
   {
-    ROS_ERROR("PATH PLANNER HAS NO MAP.");
-    ROS_ERROR("Generating random map.");
-    mapper myWorld(rg_.UINT(), &input_file_);
-    myWorld_ = myWorld.map;
-    rrt_obj_.newMap(myWorld_);
-    has_map_ = true;
-    wp_distances_.clear();
-    cyl_distances_.clear();
-    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
-      wp_distances_.push_back(INFINITY);
-    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
-      cyl_distances_.push_back(INFINITY);
-    min_cyl_dis_ = INFINITY;
+    ROS_DEBUG("getting initial map");
+    getInitialMap();
+    ROS_DEBUG("got initial map");
+
   }
   NED_s pos;
   pos.N =  odometry_[1];
@@ -226,8 +207,9 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   bool direct_hit = true;
   bool landing = false;
   plt.displayMap(myWorld_);
+  ROS_DEBUG("about to enter rrt object");
   rrt_obj_.solveStatic(pos, chi0_, direct_hit, landing);
-  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 15.0);
+  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
   res.success = true;
   return true;
 }
@@ -240,28 +222,14 @@ bool RosPathPlanner::addWps(std_srvs::Trigger::Request &req, std_srvs::Trigger::
     return false;
   }
   if (has_map_ == false)
-  {
-    ROS_ERROR("PATH PLANNER HAS NO MAP.");
-    ROS_ERROR("Generating random map.");
-    mapper myWorld(rg_.UINT(), &input_file_);
-    myWorld_ = myWorld.map;
-    rrt_obj_.newMap(myWorld_);
-    has_map_ = true;
-    wp_distances_.clear();
-    cyl_distances_.clear();
-    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
-      wp_distances_.push_back(INFINITY);
-    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
-      cyl_distances_.push_back(INFINITY);
-    min_cyl_dis_ = INFINITY;
-  }
+    getInitialMap();
   plt.displayMap(myWorld_);
   bool direct_hit = true;
   bool landing = false;
   NED_s pos;
   pos = rrt_obj_.ending_point_;
   rrt_obj_.solveStatic(pos, rrt_obj_.ending_chi_, direct_hit, landing);
-  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 15.0);
+  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
   res.success = true;
   return true;
 }
@@ -274,21 +242,7 @@ bool RosPathPlanner::addLanding(std_srvs::Trigger::Request &req, std_srvs::Trigg
     return false;
   }
   if (has_map_ == false)
-  {
-    ROS_ERROR("PATH PLANNER HAS NO MAP.");
-    ROS_ERROR("Generating random map.");
-    mapper myWorld(rg_.UINT(), &input_file_);
-    myWorld_ = myWorld.map;
-    rrt_obj_.newMap(myWorld_);
-    has_map_ = true;
-    wp_distances_.clear();
-    cyl_distances_.clear();
-    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
-      wp_distances_.push_back(INFINITY);
-    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
-      cyl_distances_.push_back(INFINITY);
-    min_cyl_dis_ = INFINITY;
-  }
+    getInitialMap();
   std::fstream fin;
   fin.open("landing.txt", std::ifstream::in);
   if (!(fin.is_open()))
@@ -303,10 +257,6 @@ bool RosPathPlanner::addLanding(std_srvs::Trigger::Request &req, std_srvs::Trigg
   bool landing = true;
   rrt_obj_.map_.wps.clear();
   NED_s descend_point;
-  descend_point.N = N;
-  descend_point.E = E;
-  descend_point.D = D;
-  rrt_obj_.map_.wps.push_back(descend_point);
   descend_point.N = N;
   descend_point.E = E;
   descend_point.D = D;
@@ -327,7 +277,7 @@ bool RosPathPlanner::addLanding(std_srvs::Trigger::Request &req, std_srvs::Trigg
   NED_s pos;
   pos = rrt_obj_.ending_point_;
   rrt_obj_.solveStatic(pos, rrt_obj_.ending_chi_, direct_hit, landing);
-  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 15.0);
+  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
   res.success = true;
   return true;
 }
@@ -340,21 +290,7 @@ bool RosPathPlanner::addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trig
     return false;
   }
   if (has_map_ == false)
-  {
-    ROS_ERROR("PATH PLANNER HAS NO MAP.");
-    ROS_ERROR("Generating random map.");
-    mapper myWorld(rg_.UINT(), &input_file_);
-    myWorld_ = myWorld.map;
-    rrt_obj_.newMap(myWorld_);
-    has_map_ = true;
-    wp_distances_.clear();
-    cyl_distances_.clear();
-    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
-      wp_distances_.push_back(INFINITY);
-    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
-      cyl_distances_.push_back(INFINITY);
-    min_cyl_dis_ = INFINITY;
-  }
+    getInitialMap();
   std::fstream fin;
   fin.open("path.txt", std::ifstream::in);
   if (!(fin.is_open()))
@@ -395,7 +331,7 @@ bool RosPathPlanner::addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trig
   NED_s pos;
   pos = rrt_obj_.ending_point_;
   rrt_obj_.solveStatic(pos, rrt_obj_.ending_chi_, direct_hit, landing);
-  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 15.0);
+  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
   res.success = true;
   return true;
 }
@@ -408,21 +344,7 @@ bool RosPathPlanner::landNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:
     return false;
   }
   if (has_map_ == false)
-  {
-    ROS_ERROR("PATH PLANNER HAS NO MAP.");
-    ROS_ERROR("Generating random map.");
-    mapper myWorld(rg_.UINT(), &input_file_);
-    myWorld_ = myWorld.map;
-    rrt_obj_.newMap(myWorld_);
-    has_map_ = true;
-    wp_distances_.clear();
-    cyl_distances_.clear();
-    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
-      wp_distances_.push_back(INFINITY);
-    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
-      cyl_distances_.push_back(INFINITY);
-    min_cyl_dis_ = INFINITY;
-  }
+    getInitialMap();
   std::fstream fin;
   fin.open("landing.txt", std::ifstream::in);
   if (!(fin.is_open()))
@@ -445,10 +367,6 @@ bool RosPathPlanner::landNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:
   descend_point.E = E;
   descend_point.D = D;
   rrt_obj_.map_.wps.push_back(descend_point);
-  descend_point.N = N;
-  descend_point.E = E;
-  descend_point.D = D;
-  rrt_obj_.map_.wps.push_back(descend_point);
   float landing_strip = 400.0;
   NED_s ned;
   ned.N = rrt_obj_.map_.wps.back().N + landing_strip*cosf(chi);
@@ -462,8 +380,8 @@ bool RosPathPlanner::landNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:
   myWorld_ = rrt_obj_.map_;
   plt.displayMap(myWorld_);
   rrt_obj_.solveStatic(pos, chi0_, direct_hit, landing);
-  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 15.0);
-  res.success = true;
+  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  res.success = sendWaypointsCore(true);
   return true;
 }
 bool RosPathPlanner::textfileNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
@@ -475,21 +393,7 @@ bool RosPathPlanner::textfileNow(std_srvs::Trigger::Request &req, std_srvs::Trig
     return false;
   }
   if (has_map_ == false)
-  {
-    ROS_ERROR("PATH PLANNER HAS NO MAP.");
-    ROS_ERROR("Generating random map.");
-    mapper myWorld(rg_.UINT(), &input_file_);
-    myWorld_ = myWorld.map;
-    rrt_obj_.newMap(myWorld_);
-    has_map_ = true;
-    wp_distances_.clear();
-    cyl_distances_.clear();
-    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
-      wp_distances_.push_back(INFINITY);
-    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
-      cyl_distances_.push_back(INFINITY);
-    min_cyl_dis_ = INFINITY;
-  }
+    getInitialMap();
   std::fstream fin;
   fin.open("path.txt", std::ifstream::in);
   if (!(fin.is_open()))
@@ -516,28 +420,14 @@ bool RosPathPlanner::textfileNow(std_srvs::Trigger::Request &req, std_srvs::Trig
   bool landing = false;
   plt.displayMap(myWorld_);
   rrt_obj_.solveStatic(pos, chi0_, direct_hit, landing);
-  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 15.0);
-  res.success = true;
+  plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  res.success = sendWaypointsCore(true);
   return true;
 }
 bool RosPathPlanner::displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
 {
   if (has_map_ == false)
-  {
-    ROS_ERROR("PATH PLANNER HAS NO MAP.");
-    ROS_ERROR("Generating random map.");
-    mapper myWorld(rg_.UINT(), &input_file_);
-    myWorld_ = myWorld.map;
-    rrt_obj_.newMap(myWorld_);
-    has_map_ = true;
-    wp_distances_.clear();
-    cyl_distances_.clear();
-    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
-      wp_distances_.push_back(INFINITY);
-    for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
-      cyl_distances_.push_back(INFINITY);
-    min_cyl_dis_ = INFINITY;
-  }
+    getInitialMap();
   plt.displayMap(myWorld_);
   res.success = true;
   return true;
@@ -560,7 +450,7 @@ bool RosPathPlanner::displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trig
   res.success = true;
   return true;
 }
-bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res)
+bool RosPathPlanner::sendWaypointsCore(bool now)
 {
   rosplane_msgs::NewWaypoints srv;
   rosplane_msgs::Waypoint new_waypoint;
@@ -573,10 +463,12 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
     new_waypoint.w[1] = rrt_obj_.all_wps_[i].E;
     new_waypoint.w[2] = rrt_obj_.all_wps_[i].D;
     nh_.param<float>("pp/Va", new_waypoint.Va_d, 20.0);
-
-    new_waypoint.loiter_point  = true;
-    new_waypoint.priority      = 5;
-    if (i == 0)
+    if (rrt_obj_.landing_now_ == false && i == rrt_obj_.all_wps_.size() - 1)
+      new_waypoint.loiter_point  = true;
+    else
+      new_waypoint.loiter_point  = false;
+    new_waypoint.priority = rrt_obj_.all_priorities_[i];
+    if (now == true && i == 0)
       new_waypoint.set_current = true;
     else
       new_waypoint.set_current = false;
@@ -587,6 +479,15 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
   {
     srv.request.waypoints.back().loiter_point = false;
     new_waypoint.set_current  = false;
+    NED_s in_front;
+    int last_idx = rrt_obj_.all_wps_.size() - 1;
+    in_front = rrt_obj_.all_wps_[last_idx] + \
+               ((rrt_obj_.all_wps_[last_idx] - rrt_obj_.all_wps_[last_idx - 1]).normalize())*0.1;
+    ROS_DEBUG("in_front N: %f, E: %f, D: %f", in_front.N, in_front.E, in_front.D);
+    new_waypoint.priority = 3;
+    new_waypoint.w[0] = in_front.N;
+    new_waypoint.w[1] = in_front.E;
+    new_waypoint.w[2] = in_front.D;
     srv.request.waypoints.push_back(new_waypoint);
   }
   bool found_service = ros::service::waitForService("/waypoint_path", ros::Duration(1.0));
@@ -600,8 +501,26 @@ bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs:
     ROS_INFO("Waypoints succesfully sent");
   else
     ROS_ERROR("Waypoint server unsuccessful");
-  res.success = sent_correctly;
+  return sent_correctly;
+}
+bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res)
+{
+  res.success = sendWaypointsCore(false);
   return true;
+}
+void RosPathPlanner::getInitialMap()
+{
+  mapper myWorld(rg_.UINT(), &input_file_);
+  myWorld_ = myWorld.map;
+  rrt_obj_.newMap(myWorld_);
+  has_map_ = true;
+  wp_distances_.clear();
+  cyl_distances_.clear();
+  for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
+    wp_distances_.push_back(INFINITY);
+  for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
+    cyl_distances_.push_back(INFINITY);
+  min_cyl_dis_ = INFINITY;
 }
 void RosPathPlanner::stateCallback(const rosplane_msgs::State &msg)
 {

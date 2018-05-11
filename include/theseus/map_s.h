@@ -62,6 +62,8 @@ struct NED_s
   {
     NED_s out;
     float magnitude = norm();
+    if (magnitude <= 1.0e-9f)
+      return out; // 0, 0, 0
     out.N = N/magnitude;
     out.E = E/magnitude;
     out.D = D/magnitude;

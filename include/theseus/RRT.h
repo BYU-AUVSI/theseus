@@ -31,6 +31,7 @@ public:
   void newSeed(unsigned int seed);
   bool checkPoint(NED_s point, float clearance);
   std::vector<NED_s> all_wps_;                // final path waypoints
+  std::vector<int> all_priorities_;
   map_s map_;
   bool landing_now_;
   NED_s ending_point_;
@@ -57,6 +58,7 @@ private:
   float redoRandomDownPoint(unsigned int i, float closest_D);
   bool checkWholePath(node* snode, std::vector<node*> rough_path, int ptr, int i);
   // Initialize and clear data functions
+  void setup();
   void initializeTree(NED_s pos, float chi0);
   void clearForNewPath();
   void clearForNewMap();
@@ -80,12 +82,16 @@ private:
   RandGen rg_;                    // Here is the random generator for the algorithm
   std::vector<node*> root_ptrs_;  // Vector of all roots, each element is the start of the tree to reach the next primary waypoint
   std::vector<node*> smooth_rts_; // Vector of all roots, each element is the start of the tree to reach the nect primary waypoint
-
+  int secondary_wps_indx_;        // index when secondary waypoints start.
 	float clearance_;               // The minimum clearance that the path will have away from any obstacles (can fluctuate up and down)
 	float path_clearance_;          // The minimum clearance that the path from waypoint i to i+1 will have. (only decreases until new waypoint is obtained)
 	bool taking_off_;               // If the plane is currently taking off, this option will allow the path planner to ignor the height restricitons.
   bool direct_hit_;               // when true the algorithm will hit primary waypoints dead on instead of filleting
   node* most_recent_node_;        // pointer to the most recently added node
+  int emergency_priority_;
+  int mission_priority_;
+  int landing_priority_;
+  int loitering_priority_;
 };
 }
 #endif
