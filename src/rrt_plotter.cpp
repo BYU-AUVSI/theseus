@@ -22,6 +22,7 @@ rrtPlotter::rrtPlotter() :
   odom_mkr_.lifetime           = ros::Duration();
   odom_mkr_.scale.x            = 15.0; // point width
   odom_mkr_.scale.y            = 15.0; // point width
+  increase_path_id_            = true;
 
 }
 rrtPlotter::~rrtPlotter()
@@ -242,7 +243,10 @@ void rrtPlotter::displayPath(std::vector<NED_s> path, NED_s color, float width)
   // Plot desired path
   planned_path_mkr.header.stamp = ros::Time::now();
   // ROS_DEBUG("path_id_ %i", path_id_);
-  planned_path_mkr.id         = path_id_++;
+  if (increase_path_id_)
+    planned_path_mkr.id         = path_id_++;
+  else
+    planned_path_mkr.id         = path_id_;
   std::vector<NED_s> vis_path;
   vis_path.push_back(path[0]);
   for (int i = 1; i < path.size() - 1; i++)
@@ -380,14 +384,20 @@ std::vector<std::vector<float > > rrtPlotter::arc(float N, float E, float r, flo
   NcEc.push_back(Ec);
   return NcEc;
 }
-
-
 void rrtPlotter::clearRViz(map_s map)
 {
   visualization_msgs::Marker clear_mkr;
   clear_mkr.action = visualization_msgs::Marker::DELETEALL;
   marker_pub_.publish(clear_mkr);
   displayMap(map);
+  path_id_ = 0;
+}
+void rrtPlotter::clearRViz(map_s map, std::vector<NED_s> path, NED_s color, float width)
+{
+  clearRViz(map);
+  path_id_ = 1;
+  if (path.size() > 0)
+    displayPath(path, color, width);
   path_id_ = 0;
 }
 void rrtPlotter::displayTree(node* root)
@@ -423,8 +433,4 @@ void rrtPlotter::addTreePath(node* root, node* nin)
     addTreePath(root, nin->parent);
   }
 }
-
-
-
-
 } // end namespace theseus

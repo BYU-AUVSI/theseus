@@ -22,6 +22,7 @@ public:
 	// Plane settings
   double Va;
 	double turn_radius;
+  double loiter_radius;
 	double max_climb_angle;
 	double max_descend_angle;
 

@@ -19,8 +19,8 @@ void RRT::setup()
 {
   emergency_priority_ = 5;
   mission_priority_   = 4;
-  landing_priority_   = 3;
-  loitering_priority_ = 4;
+  landing_priority_   = 4;
+  loitering_priority_ = 3;
   if(ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug))
   {
    ros::console::notifyLoggerLevelsChanged();
@@ -38,18 +38,12 @@ RRT::~RRT()
 }
 void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
-  emergency_priority_ = 5;
-  mission_priority_   = 4;
-  landing_priority_   = 3;
-  loitering_priority_ = 3;
-
-  float loiter_radius = 5.0f*input_file_.turn_radius; // TODO get this from a file
   bool last_wp_safe_to_loiter = true;
   secondary_wps_indx_ = map_.wps.size();
   if (landing == false)
   {
     NED_s final_wp;
-    final_wp = findLoiterSpot(map_.wps.back(), loiter_radius);
+    final_wp = findLoiterSpot(map_.wps.back(), input_file_.loiter_radius);
     if (final_wp != map_.wps.back())
     {
       last_wp_safe_to_loiter = false;
@@ -154,8 +148,6 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
   // plt.clearRViz(map_);
   // plt.displayPath(all_rough_paths, clr.blue, 10.0f);
   ROS_FATAL("FINISHED THE RRT ALGORITHM");
-  if (landing_now_ == false)
-    plt.drawCircle(all_wps_.back(), loiter_radius);
   // sleep(15.0);
 }
 

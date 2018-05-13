@@ -59,7 +59,11 @@ public:
   RandGen rg_;
   ParamReader input_file_;
 private:
+  NED_s ending_point_;
+  float ending_chi_;
   rrtPlotter plt;
+  std::vector<NED_s> all_sent_wps_;
+  std::vector<int> all_sent_priorities_;
   rrtColors clr;
   gps_struct gps_converter_;
   RRT rrt_obj_;

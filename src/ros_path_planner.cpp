@@ -30,7 +30,8 @@ RosPathPlanner::RosPathPlanner() :
 
   //******************** CLASS VARIABLES *******************//
   RandGen rg_in(input_file_.seed);
-	rg_                          = rg_in;												    // Copy that random generator into the class.
+	rg_                     = rg_in;												    // Copy that random generator into the class.
+  plt.increase_path_id_   = false;
 
   //***************** CALLBACKS AND TIMERS *****************//
   update_viz_timer_ = nh_.createWallTimer(ros::WallDuration(1.0/4.0), &RosPathPlanner::updateViz, this);
@@ -58,6 +59,13 @@ RosPathPlanner::RosPathPlanner() :
     odometry_[0]    = E_init;
     odometry_[2]    = -D_init;
     chi0_           = 0.0f;
+  }
+  if (recieved_state_)
+  {
+    ending_point_.N =  odometry_[1];
+    ending_point_.E =  odometry_[0];
+    ending_point_.D = -odometry_[2];
+    ending_chi_     = chi0_;
   }
 }
 RosPathPlanner::~RosPathPlanner()
@@ -175,6 +183,8 @@ bool RosPathPlanner::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs:
   plt.displayMap(myWorld_);
   rrt_obj_.solveStatic(pos, chi0_, true, landing);
   plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  if (rrt_obj_.landing_now_ == false)
+    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   return true;
 }
 bool RosPathPlanner::newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
@@ -210,6 +220,8 @@ bool RosPathPlanner::solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trig
   ROS_DEBUG("about to enter rrt object");
   rrt_obj_.solveStatic(pos, chi0_, direct_hit, landing);
   plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  if (rrt_obj_.landing_now_ == false)
+    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   res.success = true;
   return true;
 }
@@ -227,9 +239,11 @@ bool RosPathPlanner::addWps(std_srvs::Trigger::Request &req, std_srvs::Trigger::
   bool direct_hit = true;
   bool landing = false;
   NED_s pos;
-  pos = rrt_obj_.ending_point_;
-  rrt_obj_.solveStatic(pos, rrt_obj_.ending_chi_, direct_hit, landing);
+  pos = ending_point_;
+  rrt_obj_.solveStatic(pos, ending_chi_, direct_hit, landing);
   plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  if (rrt_obj_.landing_now_ == false)
+    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   res.success = true;
   return true;
 }
@@ -273,11 +287,13 @@ bool RosPathPlanner::addLanding(std_srvs::Trigger::Request &req, std_srvs::Trigg
   rrt_obj_.map_.wps.push_back(ned);
   myWorld_ = rrt_obj_.map_;
   plt.displayMap(myWorld_);
-  ROS_INFO("ENDING POINT N: %f, E: %f, D: %f, chi: %f", rrt_obj_.ending_point_.N, rrt_obj_.ending_point_.E, rrt_obj_.ending_point_.D, rrt_obj_.ending_chi_);
+  ROS_INFO("ENDING POINT N: %f, E: %f, D: %f, chi: %f", ending_point_.N, ending_point_.E, ending_point_.D, ending_chi_);
   NED_s pos;
-  pos = rrt_obj_.ending_point_;
-  rrt_obj_.solveStatic(pos, rrt_obj_.ending_chi_, direct_hit, landing);
+  pos = ending_point_;
+  rrt_obj_.solveStatic(pos, ending_chi_, direct_hit, landing);
   plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  if (rrt_obj_.landing_now_ == false)
+    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   res.success = true;
   return true;
 }
@@ -329,9 +345,11 @@ bool RosPathPlanner::addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trig
   bool landing = false;
   plt.displayMap(myWorld_);
   NED_s pos;
-  pos = rrt_obj_.ending_point_;
-  rrt_obj_.solveStatic(pos, rrt_obj_.ending_chi_, direct_hit, landing);
+  pos = ending_point_;
+  rrt_obj_.solveStatic(pos, ending_chi_, direct_hit, landing);
   plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  if (rrt_obj_.landing_now_ == false)
+    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   res.success = true;
   return true;
 }
@@ -381,6 +399,8 @@ bool RosPathPlanner::landNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:
   plt.displayMap(myWorld_);
   rrt_obj_.solveStatic(pos, chi0_, direct_hit, landing);
   plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  if (rrt_obj_.landing_now_ == false)
+    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   res.success = sendWaypointsCore(true);
   return true;
 }
@@ -421,6 +441,8 @@ bool RosPathPlanner::textfileNow(std_srvs::Trigger::Request &req, std_srvs::Trig
   plt.displayMap(myWorld_);
   rrt_obj_.solveStatic(pos, chi0_, direct_hit, landing);
   plt.displayPath(pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  if (rrt_obj_.landing_now_ == false)
+    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   res.success = sendWaypointsCore(true);
   return true;
 }
@@ -454,6 +476,7 @@ bool RosPathPlanner::sendWaypointsCore(bool now)
 {
   rosplane_msgs::NewWaypoints srv;
   rosplane_msgs::Waypoint new_waypoint;
+  NED_s in_front;
   for (long unsigned int i = 0; i < rrt_obj_.all_wps_.size(); i++)
   {
     new_waypoint.landing = false;
@@ -479,7 +502,6 @@ bool RosPathPlanner::sendWaypointsCore(bool now)
   {
     srv.request.waypoints.back().loiter_point = false;
     new_waypoint.set_current  = false;
-    NED_s in_front;
     int last_idx = rrt_obj_.all_wps_.size() - 1;
     in_front = rrt_obj_.all_wps_[last_idx] + \
                ((rrt_obj_.all_wps_[last_idx] - rrt_obj_.all_wps_[last_idx - 1]).normalize())*0.1;
@@ -501,6 +523,41 @@ bool RosPathPlanner::sendWaypointsCore(bool now)
     ROS_INFO("Waypoints succesfully sent");
   else
     ROS_ERROR("Waypoint server unsuccessful");
+
+  ending_point_ = rrt_obj_.ending_point_;
+  ending_chi_ = rrt_obj_.ending_chi_;
+
+  int priority_level = 0;
+  for (int i = 0; i < srv.request.waypoints.size(); i++)
+    if (srv.request.waypoints[i].priority > priority_level)
+      priority_level = srv.request.waypoints[i].priority;
+  for (int i = 0; i < all_sent_wps_.size(); i++)
+    if (all_sent_priorities_[i] < priority_level)
+    {
+      all_sent_wps_.erase(all_sent_wps_.begin() + i);
+      i--;
+    }
+  for (int i = 0; i < srv.request.waypoints.size(); i++)
+  {
+    if (all_sent_wps_.size() == 0)
+    {
+      NED_s currentpos;
+      currentpos.N =  odometry_[1];
+      currentpos.E =  odometry_[0];
+      currentpos.D = -odometry_[2];
+      all_sent_priorities_.push_back(5);
+      all_sent_wps_.push_back(currentpos);
+    }
+    NED_s next_wp;
+    next_wp.N = srv.request.waypoints[i].w[0];
+    next_wp.E = srv.request.waypoints[i].w[1];
+    next_wp.D = srv.request.waypoints[i].w[2];
+    all_sent_priorities_.push_back(srv.request.waypoints[i].priority);
+    all_sent_wps_.push_back(next_wp);
+  }
+  plt.clearRViz(myWorld_, all_sent_wps_, clr.purple, 5.0);
+  if (srv.request.waypoints.back().loiter_point == true)
+    plt.drawCircle(in_front, input_file_.loiter_radius);
   return sent_correctly;
 }
 bool RosPathPlanner::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res)

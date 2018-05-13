@@ -9,6 +9,8 @@ ParamReader::ParamReader() :
     ROS_WARN("No param named 'Va'");
   if (!(ros::param::get("pp/turn_radius",turn_radius)))
     ROS_WARN("No param named 'turn_radius'");
+  if (!(ros::param::get("pp/loiter_radius",loiter_radius)))
+    ROS_WARN("No param named 'loiter_radius'");
   if (!(ros::param::get("pp/max_climb_angle",max_climb_angle)))
     ROS_WARN("No param named 'max_climb_angle'");
   if (!(ros::param::get("pp/max_descend_angle",max_descend_angle)))

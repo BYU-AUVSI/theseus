@@ -20,12 +20,14 @@ struct rrtColors
   NED_s blue;
   NED_s green;
   NED_s orange;
+  NED_s purple;
   rrtColors()
   {
     gray.N = 0.5f;   gray.E = 0.5f;    gray.D = 0.5f;
     blue.N = 0.0f;   blue.E = 1.0f;    blue.D = 1.0f;
     green.N = 0.0f;  green.E = 1.0f;   green.D = 0.0f;
     orange.N = 1.0f; orange.E = 0.55f; orange.D = 0.0f;
+    purple.N = 0.5f; purple.E = 0.0f;  purple.D = 0.5f;
   }
 };
 class rrtPlotter
@@ -35,6 +37,7 @@ public:
   rrtPlotter();
 	~rrtPlotter();
 
+  bool increase_path_id_; // default true
   void displayMap(map_s map);
   void odomCallback(geometry_msgs::Point p);
   void displayPath(std::vector<node*> path, NED_s color, float width);
@@ -43,6 +46,7 @@ public:
   void displayPath(NED_s ps, std::vector<node*> path, NED_s color, float width);
   void drawCircle(NED_s cp, float r);
   void clearRViz(map_s map);
+  void clearRViz(map_s map, std::vector<NED_s> path, NED_s color, float width);
   void displayTree(node* root);
 
 private:
