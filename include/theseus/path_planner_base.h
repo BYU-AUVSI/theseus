@@ -1,5 +1,5 @@
-#ifndef ROS_PATH_PLANNER_H
-#define ROS_PATH_PLANNER_H
+#ifndef PATH_PLANNER_BASE_H
+#define PATH_PLANNER_BASE_H
 
 #include <vector>
 #include <math.h>
@@ -25,11 +25,11 @@
 
 namespace theseus
 {
-class RosPathPlanner
+class PathPlannerBase
 {
 public:
-  RosPathPlanner();
-  ~RosPathPlanner();
+  PathPlannerBase();
+  ~PathPlannerBase();
 private:
   //********************* NODE HANDLES *********************//
   ros::NodeHandle nh_;         // public node handle for publishing, subscribing
@@ -62,6 +62,7 @@ private:
   NED_s ending_point_;
   float ending_chi_;
   rrtPlotter plt;
+  std::vector<NED_s> last_primary_wps_;
   std::vector<NED_s> all_sent_wps_;
   std::vector<int> all_sent_priorities_;
   rrtColors clr;
@@ -82,8 +83,9 @@ private:
   bool sendWaypointsCore(bool now);
 
   //********************** FUNCTIONS ***********************//
+  bool solveStatic(bool landing, bool direct_hit, bool now, bool check_wps);
 public:
-  bool solveStatic(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool wpsNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool addWps(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool addLanding(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
@@ -95,9 +97,11 @@ public:
   bool displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
 private:
+  bool landing(bool now);
+  bool textfile(bool now);
   void getInitialMap();
 
 };// end class PathPlanner
 } // end namespace rosplane
 
-#endif // ROS_PATH_PLANNER_H
+#endif // PATH_PLANNER_BASE_H

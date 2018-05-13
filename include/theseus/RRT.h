@@ -36,6 +36,7 @@ public:
   bool landing_now_;
   NED_s ending_point_;
   float ending_chi_;
+  CollisionDetection col_det_;    // collision detecter
 private:
   ros::NodeHandle nh_;         // public node handle for publishing, subscribing
   ros::Publisher marker_pub_;
@@ -77,7 +78,6 @@ private:
 
   float segment_length_;          // If used, this is the distance the algorithm uses between each node
   ParamReader input_file_;        // address of the input file
-  CollisionDetection col_det_;    // collision detecter
   int num_paths_;                 // number of paths to be genererated before choosing the optimal path
   RandGen rg_;                    // Here is the random generator for the algorithm
   std::vector<node*> root_ptrs_;  // Vector of all roots, each element is the start of the tree to reach the next primary waypoint

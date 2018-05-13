@@ -139,7 +139,7 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/theseus_node.cpp)
 add_executable(theseus_path_planner
-               src/ros_path_planner.cpp
+               src/path_planner_base.cpp
                src/param_reader.cpp
                src/mapper.cpp
                src/rand_gen.cpp
