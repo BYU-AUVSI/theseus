@@ -53,19 +53,20 @@ PathPlannerBase::PathPlannerBase() :
     nh_.param<float>("testing/E_init", E_init, 0.0);
     nh_.param<float>("testing/D_init", D_init, 0.0);
     ROS_WARN("testing = true, initializing reference and initial position");
+    ROS_WARN("reference latitude: %f", lat_ref);
+    ROS_WARN("reference longitude: %f", lon_ref);
+    ROS_WARN("reference height: %f", h_ref);
     gps_converter_.set_reference(lat_ref, lon_ref, h_ref);
     recieved_state_ =  true;
-    odometry_[1]    =  N_init;
-    odometry_[0]    =  E_init;
-    odometry_[2]    = -D_init;
+    odometry_.N     = N_init;
+    odometry_.E     = E_init;
+    odometry_.D     = D_init;
     chi0_           =  0.0f;
   }
   if (recieved_state_)
   {
-    ending_point_.N =  odometry_[1];
-    ending_point_.E =  odometry_[0];
-    ending_point_.D = -odometry_[2];
-    ending_chi_     = chi0_;
+    ending_point_ = odometry_;
+    ending_chi_   = chi0_;
   }
 }
 PathPlannerBase::~PathPlannerBase()
@@ -79,7 +80,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     ROS_ERROR("PATH PLANNER HAS NOT RECIEVED AN INITIAL STATE");
     return false;
   }
-  bool check_wps = true;
+  bool check_wps = false;
   int num_waypoints  = req.mission.waypoints.size();
   int num_boundaries = req.mission.boundaries.size();
   int num_obstacles  = req.mission.stationary_obstacles.size();
@@ -95,6 +96,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     alt = req.mission.waypoints[i].point.altitude;
     gps_converter_.gps2ned(lat, lon, alt, ned.N, ned.E, ned.D);
     mission_map.wps.push_back(ned);
+    ROS_INFO("waypoints:: %f %f %f", ned.N, ned.E, ned.D);
   }
   for (int i = 0; i < num_boundaries; i++)
   {
@@ -103,6 +105,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     alt = req.mission.boundaries[i].point.altitude;
     gps_converter_.gps2ned(lat, lon, alt, ned.N, ned.E, ned.D);
     mission_map.boundary_pts.push_back(ned);
+    ROS_WARN("boundary points:: %f %f %f", ned.N, ned.E, ned.D);
   }
   for (int i = 0; i < num_obstacles; i++)
   {
@@ -113,12 +116,13 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     cyl.H = req.mission.stationary_obstacles[i].cylinder_radius;
     gps_converter_.gps2ned(lat, lon, alt, cyl.N, cyl.E, D);
     mission_map.cylinders.push_back(cyl);
+    ROS_FATAL("cylinder:: %f %f", cyl.N, cyl.E);
   }
   bool direct_hit;
   if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT)
   {
+    last_primary_wps_ = mission_map.wps;
     direct_hit = true;
-    check_wps  = false;
   }
   else
     direct_hit = false;
@@ -127,6 +131,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
   if (req.mission.mission_type == req.mission.MISSION_TYPE_LAND)
   {
     chi = req.mission.waypoints[0].point.chi;
+    ROS_INFO("chi: %f", chi);
     landing = true;
     num_waypoints++;
     float landing_strip = 400.0;
@@ -143,6 +148,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
   }
   if (req.mission.mission_type == req.mission.MISSION_TYPE_SEARCH)
   {
+    check_wps = true;
     rrt_obj_.newMap(mission_map);
     mission_map.wps.clear();
     for (int i = 0; i < num_waypoints; i++)
@@ -173,6 +179,18 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
       wp_distances_.push_back(INFINITY);
   }
   ROS_INFO("RECIEVED JUDGES' MAP");
+  plt.displayMap(myWorld_);
+  NED_s ref_zero(0.0f, 0.0f, 0.0f);
+  if (rrt_obj_.col_det_.checkWithinBoundaries(ref_zero, 0.0f) == false)
+  {
+    ROS_WARN("GPS reference point is not within the boundary points");
+
+    if ((myWorld_.boundary_pts[0] - ref_zero).norm() > 160934.0f)
+    {
+      ROS_FATAL("GPS REFERENCE POINT IS MORE THAN 100 MILES FROM FIRST BOUNDARY POINT");
+      return true;
+    }
+  }
   bool now = false; // this should be added to the options from the gui
   solveStatic(landing, direct_hit, now, check_wps);
   return true;
@@ -205,14 +223,13 @@ bool PathPlannerBase::solveStatic(bool landing, bool direct_hit, bool now, bool 
     }
     rrt_obj_.newMap(myWorld_);
   }
+
   float initial_chi;
   NED_s initial_pos;
   if (now)
   {
-    initial_chi   = chi0_;
-    initial_pos.N =  odometry_[1];
-    initial_pos.E =  odometry_[2];
-    initial_pos.D = -odometry_[2];
+    initial_chi = chi0_;
+    initial_pos = odometry_;
   }
   else
   {
@@ -273,11 +290,11 @@ bool PathPlannerBase::landing(bool now)
   bool landing = true;
   rrt_obj_.map_.wps.clear();
   rrt_obj_.map_.wps.push_back(descend_point);
-  if (rrt_obj_.col_det_.checkPoint(descend_point, input_file_.clearance) == false)
-  {
-    ROS_ERROR("Landing point violates boundary or obstacles. Choose another landing spot");
-    return false;
-  }
+  // if (rrt_obj_.col_det_.checkPoint(descend_point, input_file_.clearance) == false)
+  // {
+  //   ROS_ERROR("Landing point violates boundary or obstacles. Choose another landing spot");
+  //   return false;
+  // }
   float landing_strip = 400.0;
   NED_s ned;
   ned.N = rrt_obj_.map_.wps.back().N + landing_strip*cosf(chi);
@@ -430,12 +447,8 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
   {
     if (all_sent_wps_.size() == 0)
     {
-      NED_s currentpos;
-      currentpos.N =  odometry_[1];
-      currentpos.E =  odometry_[0];
-      currentpos.D = -odometry_[2];
       all_sent_priorities_.push_back(5);
-      all_sent_wps_.push_back(currentpos);
+      all_sent_wps_.push_back(odometry_);
     }
     NED_s next_wp;
     next_wp.N = srv.request.waypoints[i].w[0];
@@ -477,19 +490,15 @@ void PathPlannerBase::stateCallback(const rosplane_msgs::State &msg)
     ROS_INFO("REFERENCE POINT SET");
     recieved_state_ = true;
   }
-  odometry_[0] =  msg.position[1];
-  odometry_[1] =  msg.position[0];
-  odometry_[2] = -msg.position[2];
-  chi0_        =  msg.chi;
-  NED_s p;
-  p.N = msg.position[0];
-  p.E = msg.position[1];
-  p.D = msg.position[2];
+  odometry_.N = msg.position[0];
+  odometry_.E = msg.position[1];
+  odometry_.D = msg.position[2];
+  chi0_       =  msg.chi;
   if (has_map_)
   {
     for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
     {
-      float d = (p - rrt_obj_.map_.wps[i]).norm();
+      float d = (odometry_ - rrt_obj_.map_.wps[i]).norm();
       if (d < wp_distances_[i])
         wp_distances_[i] = d;
     }
@@ -499,18 +508,18 @@ void PathPlannerBase::stateCallback(const rosplane_msgs::State &msg)
       NED_s c;
       c.N = rrt_obj_.map_.cylinders[i].N;
       c.E = rrt_obj_.map_.cylinders[i].E;
-      c.D = p.D;
-      d = (p - c).norm() - rrt_obj_.map_.cylinders[i].R;
-      if (-p.D <= rrt_obj_.map_.cylinders[i].H)
+      c.D = odometry_.D;
+      d = (odometry_ - c).norm() - rrt_obj_.map_.cylinders[i].R;
+      if (-odometry_.D <= rrt_obj_.map_.cylinders[i].H)
       {
         if (d < 0.0f)
           d = 0.0f;
       }
       else if (d < 0.0f)
-        d = -p.D - rrt_obj_.map_.cylinders[i].H;
+        d = -odometry_.D - rrt_obj_.map_.cylinders[i].H;
       else
       {
-        float h = -p.D - rrt_obj_.map_.cylinders[i].H;
+        float h = -odometry_.D - rrt_obj_.map_.cylinders[i].H;
         d = sqrtf(d*d + h*h);
       }
       if (d < cyl_distances_[i])
@@ -523,9 +532,9 @@ void PathPlannerBase::stateCallback(const rosplane_msgs::State &msg)
 void PathPlannerBase::updateViz(const ros::WallTimerEvent&)
 {
   geometry_msgs::Point p;
-  p.x = odometry_[0];
-  p.y = odometry_[1];
-  p.z = odometry_[2];
+  p.x =  odometry_.E;
+  p.y =  odometry_.N;
+  p.z = -odometry_.D;
   plt.odomCallback(p);
 }
 } // end namespace rosplane

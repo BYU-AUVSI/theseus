@@ -68,7 +68,7 @@ private:
   rrtColors clr;
   gps_struct gps_converter_;
   RRT rrt_obj_;
-  float odometry_[3];
+  NED_s odometry_;
   float chi0_;
   bool recieved_state_;
   bool has_map_;

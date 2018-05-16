@@ -43,6 +43,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
   if (landing == false)
   {
     NED_s final_wp;
+      col_det_.taking_off_ = false;
     final_wp = findLoiterSpot(map_.wps.back(), input_file_.loiter_radius);
     if (final_wp != map_.wps.back())
     {
@@ -184,13 +185,22 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
           float chi1 = chi;
           float chi2 = (map_.wps.back() - map_.wps[map_.wps.size() - 2]).getChi() - M_PI;
           chi2 = chi2 - chi1;
-          while (chi2 < -2.0f*M_PI)
+          while (chi2 < -1.0f*M_PI)
             chi2 += 2.0f*M_PI;
-          while (chi2 > 2.0f*M_PI)
+          while (chi2 > 1.0f*M_PI)
             chi2 -= 2.0f*M_PI;
-          if (chi2 < 15.0f*M_PI/180.0 && chi2 > -15.0f*M_PI/180.0)
+          if (chi2 < 5.0f*M_PI/180.0 && chi2 > -5.0f*M_PI/180.0)
           {
             ROS_DEBUG("too close of chi1 and chi2");
+            return false;
+          }
+          fillet_s fil_e;
+          NED_s pad;
+          pad = (map_.wps[1] - map_.wps[0]).normalize()*input_file_.turn_radius*2.0f;
+          bool passed_final_fillet = fil_e.calculate(start_of_line->p, map_.wps[0], pad, input_file_.turn_radius);
+          if (passed_final_fillet == false)
+          {
+            ROS_FATAL("Failed final fillet 1");
             return false;
           }
         }
@@ -236,14 +246,24 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
           {
             float chi1 = chi;
             float chi2 = (map_.wps.back() - map_.wps[map_.wps.size() - 2]).getChi() - M_PI;
+            ROS_WARN("Chi1 %f Chi2 %f", chi1, chi2);
             chi2 = chi2 - chi1;
-            while (chi2 < -2.0f*M_PI)
+            while (chi2 < -1.0f*M_PI)
               chi2 += 2.0f*M_PI;
-            while (chi2 > 2.0f*M_PI)
+            while (chi2 > 1.0f*M_PI)
               chi2 -= 2.0f*M_PI;
-            if (chi2 < 15.0f*M_PI/180.0 && chi2 > -15.0f*M_PI/180.0)
+            if (chi2 < 5.0f*M_PI/180.0 && chi2 > -5.0f*M_PI/180.0)
             {
               ROS_DEBUG("too close of chi1 and chi2, number 2");
+              return false;
+            }
+            fillet_s fil_e;
+            NED_s pad;
+            pad = (map_.wps[1] - map_.wps[0]).normalize()*input_file_.turn_radius*2.0f;
+            bool passed_final_fillet = fil_e.calculate(start_of_line->p, map_.wps[0], pad, input_file_.turn_radius);
+            if (passed_final_fillet == false)
+            {
+              ROS_FATAL("Failed final fillet 2");
               return false;
             }
           }

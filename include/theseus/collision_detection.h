@@ -21,6 +21,7 @@ namespace theseus
     bool checkFillet(NED_s w_im1, NED_s  w_i, NED_s w_ip1, float R, float clearance);
     bool checkFillet(fillet_s fil, float clearance);
     bool checkPoint(NED_s point, float clearance);
+    bool checkWithinBoundaries(NED_s point, float clearance);
     bool checkLine(NED_s point_s, NED_s point_e, float clearance);
     bool checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lambda, float clearance);
     bool checkAfterWP(NED_s p, float chi, float clearance);

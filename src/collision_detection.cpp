@@ -36,11 +36,11 @@ bool CollisionDetection::checkFillet(fillet_s fil, float clearance)
   float chi1 = (fil.w_i - fil.w_im1).getChi();
   float chi2 = (fil.w_ip1 - fil.w_i).getChi() - M_PI;
   chi2 = chi2 - chi1;
-  while (chi2 < -2.0f*M_PI)
+  while (chi2 < -1.0f*M_PI)
     chi2 += 2.0f*M_PI;
-  while (chi2 > 2.0f*M_PI)
+  while (chi2 > 1.0f*M_PI)
     chi2 -= 2.0f*M_PI;
-  if (chi2 < 15.0f*M_PI/180.0 && chi2 > -15.0f*M_PI/180.0)
+  if (chi2 < 5.0f*M_PI/180.0 && chi2 > -5.0f*M_PI/180.0)
   {
     ROS_DEBUG("line exit 23");
     return false;
@@ -53,59 +53,64 @@ bool CollisionDetection::checkFillet(fillet_s fil, float clearance)
 }
 bool CollisionDetection::checkPoint(NED_s point, float clearance)
 {
-  float radius = clearance;
-  // This is a more simple version of the collision****() that just checks if the point point is at least radius away from any obstacle.
-	// First, Check Within the Boundaries
-	bool withinBoundaries;
-	// Look at the Point in Polygon Algorithm
-	// Focus on rays South.
-	int crossed_lines = 0;							// This is a counter of the number of lines that the point is NORTH of.
-	float bt, Ei, Ni, de1, de2, shortest_distance;
-	for (unsigned int i = 0; i < nBPts_; i++)
-	{
-		// Find out if the line is either North or South of the line
-		if (point.E >= lineMinMax_[i][2] && point.E < lineMinMax_[i][3]) // Only one equal sign solves both the above/ below a vertice problem and the vertical line problem
-		{
-			if (point.N > line_Mandb_[i][0] * point.E + line_Mandb_[i][1])
-				crossed_lines++;
-			else if (point.N == line_Mandb_[i][0] * point.E + line_Mandb_[i][1])	// On the rare chance that the point is ON the line
-				return false;
-		}
-		// Check to see if it is too close to the boundary lines
-		if (point.E >= lineMinMax_[i][2] - radius && point.E < lineMinMax_[i][3] + radius && point.N >= lineMinMax_[i][0] - radius && point.N < lineMinMax_[i][1] + radius)
-		{
-			bt = point.N - line_Mandb_[i][2] * point.E;
-			Ei = (bt - line_Mandb_[i][1]) / line_Mandb_[i][3];
-			Ni = line_Mandb_[i][2] * Ei + bt;
-			// 3 cases first point, second point, or on the line.
-			// If the intersection is on the line, dl is the shortest distance
-			// Otherwise it is one of the endpoints.
-			if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
-				shortest_distance = sqrtf(powf(Ni - point.N, 2.0f) + powf(Ei - point.E, 2.0f));
-			else
-			{
-				de1 = sqrtf(powf(map_.boundary_pts[i].N - point.N, 2.0f) + powf(map_.boundary_pts[i].E - point.E, 2.0f));
-				de2 = sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - point.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - point.E, 2.0f));
-				shortest_distance = std::min(de1, de2);
-			}
-			if (shortest_distance < radius)
-				return false;
-		}
-	}
-	withinBoundaries = crossed_lines % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
-	if (withinBoundaries == false)
-		return false;
-	// Check to see if the point is within the right fly altitudes
-	if (taking_off_ == false && landing_now_ == false)
-		if (-point.D < minFlyHeight_ + radius || -point.D > maxFlyHeight_ - radius)
-			return false;
-
+  if (checkWithinBoundaries(point, clearance) == false)
+    return false;
+  // Check to see if the point is within the right fly altitudes
+  if (taking_off_ == false && landing_now_ == false)
+    if (-point.D < minFlyHeight_ + clearance || -point.D > maxFlyHeight_ - clearance)
+      return false;
 	// Second, Check for Cylinders
 	// Check if the point falls into the volume of the cylinder
 	for (unsigned int i = 0; i < map_.cylinders.size(); i++)
-		if (sqrtf(powf(point.N - map_.cylinders[i].N, 2.0f) + powf(point.E - map_.cylinders[i].E, 2.0f)) < map_.cylinders[i].R + radius && -point.D - radius < map_.cylinders[i].H)
+		if (sqrtf(powf(point.N - map_.cylinders[i].N, 2.0f) + powf(point.E - map_.cylinders[i].E, 2.0f)) < map_.cylinders[i].R + clearance && -point.D - clearance < map_.cylinders[i].H)
 			return false;
 	return true; // The coordinate is in the safe zone if it got to here!
+}
+bool CollisionDetection::checkWithinBoundaries(NED_s point, float clearance)
+{
+  float radius = clearance;
+  // This is a more simple version of the collision****() that just checks if the point point is at least radius away from any obstacle.
+  // First, Check Within the Boundaries
+  bool withinBoundaries;
+  // Look at the Point in Polygon Algorithm
+  // Focus on rays South.
+  int crossed_lines = 0;							// This is a counter of the number of lines that the point is NORTH of.
+  float bt, Ei, Ni, de1, de2, shortest_distance;
+  for (unsigned int i = 0; i < nBPts_; i++)
+  {
+    // Find out if the line is either North or South of the line
+    if (point.E >= lineMinMax_[i][2] && point.E < lineMinMax_[i][3]) // Only one equal sign solves both the above/ below a vertice problem and the vertical line problem
+    {
+      if (point.N > line_Mandb_[i][0] * point.E + line_Mandb_[i][1])
+        crossed_lines++;
+      else if (point.N == line_Mandb_[i][0] * point.E + line_Mandb_[i][1])	// On the rare chance that the point is ON the line
+        return false;
+    }
+    // Check to see if it is too close to the boundary lines
+    if (point.E >= lineMinMax_[i][2] - radius && point.E < lineMinMax_[i][3] + radius && point.N >= lineMinMax_[i][0] - radius && point.N < lineMinMax_[i][1] + radius)
+    {
+      bt = point.N - line_Mandb_[i][2] * point.E;
+      Ei = (bt - line_Mandb_[i][1]) / line_Mandb_[i][3];
+      Ni = line_Mandb_[i][2] * Ei + bt;
+      // 3 cases first point, second point, or on the line.
+      // If the intersection is on the line, dl is the shortest distance
+      // Otherwise it is one of the endpoints.
+      if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1] && Ei > lineMinMax_[i][2] && Ei < lineMinMax_[i][3])
+        shortest_distance = sqrtf(powf(Ni - point.N, 2.0f) + powf(Ei - point.E, 2.0f));
+      else
+      {
+        de1 = sqrtf(powf(map_.boundary_pts[i].N - point.N, 2.0f) + powf(map_.boundary_pts[i].E - point.E, 2.0f));
+        de2 = sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - point.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - point.E, 2.0f));
+        shortest_distance = std::min(de1, de2);
+      }
+      if (shortest_distance < radius)
+        return false;
+    }
+  }
+  withinBoundaries = crossed_lines % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
+  if (withinBoundaries == false)
+    return false;
+  return true;
 }
 bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 {
