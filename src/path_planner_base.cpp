@@ -191,7 +191,9 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
       return true;
     }
   }
-  bool now = false; // this should be added to the options from the gui
+  
+  bool now = req.mission.now; // Whether to immediately send the planned path to the plane.
+
   solveStatic(landing, direct_hit, now, check_wps);
   return true;
 }
