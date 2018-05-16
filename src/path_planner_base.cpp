@@ -173,7 +173,9 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
       wp_distances_.push_back(INFINITY);
   }
   ROS_INFO("RECIEVED JUDGES' MAP");
-  bool now = false; // this should be added to the options from the gui
+
+  bool now = req.mission.now; // Whether to immediately send the planned path to the plane.
+
   solveStatic(landing, direct_hit, now, check_wps);
   return true;
 }
