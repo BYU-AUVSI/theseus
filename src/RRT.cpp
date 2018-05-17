@@ -56,14 +56,14 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
 
   direct_hit_      = direct_hit;
   path_clearance_  = input_file_.clearance;
-  ROS_DEBUG("Starting RRT solver");
+  ROS_INFO("Starting RRT solver");
   clearForNewPath();
 	initializeTree(pos, chi0);
   all_rough_paths.push_back(root_ptrs_[0]->p);
   taking_off_ = (-pos.D < input_file_.minFlyHeight);
   col_det_.taking_off_ = taking_off_;
-  if (taking_off_) {ROS_DEBUG("taking_off_ on initial set is true");}
-  else {ROS_DEBUG("taking_off_ on initial set is false");}
+  // if (taking_off_) {ROS_DEBUG("taking_off_ on initial set is true");}
+  // else {ROS_DEBUG("taking_off_ on initial set is false");}
   printRRTSetup(pos, chi0);
   if (root_ptrs_[0]->dontConnect)
     createFan(root_ptrs_[0],root_ptrs_[0]->p, chi0, path_clearance_);
@@ -75,7 +75,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
     col_det_.landing_now_ = landing_now_;
     if (i > 0 && taking_off_ == false && direct_hit_ == true)
       createFan(root_ptrs_[i],root_ptrs_[i]->p, (root_ptrs_[i]->p - root_ptrs_[i]->parent->p).getChi(), path_clearance_);
-    ROS_DEBUG("Finding route to waypoint %lu", i + (long unsigned int) 1);
+    ROS_INFO("Finding route to waypoint %lu", i + (long unsigned int) 1);
     path_clearance_        = input_file_.clearance;
     bool direct_connection = tryDirectConnect(root_ptrs_[i], root_ptrs_[i + 1], i);
     ROS_INFO("trying to connect to N %f, E %f, D %f", root_ptrs_[i + 1]->p.N, root_ptrs_[i + 1]->p.E, root_ptrs_[i + 1]->p.D);
@@ -83,12 +83,12 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
     {
       int num_found_paths = 0;
       long unsigned int added_nodes = 0;
-      ROS_DEBUG("Developing the tree");
+      ROS_INFO("Developing the tree");
       while (num_found_paths < num_paths_)
       {
         num_found_paths += developTree(i);
         added_nodes++;
-        ROS_DEBUG("number of nodes %lu, %lu", added_nodes, iters_left);
+        ROS_INFO("number of nodes %lu, %lu", added_nodes, iters_left);
         if ((float) added_nodes > iters_left/2.0f)
         {
           ROS_WARN("decreasing the clearance level");
@@ -110,7 +110,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
     {
       taking_off_ = false;
       col_det_.taking_off_ = false;
-      ROS_DEBUG("taking off is false");
+      ROS_INFO("taking off is false");
     }
     for (int it = 1; it < rough_path.size(); it++)
       all_rough_paths.push_back(rough_path[it]->p);
@@ -131,10 +131,10 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
   {
     for (int j = 1; j < map_.wps.size(); j++)
     {
-      ROS_DEBUG("pushing back another waypoint");
+      // ROS_DEBUG("pushing back another waypoint");
       all_wps_.push_back(map_.wps[j]);
       all_priorities_.push_back(landing_priority_);
-      ROS_DEBUG("N: %f, E: %f, D: %f", all_wps_.back().N, all_wps_.back().E, all_wps_.back().D);
+      // ROS_DEBUG("N: %f, E: %f, D: %f", all_wps_.back().N, all_wps_.back().E, all_wps_.back().D);
       all_rough_paths.push_back(map_.wps[j]);
     }
     ending_point_ = all_wps_.back();
@@ -148,36 +148,39 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
 
   // plt.clearRViz(map_);
   // plt.displayPath(all_rough_paths, clr.blue, 10.0f);
-  ROS_FATAL("FINISHED THE RRT ALGORITHM");
+  ROS_INFO("FINISHED THE RRT ALGORITHM");
   // sleep(15.0);
 }
 
 
 bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
 {
-  ROS_FATAL("Attempting direct connect");
+  // ROS_DEBUG("Attempting direct connect");
   float clearance = path_clearance_;
   node* start_of_line;
   if (ps->dontConnect) // then try one of the grand children
   {
-    ROS_DEBUG("finding the grand child that is closes");
+    // ROS_DEBUG("finding the grand child that is closes");
     start_of_line = findClosestNodeGChild(ps, pe_node->p);
   }
   else
   {
-    ROS_DEBUG("using ps");
+    // ROS_DEBUG("using ps");
     start_of_line = ps;
   }
-  ROS_DEBUG("checking the line");
+  // ROS_DEBUG("checking the line");
   if (col_det_.checkLine(start_of_line->p, pe_node->p, clearance))
   {
-    ROS_DEBUG("line passed");
+    // ROS_DEBUG("line passed");
     if (start_of_line->parent == NULL) // then this is the start
     {
-      ROS_DEBUG("parent is null");
+      // ROS_DEBUG("parent is null");
       float chi = (pe_node->p - start_of_line->p).getChi();
-      ROS_DEBUG("checking after the waypoint");
-      if (col_det_.checkAfterWP(pe_node->p, chi, clearance))
+      // ROS_DEBUG("checking after the waypoint");
+      bool after_wp_check = true;
+      if (direct_hit_)
+        after_wp_check = col_det_.checkAfterWP(pe_node->p, chi, clearance);
+      if (after_wp_check)
       {
         if (landing_now_)
         {
@@ -191,7 +194,7 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
             chi2 -= 2.0f*M_PI;
           if (chi2 < 5.0f*M_PI/180.0 && chi2 > -5.0f*M_PI/180.0)
           {
-            ROS_DEBUG("too close of chi1 and chi2");
+            // ROS_DEBUG("too close of chi1 and chi2");
             return false;
           }
           fillet_s fil_e;
@@ -200,11 +203,11 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
           bool passed_final_fillet = fil_e.calculate(start_of_line->p, map_.wps[0], pad, input_file_.turn_radius);
           if (passed_final_fillet == false)
           {
-            ROS_FATAL("Failed final fillet 1");
+            // ROS_FATAL("Failed final fillet 1");
             return false;
           }
         }
-        ROS_DEBUG("direct connection success 1");
+        // ROS_DEBUG("direct connection success 1");
         start_of_line->cost        = start_of_line->cost + (pe_node->p - start_of_line->p).norm();
         start_of_line->connects2wp = true;
         start_of_line->children.push_back(pe_node);
@@ -215,7 +218,7 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
     else
     {
       fillet_s fil;
-      ROS_DEBUG("calculating fillet");
+      // ROS_DEBUG("calculating fillet");
       bool fil_possible = fil.calculate(start_of_line->parent->p, start_of_line->p, pe_node->p, input_file_.turn_radius);
       fillet_s temp_fil = fil;
       float slope = atan2f(-1.0f*(fil.z1.D - start_of_line->fil.z2.D), sqrtf(powf(start_of_line->fil.z2.N - \
@@ -227,26 +230,29 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
       if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
         return false;
       temp_fil.w_im1 = fil.z1;
-      ROS_DEBUG("cheking fillet");
+      // ROS_DEBUG("cheking fillet");
       if (fil_possible && col_det_.checkFillet(temp_fil, clearance))
       {
-        ROS_DEBUG("fillet checked out, now trying neighboring fillets");
+        // ROS_DEBUG("fillet checked out, now trying neighboring fillets");
         if (start_of_line->parent != NULL && start_of_line->fil.roomFor(fil) == false)
         {
           //printNode(start_of_line);
-          ROS_DEBUG("failed direct connection because of neighboring fillets");
+          // ROS_DEBUG("failed direct connection because of neighboring fillets");
           return false;
         }
         float chi = (pe_node->p - start_of_line->p).getChi();
-        ROS_DEBUG("checking after the waypoint");
-        if (col_det_.checkAfterWP(pe_node->p, chi, clearance))
+        // ROS_DEBUG("checking after the waypoint");
+        bool after_wp_check = true;
+        if (direct_hit_)
+          after_wp_check = col_det_.checkAfterWP(pe_node->p, chi, clearance);
+        if (after_wp_check)
         {
           // check to see if the change in chi is okay
           if (landing_now_)
           {
             float chi1 = chi;
             float chi2 = (map_.wps.back() - map_.wps[map_.wps.size() - 2]).getChi() - M_PI;
-            ROS_WARN("Chi1 %f Chi2 %f", chi1, chi2);
+            // ROS_DEBUG("Chi1 %f Chi2 %f", chi1, chi2);
             chi2 = chi2 - chi1;
             while (chi2 < -1.0f*M_PI)
               chi2 += 2.0f*M_PI;
@@ -254,7 +260,7 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
               chi2 -= 2.0f*M_PI;
             if (chi2 < 5.0f*M_PI/180.0 && chi2 > -5.0f*M_PI/180.0)
             {
-              ROS_DEBUG("too close of chi1 and chi2, number 2");
+              // ROS_DEBUG("too close of chi1 and chi2, number 2");
               return false;
             }
             fillet_s fil_e;
@@ -263,11 +269,11 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
             bool passed_final_fillet = fil_e.calculate(start_of_line->p, map_.wps[0], pad, input_file_.turn_radius);
             if (passed_final_fillet == false)
             {
-              ROS_FATAL("Failed final fillet 2");
+              // ROS_DEBUG("Failed final fillet 2");
               return false;
             }
           }
-          ROS_DEBUG("direct connection success 2");
+          // ROS_DEBUG("direct connection success 2");
           start_of_line->cost        = start_of_line->cost + (pe_node->p - start_of_line->p).norm() - fil.adj;
           start_of_line->connects2wp = true;
           start_of_line->children.push_back(pe_node);
@@ -277,12 +283,12 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
       }
     }
   }
-  ROS_DEBUG("direct connection failed");
+  // ROS_DEBUG("direct connection failed");
   return false;
 }
 int RRT::developTree(unsigned int i)
 {
-  ROS_DEBUG("looking for next node");
+  // ROS_DEBUG("looking for next node");
   bool added_new_node = false;
   float clearance = path_clearance_;
   while (added_new_node == false)
@@ -304,7 +310,7 @@ int RRT::developTree(unsigned int i)
     // plt.displayPath(temp_path, clr.orange, 8.0f);
 
   }
-  ROS_DEBUG("found a new node");
+  // ROS_DEBUG("found a new node");
   // std::vector<NED_s> temp_path;
   // if (most_recent_node_->parent->parent != NULL)
   //   temp_path.push_back(most_recent_node_->parent->fil.z2);
@@ -313,7 +319,7 @@ int RRT::developTree(unsigned int i)
   // displayPath(temp_path, clr.gray, 8.0f);
 
 
-  ROS_DEBUG("trying direct connect for the new node");
+  // ROS_DEBUG("trying direct connect for the new node");
   bool connect_to_end = tryDirectConnect(most_recent_node_, root_ptrs_[i + 1], i);
   if (connect_to_end == true)
     return 1;
@@ -345,13 +351,13 @@ std::vector<node*> RRT::findMinimumPath(unsigned int i)
   // printNode(root_ptrs_[i]);
 	while (current_node != root_ptrs_[i])
   {
-    ROS_DEBUG("pushing parent");
+    // ROS_DEBUG("pushing parent");
 		// printNode(current_node);
     wpstack.push(current_node);
 		current_node = current_node->parent;
 	}
   rough_path.push_back(root_ptrs_[i]);
-  ROS_DEBUG("about to empty the stack");
+  // ROS_DEBUG("about to empty the stack");
 	while (!wpstack.empty())
 	{
     //ROS_DEBUG("pushing to rough_path");
@@ -445,7 +451,25 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     }
     new_path.push_back(smooth_rts_[i + 1]);
     // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
-    // TODO see if it is possible to smooth the fan
+    for (int j = 0; j < new_path.size(); j++)
+    {
+      ROS_DEBUG("new_path %i N: %f E: %f D: %f", j, new_path[j]->p.N, new_path[j]->p.E, new_path[j]->p.D);
+    }
+    // smooth the fan
+    // if possible move the second waypoint and delete the third.
+
+    NED_s coming_from;
+    coming_from = new_path[0]->p + (new_path[0]->p - new_path[1]->p);
+    if (checkDirectFan(coming_from, new_path[0], new_path[3]))
+    {
+      ROS_WARN("SMOOTHING THE FAN IS POSSIBLE");
+      new_path[1] = most_recent_node_;
+      new_path.erase(new_path.begin() + 2);
+      for (int j = 0; j < new_path.size(); j++)
+      {
+        ROS_DEBUG("new_path %i N: %f E: %f D: %f", j, new_path[j]->p.N, new_path[j]->p.E, new_path[j]->p.D);
+      }
+    }
   }
   else
   {
@@ -779,7 +803,7 @@ NED_s RRT::findLoiterSpot(NED_s cp, float radius)
 void RRT::createFan(node* root, NED_s p, float chi, float clearance)
 {
   ROS_DEBUG("Creating Fan");
-  printNode(root);
+  // printNode(root);
   bool found_at_least_1_good_path = false;
   // Make sure that it is possible to go to the next waypoint
 
@@ -914,7 +938,141 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         // plt.displayPath(temp_path, clr.gray, 8.0f);
       }
   }
-  ROS_DEBUG("Created the fan");
+  // ROS_DEBUG("Created the fan");
+}
+bool RRT::checkDirectFan(NED_s coming_from, node* root, node* next_node)
+{
+  NED_s primary_wp, second_wp;
+  primary_wp = root->p;
+  second_wp = next_node->p;
+	float R = sqrtf(powf(second_wp.N - primary_wp.N,2) + powf(second_wp.E - primary_wp.E,2)\
+                + powf(second_wp.D - primary_wp.D,2));
+
+	float approach_angle = atan2f(primary_wp.N - coming_from.N, primary_wp.E - coming_from.E) + M_PI;
+	float beta, lambda, Q, phi, theta, zeta, gamma, d;
+	NED_s cpa, cea, lea, fake_wp;
+
+	// What should alpha be?
+	float leave_angle = atan2(second_wp.N - primary_wp.N, second_wp.E - primary_wp.E);
+	float alpha = atan2(second_wp.N - primary_wp.N, second_wp.E - primary_wp.E) - approach_angle;
+	while (alpha < -M_PI)
+		alpha = alpha + 2.0f*M_PI;
+	while (alpha > M_PI)
+		alpha = alpha - 2.0f*M_PI;
+
+	bool positive_angle = true;
+	if (alpha < 0.0f)
+	{
+		positive_angle = false;
+		alpha = -1.0f*alpha;
+	}
+	if (2.0f*input_file_.turn_radius/R > 1.0f || 2.0f*input_file_.turn_radius/R < -1.0f)
+		return false;
+	float minAngle = asinf(2.0f*input_file_.turn_radius/R) + 8.0f*M_PI/180.0f;
+	if (alpha < minAngle || (alpha > M_PI- minAngle && alpha < M_PI + minAngle))
+		return false;
+
+	beta = M_PI / 2.0f - alpha;
+	lambda = M_PI - 2.0f*beta;
+	Q = sqrtf(R*(R-input_file_.turn_radius*sinf(lambda)/sinf(beta))+input_file_.turn_radius*input_file_.turn_radius);
+	phi = M_PI - asinf(R*sinf(beta)/Q);
+	theta = acosf(input_file_.turn_radius/Q);
+	zeta = (2 * M_PI - phi - theta)/2.0f;
+	gamma = M_PI - 2.0f*zeta;
+	d = input_file_.turn_radius/tanf(gamma/2.0f);
+
+	fake_wp.N = primary_wp.N - d*sinf(approach_angle);
+	fake_wp.E = primary_wp.E - d*cosf(approach_angle);
+	fake_wp.D = primary_wp.D;
+
+	// What should it be on the positive or on the negative side?
+	if (positive_angle)
+	{
+		// Check the positive side
+		cpa.N = primary_wp.N + input_file_.turn_radius*cosf(approach_angle);
+		cpa.E = primary_wp.E - input_file_.turn_radius*sinf(approach_angle);
+		cpa.D = primary_wp.D;
+
+		cea.N = fake_wp.N + d*sinf(gamma + approach_angle);
+		cea.E = fake_wp.E + d*cosf(gamma + approach_angle);
+		cea.D = primary_wp.D;
+
+		lea.N = primary_wp.N + R*sinf(approach_angle + alpha);
+		lea.E = primary_wp.E + R*cosf(approach_angle + alpha);
+		lea.D = primary_wp.D;
+    if (col_det_.checkArc(primary_wp, cea, input_file_.turn_radius, cpa, -1, path_clearance_))
+      if (col_det_.checkLine(cea, lea, path_clearance_))
+			{
+				// Looks like things are going to work out for this maneuver!
+        fillet_s fil1, fil2;
+        bool passed1, passed2;
+        if (root->parent == NULL)
+        {
+          NED_s fake_parent;
+          fake_parent = coming_from;
+          passed1 = fil1.calculate(fake_parent, primary_wp, fake_wp, input_file_.turn_radius);
+        }
+        else
+          passed1 = fil1.calculate(root->parent->p, primary_wp, fake_wp, input_file_.turn_radius);
+        passed2 = fil2.calculate(primary_wp, fake_wp, lea, input_file_.turn_radius);
+        node *fake_child        = new node;
+        fake_child->p           = fake_wp;
+        fake_child->fil         = fil1;
+        fake_child->parent      = root;
+        fake_child->cost        = (fake_wp - primary_wp).norm();
+        fake_child->dontConnect = false;
+        fake_child->connects2wp = false;
+        root->children.push_back(fake_child);
+        next_node->fil          = fil2;
+        // normal_gchild->cost        = normal_gchild->parent->cost + (lea - fake_wp).norm() - fil2.adj;
+        most_recent_node_       = fake_child;
+        return true;
+			}
+	}
+	else // Check the negative side
+	{
+		cpa.N = primary_wp.N - input_file_.turn_radius*cosf(approach_angle);
+		cpa.E = primary_wp.E + input_file_.turn_radius*sinf(approach_angle);
+		cpa.D = primary_wp.D;
+
+		cea.N = fake_wp.N + d*sinf(-gamma + approach_angle);
+		cea.E = fake_wp.E + d*cosf(-gamma + approach_angle);
+		cea.D = primary_wp.D;
+
+		lea.N = primary_wp.N + R*sinf(approach_angle - alpha);
+		lea.E = primary_wp.E + R*cosf(approach_angle - alpha);
+		lea.D = primary_wp.D;
+
+    if (col_det_.checkArc(primary_wp, cea, input_file_.turn_radius, cpa, 1, path_clearance_))
+      if (col_det_.checkLine(cea, lea, path_clearance_))
+			{
+        // Looks like things are going to work out for this maneuver!
+        fillet_s fil1, fil2;
+        bool passed1, passed2;
+        if (root->parent == NULL)
+        {
+          NED_s fake_parent;
+          fake_parent = coming_from;
+          passed1 = fil1.calculate(fake_parent, primary_wp, fake_wp, input_file_.turn_radius);
+        }
+        else
+          passed1 = fil1.calculate(root->parent->p, primary_wp, fake_wp, input_file_.turn_radius);
+        passed2 = fil2.calculate(primary_wp, fake_wp, lea, input_file_.turn_radius);
+        node *fake_child        = new node;
+        fake_child->p           = fake_wp;
+        fake_child->fil         = fil1;
+        fake_child->parent      = root;
+        fake_child->cost        = (fake_wp - primary_wp).norm();
+        fake_child->dontConnect = false;
+        fake_child->connects2wp = false;
+        root->children.push_back(fake_child);
+        next_node->fil          = fil2;
+        // normal_gchild->cost        = normal_gchild->parent->cost + (lea - fake_wp).norm() - fil2.adj;
+        most_recent_node_       = fake_child;
+        return true;
+			}
+	}
+  return false;
 }
 // Initializing and Clearing Data
 void RRT::initializeTree(NED_s pos, float chi0)
@@ -935,9 +1093,9 @@ void RRT::initializeTree(NED_s pos, float chi0)
 	root_in0->cost        = 0.0f;            // 0 distance.
   root_in0->dontConnect = fan_first_node;
   root_in0->connects2wp = false;
-  ROS_DEBUG("about to set smoother");
+  // ROS_DEBUG("about to set smoother");
   root_in0_smooth->equal(root_in0);
-  ROS_DEBUG("set smooth_rts");
+  // ROS_DEBUG("set smooth_rts");
 	root_ptrs_.push_back(root_in0);
   smooth_rts_.push_back(root_in0_smooth);
   int num_root = 0;

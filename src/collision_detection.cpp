@@ -42,7 +42,7 @@ bool CollisionDetection::checkFillet(fillet_s fil, float clearance)
     chi2 -= 2.0f*M_PI;
   if (chi2 < 5.0f*M_PI/180.0 && chi2 > -5.0f*M_PI/180.0)
   {
-    ROS_DEBUG("line exit 23");
+    // ROS_DEBUG("line exit 23");
     return false;
   }
 
@@ -116,7 +116,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 {
   if (checkClimbAngle(ps, pe) == false)
   {
-    ROS_DEBUG("line exit 22, checkClimbAngle");
+    // ROS_DEBUG("line exit 22, checkClimbAngle");
     return false;
   }
   // Determines if a line conn ps and pe gets within clearance of any obstacle or boundary
@@ -146,7 +146,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 				crossed_lines_ps++;
 			else if (ps.N == line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
       {
-        ROS_DEBUG("line exit 1");
+        // ROS_DEBUG("line exit 1");
         return false;
       }
 		}
@@ -156,7 +156,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 				crossed_lines_pe++;
 			else if (pe.N == line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
       {
-        ROS_DEBUG("line exit 2");
+        // ROS_DEBUG("line exit 2");
         return false;
       }
 		}
@@ -166,12 +166,12 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 		// Check distance between each endpoint
 		if (sqrtf(powf(ps.N - map_.boundary_pts[i].N, 2.0f) + powf(ps.E - map_.boundary_pts[i].E, 2.0f) < clearance))
     {
-      ROS_DEBUG("line exit 3");
+      // ROS_DEBUG("line exit 3");
       return false;
     }
 		if (sqrtf(powf(pe.N - map_.boundary_pts[i].N, 2.0f) + powf(pe.E - map_.boundary_pts[i].E, 2.0f) < clearance))
     {
-      ROS_DEBUG("line exit 4");
+      // ROS_DEBUG("line exit 4");
       return false;
     }
 		// Check if they intersect
@@ -182,13 +182,13 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 			if (Ni > pathMinMax[0] && Ni < pathMinMax[1])
 				if (Ni > lineMinMax_[i][0] && Ni < lineMinMax_[i][1])
         {
-          ROS_DEBUG("line exit 5");
+          // ROS_DEBUG("line exit 5");
 
-          ROS_DEBUG("Ni %f, Ei %f",Ni, Ei );
-          ROS_DEBUG("line %f %f, %f %f",ps.N, ps.E, pe.N, pe.E);
-          ROS_DEBUG("bd %f %f, %f %f", map_.boundary_pts[i].N,map_.boundary_pts[i].E, map_.boundary_pts[(i + 1) % nBPts_].N, map_.boundary_pts[(i + 1) % nBPts_].E);
-          ROS_DEBUG("pathMinMax %f %f", pathMinMax[0], pathMinMax[1]);
-          ROS_DEBUG("lineMinMax_ %f %f", lineMinMax_[i][0], lineMinMax_[i][1]);
+          // ROS_DEBUG("Ni %f, Ei %f",Ni, Ei );
+          // ROS_DEBUG("line %f %f, %f %f",ps.N, ps.E, pe.N, pe.E);
+          // ROS_DEBUG("bd %f %f, %f %f", map_.boundary_pts[i].N,map_.boundary_pts[i].E, map_.boundary_pts[(i + 1) % nBPts_].N, map_.boundary_pts[(i + 1) % nBPts_].E);
+          // ROS_DEBUG("pathMinMax %f %f", pathMinMax[0], pathMinMax[1]);
+          // ROS_DEBUG("lineMinMax_ %f %f", lineMinMax_[i][0], lineMinMax_[i][1]);
           return false;
         }
 		}
@@ -206,20 +206,20 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 		lp_cleared = lineAndPoint2d(map_.boundary_pts[i], map_.boundary_pts[(i + 1) % nBPts_], lMinMax, l_Mandb, ps, clearance);
 		if (lp_cleared == false)
     {
-      ROS_DEBUG("line exit 6");
+      // ROS_DEBUG("line exit 6");
       return false;
     }
 		lp_cleared = lineAndPoint2d(map_.boundary_pts[i], map_.boundary_pts[(i + 1) % nBPts_], lMinMax, l_Mandb, pe, clearance);
 		if (lp_cleared == false)
     {
-      ROS_DEBUG("line exit 7");
+      // ROS_DEBUG("line exit 7");
       return false;
     }
 		// Check distance from pl to each boundary end point
 		lp_cleared = lineAndPoint2d(ps, pe, pathMinMax, path_Mandb, map_.boundary_pts[i], clearance);
 		if (lp_cleared == false)
     {
-      ROS_DEBUG("line exit 8");
+      // ROS_DEBUG("line exit 8");
       return false;
     }
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check if any point on the line gets too close to the boundary ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -240,12 +240,12 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 	{
 		if (-ps.D < minFlyHeight_ + clearance || -ps.D > maxFlyHeight_ - clearance)
     {
-      ROS_DEBUG("line exit 10");
+      // ROS_DEBUG("line exit 10");
       return false;
     }
 		if (-pe.D < minFlyHeight_ + clearance || -pe.D > maxFlyHeight_ - clearance)
     {
-      ROS_DEBUG("line exit 11");
+      // ROS_DEBUG("line exit 11");
       return false;
     }
 	}
@@ -279,12 +279,12 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 			{// if BOTH of the endpoints is within the 2d cylinder
 				if (-ps.D < map_.cylinders[i].H + clearance)
         {
-          ROS_DEBUG("line exit 12");
+          // ROS_DEBUG("line exit 12");
           return false;
         }
 				if (-ps.D < map_.cylinders[i].H + clearance)
         {
-          ROS_DEBUG("line exit 13");
+          // ROS_DEBUG("line exit 13");
           return false;
         }
 			}
@@ -294,7 +294,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 				{// if the starting point is within the 2d cylinder
 					if (-ps.D < map_.cylinders[i].H + clearance)
           {
-            ROS_DEBUG("line exit 14");
+            // ROS_DEBUG("line exit 14");
             return false;
           }
 					// else (check to see if the line that intersects the cylinder is in or out)
@@ -305,7 +305,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 						d2cyl = bigLength - smallLength;
 					if (-(dD*d2cyl + ps.D) < map_.cylinders[i].H + clearance)
           {
-            ROS_DEBUG("line exit 15");
+            // ROS_DEBUG("line exit 15");
             return false;
           }
 				}
@@ -313,7 +313,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 				{// if the ending point is within the 2d cylinder
 					if (-pe.D < map_.cylinders[i].H + clearance)
           {
-            ROS_DEBUG("line exit 16");
+            // ROS_DEBUG("line exit 16");
             return false;
           }
 					// else check to see if the line that intersects the cylinder is in or out
@@ -324,7 +324,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 						d2cyl = bigLength - smallLength;
 					if (-(-dD*d2cyl + pe.D) < map_.cylinders[i].H + clearance)
           {
-            ROS_DEBUG("line exit 17");
+            // ROS_DEBUG("line exit 17");
             return false;
           }
 				}
@@ -346,17 +346,17 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 
 					if (-(Di + dD*daway_from_int) < map_.cylinders[i].H + clearance)
           {
-            ROS_DEBUG("line exit 18");
+            // ROS_DEBUG("line exit 18");
             return false;
           }
 					if (-(Di - dD*daway_from_int) < map_.cylinders[i].H + clearance)
           {
-            ROS_DEBUG("line exit 19");
+            // ROS_DEBUG("line exit 19");
             return false;
           }
 					if (-Di < map_.cylinders[i].H + clearance)
           {
-            ROS_DEBUG("line exit 20");
+            // ROS_DEBUG("line exit 20");
             return false;
           }
 				}
@@ -365,7 +365,7 @@ bool CollisionDetection::checkLine(NED_s ps, NED_s pe, float clearance)
 		}
 		if (clearThisCylinder == false)
     {
-      ROS_DEBUG("line exit 21");
+      // ROS_DEBUG("line exit 21");
       return false;
     }
 	}
@@ -379,7 +379,7 @@ bool CollisionDetection::checkClimbAngle(NED_s beg, NED_s en)
   float slope = atan2f(-1.0f*(en.D - beg.D), sqrtf(powf(beg.N - en.N, 2.0f) + powf(beg.E - en.E, 2.0f)));
   if (slope < -1.0f*input_file_.max_descend_angle || slope > input_file_.max_climb_angle)
   {
-    ROS_DEBUG("slope %f, de %f, climb %f", slope*180.0/M_PI, -input_file_.max_descend_angle*180.0/M_PI, input_file_.max_climb_angle*180.0/M_PI);
+    // ROS_DEBUG("slope %f, de %f, climb %f", slope*180.0/M_PI, -input_file_.max_descend_angle*180.0/M_PI, input_file_.max_climb_angle*180.0/M_PI);
     return false;
   }
   return true;

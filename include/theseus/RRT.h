@@ -58,6 +58,7 @@ private:
   void createFan(node* root, NED_s p, float chi, float clearance);
   float redoRandomDownPoint(unsigned int i, float closest_D);
   bool checkWholePath(node* snode, std::vector<node*> rough_path, int ptr, int i);
+  bool checkDirectFan(NED_s coming_from, node* root, node* next_node);
   // Initialize and clear data functions
   void setup();
   void initializeTree(NED_s pos, float chi0);
