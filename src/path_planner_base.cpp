@@ -191,7 +191,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
       return true;
     }
   }
-  
+
   bool now = req.mission.now; // Whether to immediately send the planned path to the plane.
 
   solveStatic(landing, direct_hit, now, check_wps);
@@ -243,8 +243,8 @@ bool PathPlannerBase::solveStatic(bool landing, bool direct_hit, bool now, bool 
   if (now)
     sendWaypointsCore(now);
   plt.displayPath(initial_pos, rrt_obj_.all_wps_, clr.green, 5.0);
-  if (rrt_obj_.landing_now_ == false)
-    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
+  // if (rrt_obj_.landing_now_ == false)
+  //   plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   return true;
 }
 bool PathPlannerBase::wpsNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
@@ -471,7 +471,9 @@ bool PathPlannerBase::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs
 }
 void PathPlannerBase::getInitialMap()
 {
-  mapper myWorld(rg_.UINT(), &input_file_);
+  unsigned int seed = rg_.UINT();
+  ROS_INFO("seed: %i", seed);
+  mapper myWorld(seed, &input_file_);
   myWorld_ = myWorld.map;
   rrt_obj_.newMap(myWorld_);
   has_map_ = true;

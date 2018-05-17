@@ -6,11 +6,11 @@ pp:
   max_climb_angle: 22.0      # Maximum angle the plane will ascend, must be greater than climb_angle
   max_descend_angle: 18.0    # Maximum angle the plane will descend, must be greater than descend_angle
   clearance: 15.0            # Minimum distance the algorithm has to stay away from any obstacle
-  iters_limit: 2500          # This is a maximum iteration limit - so impossible maps don't hang the program
-  seed: 12                   # Seed the random generators for all of the simulation seed
+  iters_limit: 5000          # This is a maximum iteration limit - so impossible maps don't hang the program
+  seed: 90              # Seed the random generators for all of the simulation seed 90
 ppsim:
   # Map Settings
-  numWps: 3                 # Number of waypoints to plan.
+  numWps: 1                 # Number of waypoints to plan.
   N0: 0.0                    # initial starting place for the plane, North in NED
   E0: 0.0                    # initial starting place for the plane, East in NED
   D0: 0.0                    # initial starting place for the plane, Down in NED
@@ -22,4 +22,4 @@ ppsim:
   minFlyHeight: 30.48        # 23.7744 m = 100 - 22 ft. (positive value)
   maxFlyHeight: 228.6        # 221.8944 m = 750 - 22 ft. (positive value)
   waypoint_clearance: 30.0   # Minimum Distance a waypoint will be placed away from an obstacle (to make it possible)
-  nCyli: 10                  # Number of Cylindrical Obstacles
+  nCyli: 50                  # Number of Cylindrical Obstacles

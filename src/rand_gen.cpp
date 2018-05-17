@@ -7,10 +7,10 @@
 
 namespace theseus
 {
-RandGen::RandGen(unsigned int seed_in)	// Seed the Random Generator for reproducibility
+RandGen::RandGen(int seed_in)	// Seed the Random Generator for reproducibility
 {
 	seed = seed_in;
-  srand(seed);
+  srand(seed_in);
 }
 RandGen::RandGen()            // This empty function is needed so that RandGen can be a member of a class.
 {

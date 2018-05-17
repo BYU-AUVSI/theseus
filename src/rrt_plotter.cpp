@@ -96,8 +96,8 @@ void rrtPlotter::displayMap(map_s map)
   // primary waypoints
   pWPS_mkr.header.stamp = ros::Time::now();
   pWPS_mkr.id           =  0;
-  pWPS_mkr.scale.x      =  10.0; // point width
-  pWPS_mkr.scale.y      =  10.0; // point height
+  pWPS_mkr.scale.x      =  25.0; // point width
+  pWPS_mkr.scale.y      =  25.0; // point height
   ROS_INFO("Number of Waypoints: %lu", map.wps.size());
   for (long unsigned int i = 0; i < map.wps.size(); i++)
   {

@@ -37,6 +37,7 @@ public:
   NED_s ending_point_;
   float ending_chi_;
   CollisionDetection col_det_;    // collision detecter
+  bool animating_;
 private:
   ros::NodeHandle nh_;         // public node handle for publishing, subscribing
   ros::Publisher marker_pub_;
@@ -76,6 +77,9 @@ private:
   void printFillet(fillet_s fil);
   rrtPlotter plt;
   rrtColors clr;
+  float tree_display_time_;
+  float smoothing_display_time_;
+  float smoothed_display_time_;
 
   float segment_length_;          // If used, this is the distance the algorithm uses between each node
   ParamReader input_file_;        // address of the input file
