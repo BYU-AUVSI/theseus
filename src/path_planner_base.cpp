@@ -28,6 +28,7 @@ PathPlannerBase::PathPlannerBase() :
   replot_map_service_     = nh_.advertiseService("replot_map",&theseus::PathPlannerBase::displayMapService, this);
   wp_distance_service_    = nh_.advertiseService("display_wp_distance",&theseus::PathPlannerBase::displayD2WP, this);
 
+
   //******************** CLASS VARIABLES *******************//
   RandGen rg_in(input_file_.seed);
 	rg_                     = rg_in;												    // Copy that random generator into the class.
@@ -242,7 +243,8 @@ bool PathPlannerBase::solveStatic(bool landing, bool direct_hit, bool now, bool 
   rrt_obj_.solveStatic(initial_pos, initial_chi, direct_hit, landing);
   if (now)
     sendWaypointsCore(now);
-  plt.displayPath(initial_pos, rrt_obj_.all_wps_, clr.green, 5.0);
+  plt.displayPath(initial_pos, rrt_obj_.all_wps_, clr.green, 8.0);
+  plt.addFinalPath(initial_pos, rrt_obj_.all_wps_);
   // if (rrt_obj_.landing_now_ == false)
   //   plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   return true;
@@ -540,8 +542,10 @@ void PathPlannerBase::updateViz(const ros::WallTimerEvent&)
   p.y =  odometry_.N;
   p.z = -odometry_.D;
   plt.odomCallback(p);
+  plt.pingBoundaries();
+  plt.pingPath();
 }
-} // end namespace rosplane
+} // end namespace theseus
 
 //********************************************************//
 //************************ MAIN **************************//

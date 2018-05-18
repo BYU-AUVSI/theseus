@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   std_srvs
   uav_msgs
+  tf
   visualization_msgs
 )
 
@@ -109,7 +110,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES theseus
-  CATKIN_DEPENDS roscpp rosplane_msgs std_msgs std_srvs uav_msgs
+  CATKIN_DEPENDS roscpp rosplane_msgs std_msgs std_srvs uav_msgs tf
 #  DEPENDS system_lib
 )
 
@@ -150,6 +151,16 @@ add_executable(theseus_path_planner
 add_dependencies(theseus_path_planner ${catkin_EXPORTED_TARGETS})
 #add_dependencies(theseus_path_planner theseus_generate_messages_cpp)
 target_link_libraries(theseus_path_planner ${catkin_LIBRARIES})
+add_executable(theseus_rotation
+               src/rotate_viz.cpp
+               src/mapper.cpp
+               src/rrt_plotter.cpp
+               src/rand_gen.cpp
+               src/param_reader.cpp
+               )
+add_dependencies(theseus_rotation ${catkin_EXPORTED_TARGETS})
+#add_dependencies(theseus_rotation theseus_generate_messages_cpp)
+target_link_libraries(theseus_rotation ${catkin_LIBRARIES})
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

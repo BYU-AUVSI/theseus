@@ -48,16 +48,22 @@ public:
   void clearRViz(map_s map);
   void clearRViz(map_s map, std::vector<NED_s> path, NED_s color, float width);
   void displayTree(node* root);
+  void displayBoundaries(map_s map);
+  void pingBoundaries();
+  void pingPath();
+  void addFinalPath(NED_s ps, std::vector<NED_s> stuff_in);
 
 private:
   ros::NodeHandle nh_;
   ros::Publisher marker_pub_;
   visualization_msgs::Marker odom_mkr_;
+  visualization_msgs::Marker planned_path_mkr_;
   int path_id_;
   ParamReader input_file_;
   std::vector<node*> fringe_;
   std::vector<NED_s> tree_path_;
   rrtColors clr;
+  visualization_msgs::Marker bds_mkr_;
 
   std::vector<std::vector<float > > arc(float N, float E, float r, float aS, float aE);
   void addFringe(node* nin);

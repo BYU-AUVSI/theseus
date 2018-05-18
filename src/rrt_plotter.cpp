@@ -24,6 +24,22 @@ rrtPlotter::rrtPlotter() :
   odom_mkr_.scale.y            = 15.0; // point width
   increase_path_id_            = true;
 
+  planned_path_mkr_.header.frame_id = "/local_ENU";
+  planned_path_mkr_.ns   = "planned_path";
+  uint32_t lis           = visualization_msgs::Marker::LINE_STRIP;
+  planned_path_mkr_.type = lis;
+  planned_path_mkr_.action = visualization_msgs::Marker::ADD;
+  planned_path_mkr_.pose.orientation.x = 0.0;
+  planned_path_mkr_.pose.orientation.y = 0.0;
+  planned_path_mkr_.pose.orientation.z = 0.0;
+  planned_path_mkr_.pose.orientation.w = 1.0;
+  planned_path_mkr_.color.r    = clr.green.N;
+  planned_path_mkr_.color.g    = clr.green.E;
+  planned_path_mkr_.color.b    = clr.green.D;
+  planned_path_mkr_.color.a    = 1.0;
+  planned_path_mkr_.scale.x    = 8.0; // line width
+  planned_path_mkr_.lifetime   = ros::Duration();
+  planned_path_mkr_.id         = 0;
 }
 rrtPlotter::~rrtPlotter()
 {
@@ -40,13 +56,13 @@ void rrtPlotter::displayMap(map_s map)
   // Any obs_mkr sent with the same namespace and id will overwrite the old one
   obs_mkr.ns            = "static_obstacle";
   pWPS_mkr.ns           = "primary_wps";
-  bds_mkr.ns            = "boundaries";
+  bds_mkr.ns           = "boundaries";
   uint32_t cyl          = visualization_msgs::Marker::CYLINDER;
   uint32_t pts          = visualization_msgs::Marker::POINTS;
   uint32_t lis          = visualization_msgs::Marker::LINE_STRIP;
   obs_mkr.type          = cyl;
   pWPS_mkr.type         = pts;
-  bds_mkr.type          = lis;
+  bds_mkr.type         = lis;
   // Set the obs_mkr action.  Options are ADD (Which is really create or modify), DELETE, and new in ROS Indigo: 3 (DELETEALL)
   obs_mkr.action = pWPS_mkr.action = bds_mkr.action  = visualization_msgs::Marker::ADD;
   obs_mkr.pose.orientation.x  = pWPS_mkr.pose.orientation.x = bds_mkr.pose.orientation.x = 0.0;
@@ -62,10 +78,10 @@ void rrtPlotter::displayMap(map_s map)
   pWPS_mkr.color.g            = 1.0f;
   pWPS_mkr.color.b            = 0.0f;
   pWPS_mkr.color.a            = 1.0;
-  bds_mkr.color.r             = 1.0f;
-  bds_mkr.color.g             = 0.0f;
-  bds_mkr.color.b             = 0.0f;
-  bds_mkr.color.a             = 1.0;
+  bds_mkr.color.r            = 1.0f;
+  bds_mkr.color.g            = 0.0f;
+  bds_mkr.color.b            = 0.0f;
+  bds_mkr.color.a            = 1.0;
   obs_mkr.lifetime = pWPS_mkr.lifetime = bds_mkr.lifetime  = ros::Duration();
 
   int id = 0;
@@ -142,7 +158,69 @@ void rrtPlotter::odomCallback(geometry_msgs::Point p)
   odom_mkr_.points.push_back(p);
   marker_pub_.publish(odom_mkr_);
 }
+void rrtPlotter::pingBoundaries()
+{
+  marker_pub_.publish(bds_mkr_);
+}
+void rrtPlotter::addFinalPath(NED_s ps, std::vector<NED_s> stuff_in)
+{
+  planned_path_mkr_.points.clear();
+  std::vector<NED_s> path;
+  path.push_back(ps);
+  ROS_DEBUG("PATH N: %f E: %f D: %f", ps.N, ps.E, ps.D);
+  for (int it = 0; it < stuff_in.size(); it++)
+  {
+    path.push_back(stuff_in[it]);
+    ROS_DEBUG("PATH N: %f E: %f D: %f", stuff_in[it].N, stuff_in[it].E, stuff_in[it].D);
+  }
+  std::vector<NED_s> vis_path;
+  vis_path.push_back(path[0]);
+  for (int i = 1; i < path.size() - 1; i++)
+  {
+    fillet_s fil;
+    fil.calculate(path[i - 1], path[i], path[i + 1], input_file_.turn_radius);
+    vis_path.push_back(fil.z1);
 
+    std::vector<std::vector<float> > NcEc;
+    if (fil.lambda == -1)
+    {
+      NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z2 - fil.c).getChi(), (fil.z1 - fil.c).getChi());
+      // need to flip the vectors
+      std::reverse(NcEc[0].begin(),NcEc[0].end());
+      std::reverse(NcEc[1].begin(),NcEc[1].end());
+    }
+    if (fil.lambda ==  1)
+    {
+      NcEc = arc(fil.c.N, fil.c.E, input_file_.turn_radius, (fil.z1 - fil.c).getChi(), (fil.z2 - fil.c).getChi());
+    }
+    std::vector<float> Nc = NcEc[0];
+    std::vector<float> Ec = NcEc[1];
+    NED_s pos;
+    for (int j = 0; j < Nc.size(); j++)
+    {
+      pos.N = Nc[j];
+      pos.E = Ec[j];
+      pos.D = fil.c.D;
+      vis_path.push_back(pos);
+    }
+    vis_path.push_back(fil.z2);
+  }
+  vis_path.push_back(path[path.size() - 1]);
+
+  for (int i = 0; i < vis_path.size(); i++)
+  {
+    geometry_msgs::Point p;
+    p.x =  vis_path[i].E;
+    p.y =  vis_path[i].N;
+    p.z = -vis_path[i].D;
+    planned_path_mkr_.points.push_back(p);
+  }
+  marker_pub_.publish(planned_path_mkr_);
+}
+void rrtPlotter::pingPath()
+{
+  marker_pub_.publish(planned_path_mkr_);
+}
 void rrtPlotter::displayPath(NED_s ps, std::vector<NED_s> path, NED_s color, float width)
 {
   std::vector<NED_s> temp_neds;
@@ -177,9 +255,51 @@ void rrtPlotter::displayPath(std::vector<node*> path, NED_s color, float width)
   }
   displayPath(temp_neds, color, width);
 }
+void rrtPlotter::displayBoundaries(map_s map)
+{
+  bds_mkr_.header.frame_id = "/local_ENU";
+  bds_mkr_.ns           = "boundaries";
+  uint32_t lis          = visualization_msgs::Marker::LINE_STRIP;
+  bds_mkr_.type         = lis;
+  bds_mkr_.action  = visualization_msgs::Marker::ADD;
+  bds_mkr_.pose.orientation.x = 0.0;
+  bds_mkr_.pose.orientation.y = 0.0;
+  bds_mkr_.pose.orientation.z = 0.0;
+  bds_mkr_.pose.orientation.w = 1.0;
+  bds_mkr_.color.r            = 1.0f;
+  bds_mkr_.color.g            = 0.0f;
+  bds_mkr_.color.b            = 0.0f;
+  bds_mkr_.color.a            = 1.0;
+  bds_mkr_.lifetime  = ros::Duration();
+
+  int id = 0;
+  // Boundaries
+  bds_mkr_.header.stamp = ros::Time::now();
+  bds_mkr_.id           =  0;
+  bds_mkr_.scale.x      =  15.0; // line width
+  for (long unsigned int i = 0; i < map.boundary_pts.size(); i++)
+  {
+    geometry_msgs::Point p;
+    p.y = map.boundary_pts[i].N;
+    p.x = map.boundary_pts[i].E;
+    p.z = 0.0;
+    bds_mkr_.points.push_back(p);
+  }
+  geometry_msgs::Point p0;
+  p0.y = map.boundary_pts[0].N;
+  p0.x = map.boundary_pts[0].E;
+  p0.z = 0.0;
+  bds_mkr_.points.push_back(p0);
+  p0.y = map.boundary_pts[1].N;
+  p0.x = map.boundary_pts[1].E;
+  p0.z = 0.0;
+  bds_mkr_.points.push_back(p0);
+  marker_pub_.publish(bds_mkr_);
+  sleep(0.05);
+}
 void rrtPlotter::displayPath(std::vector<NED_s> path, NED_s color, float width)
 {
-  visualization_msgs::Marker planned_path_mkr, aWPS_mkr;
+  visualization_msgs::Marker aWPS_mkr, planned_path_mkr;
   // if (path_id_ == 1)
   //   clearRVizPaths();
   // Set the frame ID and timestamp.  See the TF tutorials for information on these.
@@ -187,12 +307,12 @@ void rrtPlotter::displayPath(std::vector<NED_s> path, NED_s color, float width)
   // Set the namespace and id for this obs_mkr.  This serves to create a unique ID
   // Any obs_mkr sent with the same namespace and id will overwrite the old one
   planned_path_mkr.ns   = "planned_path";
-  aWPS_mkr.ns           = "all_wps";
-  uint32_t cyl          = visualization_msgs::Marker::CYLINDER;
-  uint32_t pts          = visualization_msgs::Marker::POINTS;
-  uint32_t lis          = visualization_msgs::Marker::LINE_STRIP;
+  aWPS_mkr.ns            = "all_wps";
+  uint32_t cyl           = visualization_msgs::Marker::CYLINDER;
+  uint32_t pts           = visualization_msgs::Marker::POINTS;
+  uint32_t lis           = visualization_msgs::Marker::LINE_STRIP;
   planned_path_mkr.type = lis;
-  aWPS_mkr.type         = pts;
+  aWPS_mkr.type          = pts;
   // Set the obs_mkr action.  Options are ADD (Which is really create or modify), DELETE, and new in ROS Indigo: 3 (DELETEALL)
   planned_path_mkr.action = aWPS_mkr.action = visualization_msgs::Marker::ADD;
   planned_path_mkr.pose.orientation.x = aWPS_mkr.pose.orientation.x = 0.0;
@@ -204,14 +324,14 @@ void rrtPlotter::displayPath(std::vector<NED_s> path, NED_s color, float width)
   planned_path_mkr.color.g    = color.E;
   planned_path_mkr.color.b    = color.D;
   planned_path_mkr.color.a    = 1.0;
-  aWPS_mkr.scale.x            = 10.0; // point width
-  aWPS_mkr.scale.y            = 10.0; // point height
+  aWPS_mkr.scale.x             = 10.0; // point width
+  aWPS_mkr.scale.y             = 10.0; // point height
   planned_path_mkr.scale.x    = width; // line width
 
-  aWPS_mkr.color.r            = 0.0f;
-  aWPS_mkr.color.g            = 0.0f;
-  aWPS_mkr.color.b            = 1.0f;
-  aWPS_mkr.color.a            = 1.0;
+  aWPS_mkr.color.r             = 0.0f;
+  aWPS_mkr.color.g             = 0.0f;
+  aWPS_mkr.color.b             = 1.0f;
+  aWPS_mkr.color.a             = 1.0;
   planned_path_mkr.lifetime = aWPS_mkr.lifetime = ros::Duration();
 
   while (marker_pub_.getNumSubscribers() < 1)

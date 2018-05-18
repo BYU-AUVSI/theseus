@@ -77,6 +77,7 @@ private:
   void printFillet(fillet_s fil);
   rrtPlotter plt;
   rrtColors clr;
+  float initial_map_time_;
   float tree_display_time_;
   float smoothing_display_time_;
   float smoothed_display_time_;

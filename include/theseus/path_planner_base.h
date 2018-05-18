@@ -102,6 +102,6 @@ private:
   void getInitialMap();
 
 };// end class PathPlanner
-} // end namespace rosplane
+} // end namespace theseus
 
 #endif // PATH_PLANNER_BASE_H

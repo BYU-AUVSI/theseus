@@ -22,9 +22,10 @@ void RRT::setup()
   mission_priority_   = 4;
   landing_priority_   = 4;
   loitering_priority_ = 3;
-  tree_display_time_      = 0.05f;
-  smoothing_display_time_ = 0.35f;
-  smoothed_display_time_  = 2.0f;
+  initial_map_time_       = 5.0f;
+  tree_display_time_      = 0.04f;
+  smoothing_display_time_ = 0.26f;
+  smoothed_display_time_  = 3.0f;
   if(ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug))
   {
    ros::console::notifyLoggerLevelsChanged();
@@ -42,6 +43,7 @@ RRT::~RRT()
 }
 void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
+  if (animating_) {ros::Duration(initial_map_time_).sleep();}
   bool last_wp_safe_to_loiter = true;
   secondary_wps_indx_ = map_.wps.size();
   bool add_loiter_point = false;
@@ -319,7 +321,7 @@ int RRT::developTree(unsigned int i)
       temp_path.push_back(most_recent_node_->parent->fil.z2);
     temp_path.push_back(most_recent_node_->parent->p);
     temp_path.push_back(most_recent_node_->p);
-    plt.displayPath(temp_path, clr.gray, 1.5f);
+    plt.displayPath(temp_path, clr.gray, 2.9f);
     ros::Duration(tree_display_time_).sleep();
   }
 
