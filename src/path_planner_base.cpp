@@ -244,9 +244,9 @@ bool PathPlannerBase::solveStatic(bool landing, bool direct_hit, bool now, bool 
   if (now)
     sendWaypointsCore(now);
   plt.displayPath(initial_pos, rrt_obj_.all_wps_, clr.green, 8.0);
-  plt.addFinalPath(initial_pos, rrt_obj_.all_wps_);
-  // if (rrt_obj_.landing_now_ == false)
-  //   plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
+  // plt.addFinalPath(initial_pos, rrt_obj_.all_wps_);
+  if (rrt_obj_.landing_now_ == false)
+    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   return true;
 }
 bool PathPlannerBase::wpsNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
@@ -543,7 +543,7 @@ void PathPlannerBase::updateViz(const ros::WallTimerEvent&)
   p.z = -odometry_.D;
   plt.odomCallback(p);
   plt.pingBoundaries();
-  plt.pingPath();
+  // plt.pingPath();
 }
 } // end namespace theseus
 

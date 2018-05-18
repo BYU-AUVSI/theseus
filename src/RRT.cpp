@@ -17,7 +17,7 @@ RRT::RRT()
 }
 void RRT::setup()
 {
-  animating_          = true;
+  animating_          = false;
   emergency_priority_ = 5;
   mission_priority_   = 4;
   landing_priority_   = 4;
@@ -46,7 +46,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
   if (animating_) {ros::Duration(initial_map_time_).sleep();}
   bool last_wp_safe_to_loiter = true;
   secondary_wps_indx_ = map_.wps.size();
-  bool add_loiter_point = false;
+  bool add_loiter_point = true;
   if (landing == false && add_loiter_point == true)
   {
     NED_s final_wp;
@@ -120,7 +120,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)     
     for (int it = 1; it < rough_path.size(); it++)
       all_rough_paths.push_back(rough_path[it]->p);
     // if (animating_) {plt.displayPath(rough_path, clr.blue, 6.0f);}
-    if (animating_ == false) {plt.displayTree(root_ptrs_[i]);}
+    // if (false) {plt.displayTree(root_ptrs_[i]);}
     if (animating_) {plt.clearRViz(map_);}
     if (landing_now_)
       break;
@@ -532,7 +532,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     new_path.push_back(smooth_rts_[i + 1]);
   }
   resetParent(root_ptrs_[i + 1], new_path[new_path.size() - 2]);
-  plt.displayPath(new_path, clr.green, 10.0f);
+  if (animating_){plt.displayPath(new_path, clr.green, 10.0f);}
   new_path.erase(new_path.begin());
   if (animating_) {ros::Duration(smoothed_display_time_).sleep();}
   return new_path;
