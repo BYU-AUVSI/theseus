@@ -41,9 +41,12 @@ RRT::~RRT()
 	deleteTree();                          // Delete all of those tree pointer nodes
 	std::vector<node*>().swap(root_ptrs_); // Free the memory of the vector.
 }
-void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing)         // This function solves for a path in between the waypoinnts (2 Dimensional)
+void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
+  dropping_bomb_ = drop_bomb;
   if (animating_) {ros::Duration(initial_map_time_).sleep();}
+  if (dropping_bomb_)
+    setupBombWps();
   bool last_wp_safe_to_loiter = true;
   secondary_wps_indx_ = map_.wps.size();
   bool add_loiter_point = true;
@@ -1099,6 +1102,92 @@ bool RRT::checkDirectFan(NED_s coming_from, node* root, node* next_node)
 			}
 	}
   return false;
+}
+void RRT::setupBombWps()
+{
+  ROS_WARN("setting up bomb wps");
+  float max_len = 400.0f;
+  NED_s target;
+  target = map_.wps[0];
+  // find possible approaches to the target
+  std::vector<NED_s> wps;
+  std::vector<NED_s> starting_pts;
+  std::vector<NED_s> ending_pts;
+  std::vector<float> points;
+
+  // find the minimum height
+  NED_s low_point(target.N, target.E, -input_file_.minFlyHeight);
+  while (col_det_.checkPoint(low_point, input_file_.clearance))
+  {
+    low_point.D -= 2.5f;
+  }
+
+  // find possible approaches
+  NED_s best_ps, best_wp, best_pe;
+  bool found_approach = false;
+  float best_value = 0.0f;
+  float after_wp = 1.25*input_file_.turn_radius;
+  NED_s wp;
+  wp = target;
+  for (float h = -low_point.D; h < input_file_.maxFlyHeight; h += 5.0f)
+  {
+    wp.D = -h;
+    for (float chi = 0.0f; chi < 2.0f*M_PI; chi += 2.0f*M_PI/16.0f)
+    {
+      NED_s ps, pe;
+      pe = wp;
+      pe.N += after_wp*cosf(chi + M_PI);
+      pe.E += after_wp*sinf(chi + M_PI);
+      float len = input_file_.turn_radius;
+      bool line_passed;
+      do
+      {
+        std::vector<NED_s> temp_neds;
+        len = len + 10.0f;
+        ps = wp;
+        ps.N += len*cosf(chi);
+        ps.E += len*sinf(chi);
+        line_passed = col_det_.checkLine(ps, pe, input_file_.clearance);
+        // temp_neds.push_back(ps);
+        // temp_neds.push_back(pe);
+        // plt.displayPath(temp_neds, clr.orange, 5.0f);
+        // ros::Duration(0.01f).sleep();
+        temp_neds.clear();
+        if (line_passed)
+        {
+          // temp_neds.push_back(ps);
+          // temp_neds.push_back(pe);
+          // plt.displayPath(temp_neds, clr.green, 8.0f);
+          // temp_neds.clear();
+          // ros::Duration(0.0001f).sleep();
+          found_approach = true;
+          float value = len + 3.0f*(input_file_.maxFlyHeight - h);
+          wps.push_back(wp);
+          starting_pts.push_back(ps);
+          ending_pts.push_back(pe);
+          points.push_back(value);
+          if (best_value < value)
+          {
+            best_value = value;
+            ROS_INFO("height: %f, len %f, value %f chi %f", -wp.D, len, value, chi);
+            best_ps = ps;
+            best_wp = wp;
+            best_pe = pe;
+          }
+        }
+      }
+      while (line_passed && len < max_len);
+    }
+  }
+  if (found_approach)
+  {
+    map_.wps.clear();
+    map_.wps.push_back(best_ps);
+    map_.wps.push_back(best_wp);
+    map_.wps.push_back(best_pe);
+  }
+  else
+    ROS_FATAL("failed to find an approach for the bomb drop");
 }
 // Initializing and Clearing Data
 void RRT::initializeTree(NED_s pos, float chi0)

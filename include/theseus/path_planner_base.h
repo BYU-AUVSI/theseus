@@ -25,6 +25,14 @@
 
 namespace theseus
 {
+struct rrtOptions
+{
+  bool landing;
+  bool direct_hit;
+  bool now;
+  bool check_wps;
+  bool drop_bomb;
+};
 class PathPlannerBase
 {
 public:
@@ -44,6 +52,8 @@ private:
   ros::ServiceServer path_solver_service4_;
   ros::ServiceServer path_solver_service5_;
   ros::ServiceServer path_solver_service6_;
+  ros::ServiceServer path_solver_service7_;
+  ros::ServiceServer path_solver_service8_;
   ros::ServiceServer new_map_service_;
   ros::ServiceServer send_wps_service_;
   ros::ServiceServer replot_map_service_;
@@ -83,7 +93,7 @@ private:
   bool sendWaypointsCore(bool now);
 
   //********************** FUNCTIONS ***********************//
-  bool solveStatic(bool landing, bool direct_hit, bool now, bool check_wps);
+  bool solveStatic(rrtOptions options);
 public:
   bool wpsNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool addWps(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
@@ -91,6 +101,8 @@ public:
   bool addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool landNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool textfileNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool bombNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
+  bool addBomb(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
 
   bool newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
@@ -100,6 +112,7 @@ private:
   bool landing(bool now);
   bool textfile(bool now);
   void getInitialMap();
+  bool bomb(bool now);
 
 };// end class PathPlanner
 } // end namespace theseus

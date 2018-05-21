@@ -19,6 +19,8 @@ PathPlannerBase::PathPlannerBase() :
   path_solver_service4_   = nh_.advertiseService("add_textfile",&theseus::PathPlannerBase::addTextfile, this);
   path_solver_service5_   = nh_.advertiseService("land_now",&theseus::PathPlannerBase::landNow, this);
   path_solver_service6_   = nh_.advertiseService("textfile_now",&theseus::PathPlannerBase::textfileNow, this);
+  path_solver_service7_   = nh_.advertiseService("add_bomb",&theseus::PathPlannerBase::addBomb, this);
+  path_solver_service8_   = nh_.advertiseService("bomb_now",&theseus::PathPlannerBase::bombNow, this);
 
 
 
@@ -76,12 +78,13 @@ PathPlannerBase::~PathPlannerBase()
 }
 bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res)
 {
+  rrtOptions options;
   if (recieved_state_ == false)
   {
     ROS_ERROR("PATH PLANNER HAS NOT RECIEVED AN INITIAL STATE");
     return false;
   }
-  bool check_wps = false;
+  options.check_wps = false;
   int num_waypoints  = req.mission.waypoints.size();
   int num_boundaries = req.mission.boundaries.size();
   int num_obstacles  = req.mission.stationary_obstacles.size();
@@ -119,21 +122,20 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     mission_map.cylinders.push_back(cyl);
     ROS_FATAL("cylinder:: %f %f", cyl.N, cyl.E);
   }
-  bool direct_hit;
   if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT)
   {
     last_primary_wps_ = mission_map.wps;
-    direct_hit = true;
+    options.direct_hit = true;
   }
   else
-    direct_hit = false;
+    options.direct_hit = false;
   double chi;
-  bool landing = false;
+  options.landing = false;
   if (req.mission.mission_type == req.mission.MISSION_TYPE_LAND)
   {
     chi = req.mission.waypoints[0].point.chi;
     ROS_INFO("chi: %f", chi);
-    landing = true;
+    options.landing = true;
     num_waypoints++;
     float landing_strip = 400.0;
     ned.N = mission_map.wps.back().N + landing_strip*cosf(chi);
@@ -149,7 +151,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
   }
   if (req.mission.mission_type == req.mission.MISSION_TYPE_SEARCH)
   {
-    check_wps = true;
+    options.check_wps = true;
     rrt_obj_.newMap(mission_map);
     mission_map.wps.clear();
     for (int i = 0; i < num_waypoints; i++)
@@ -192,10 +194,8 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
       return true;
     }
   }
-
-  bool now = req.mission.now; // Whether to immediately send the planned path to the plane.
-
-  solveStatic(landing, direct_hit, now, check_wps);
+  options.now = req.mission.now; // Whether to immediately send the planned path to the plane.
+  solveStatic(options);
   return true;
 }
 bool PathPlannerBase::newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
@@ -206,7 +206,7 @@ bool PathPlannerBase::newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Tr
   res.success = true;
   return true;
 }
-bool PathPlannerBase::solveStatic(bool landing, bool direct_hit, bool now, bool check_wps)
+bool PathPlannerBase::solveStatic(rrtOptions options)
 {
   if (recieved_state_ == false)
   {
@@ -215,7 +215,7 @@ bool PathPlannerBase::solveStatic(bool landing, bool direct_hit, bool now, bool 
   }
   if (has_map_ == false)
     getInitialMap();
-  if (check_wps == true)
+  if (options.check_wps == true)
   {
     std::vector<NED_s> all_wps = myWorld_.wps;
     myWorld_.wps.clear();
@@ -229,7 +229,7 @@ bool PathPlannerBase::solveStatic(bool landing, bool direct_hit, bool now, bool 
 
   float initial_chi;
   NED_s initial_pos;
-  if (now)
+  if (options.now)
   {
     initial_chi = chi0_;
     initial_pos = odometry_;
@@ -240,9 +240,9 @@ bool PathPlannerBase::solveStatic(bool landing, bool direct_hit, bool now, bool 
     initial_chi = ending_chi_;
   }
   plt.displayMap(myWorld_);
-  rrt_obj_.solveStatic(initial_pos, initial_chi, direct_hit, landing);
-  if (now)
-    sendWaypointsCore(now);
+  rrt_obj_.solveStatic(initial_pos, initial_chi, options.direct_hit, options.landing, options.drop_bomb);
+  if (options.now)
+    sendWaypointsCore(options.now);
   plt.displayPath(initial_pos, rrt_obj_.all_wps_, clr.green, 8.0);
   // plt.addFinalPath(initial_pos, rrt_obj_.all_wps_);
   if (rrt_obj_.landing_now_ == false)
@@ -259,7 +259,13 @@ bool PathPlannerBase::wpsNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:
     myWorld_.wps = last_primary_wps_;
     rrt_obj_.newMap(myWorld_);
   }
-  res.success = solveStatic(false, true, true, false);
+  rrtOptions options;
+  options.landing = false;
+  options.direct_hit = true;
+  options.now = true;
+  options.check_wps = false;
+  options.drop_bomb = false;
+  res.success = solveStatic(options);
   return true;
 }
 bool PathPlannerBase::addWps(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
@@ -272,7 +278,13 @@ bool PathPlannerBase::addWps(std_srvs::Trigger::Request &req, std_srvs::Trigger:
     myWorld_.wps = last_primary_wps_;
     rrt_obj_.newMap(myWorld_);
   }
-  res.success = solveStatic(false, true, false, false);
+  rrtOptions options;
+  options.landing = false;
+  options.direct_hit = true;
+  options.now = false;
+  options.check_wps = false;
+  options.drop_bomb = false;
+  res.success = solveStatic(options);
   return true;
 }
 bool PathPlannerBase::landing(bool now)
@@ -283,7 +295,7 @@ bool PathPlannerBase::landing(bool now)
   fin.open("landing.txt", std::ifstream::in);
   if (!(fin.is_open()))
   {
-    ROS_FATAL("WAYPOINTS FILE DID NOT OPEN."); // try putting it in the ~/.ros directory.
+    ROS_FATAL("WAYPOINTS FILE, 'landing.txt' DID NOT OPEN."); // try putting it in the ~/.ros directory.
     return false;
   }
   float chi;
@@ -310,7 +322,13 @@ bool PathPlannerBase::landing(bool now)
   ned.D = 0.0f;
   rrt_obj_.map_.wps.push_back(ned);
   myWorld_ = rrt_obj_.map_;
-  return solveStatic(true, false, now, false);
+  rrtOptions options;
+  options.landing = true;
+  options.direct_hit = false;
+  options.now = now;
+  options.check_wps = false;
+  options.drop_bomb = false;
+  return solveStatic(options);
 }
 bool PathPlannerBase::addLanding(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
 {
@@ -330,7 +348,7 @@ bool PathPlannerBase::textfile(bool now)
   fin.open("path.txt", std::ifstream::in);
   if (!(fin.is_open()))
   {
-    ROS_FATAL("WAYPOINTS FILE DID NOT OPEN."); // try putting it in the ~/.ros directory.
+    ROS_FATAL("WAYPOINTS FILE, 'path.txt' DID NOT OPEN."); // try putting it in the ~/.ros directory.
     return false;
   }
   NED_s wp;
@@ -344,7 +362,13 @@ bool PathPlannerBase::textfile(bool now)
   }
   fin.close();
   rrt_obj_.newMap(myWorld_);
-  return solveStatic(false, false, now, true);
+  rrtOptions options;
+  options.landing = false;
+  options.direct_hit = false;
+  options.now = now;
+  options.check_wps = true;
+  options.drop_bomb = false;
+  return solveStatic(options);
 }
 bool PathPlannerBase::addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
 {
@@ -355,6 +379,41 @@ bool PathPlannerBase::textfileNow(std_srvs::Trigger::Request &req, std_srvs::Tri
 {
   res.success = textfile(true);
   return true;
+}
+bool PathPlannerBase::bombNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
+{
+  res.success = bomb(true);
+  return true;
+}
+bool PathPlannerBase::addBomb(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
+{
+  res.success = bomb(false);
+  return true;
+}
+bool PathPlannerBase::bomb(bool now)
+{
+  if (has_map_ == false)
+    getInitialMap();
+  std::fstream fin;
+  fin.open("bomb.txt", std::ifstream::in);
+  if (!(fin.is_open()))
+  {
+    ROS_FATAL("WAYPOINTS FILE 'bomb.txt' DID NOT OPEN."); // try putting it in the ~/.ros directory.
+    return false;
+  }
+  NED_s wp;
+  myWorld_.wps.clear();
+  fin >> wp.N >> wp.E >> wp.D;
+  myWorld_.wps.push_back(wp);
+  fin.close();
+  rrt_obj_.newMap(myWorld_);
+  rrtOptions options;
+  options.landing = false;
+  options.direct_hit = false;
+  options.now = now;
+  options.check_wps = false;
+  options.drop_bomb = true;
+  return solveStatic(options);
 }
 bool PathPlannerBase::displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
 {
@@ -389,6 +448,10 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
   NED_s in_front;
   for (long unsigned int i = 0; i < rrt_obj_.all_wps_.size(); i++)
   {
+    new_waypoint.drop_bomb = false;
+    // THIS IS A TOTAL HACK
+    // if (i == 2)
+    //   new_waypoint.drop_bomb = true;
     new_waypoint.landing = false;
     if (rrt_obj_.landing_now_ && i >= rrt_obj_.all_wps_.size() - 1 - 1) // landing = true on the last 2 waypoints
       new_waypoint.landing = true;

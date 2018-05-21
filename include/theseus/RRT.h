@@ -26,7 +26,7 @@ public:
   RRT(map_s map_in, unsigned int seed);
 	RRT();
   ~RRT();                                                                 // Deconstructor - deletes the tree
-	void solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing); // Solves the static path
+	void solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb); // Solves the static path
   void newMap(map_s map_in);                                              // creates a new map
   void newSeed(unsigned int seed);
   bool checkPoint(NED_s point, float clearance);
@@ -34,6 +34,7 @@ public:
   std::vector<int> all_priorities_;
   map_s map_;
   bool landing_now_;
+  bool dropping_bomb_;
   NED_s ending_point_;
   float ending_chi_;
   CollisionDetection col_det_;    // collision detecter
@@ -60,6 +61,7 @@ private:
   float redoRandomDownPoint(unsigned int i, float closest_D);
   bool checkWholePath(node* snode, std::vector<node*> rough_path, int ptr, int i);
   bool checkDirectFan(NED_s coming_from, node* root, node* next_node);
+  void setupBombWps();
   // Initialize and clear data functions
   void setup();
   void initializeTree(NED_s pos, float chi0);
