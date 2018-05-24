@@ -477,14 +477,20 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   		if (ps.N > line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
   			crossed_lines_ps++;
   		else if (ps.N == line_Mandb_[i][0] * ps.E + line_Mandb_[i][1])
-  			return false;
+  		{
+        // ROS_DEBUG("circle exit 1");
+        return false;
+      }
   	}
   	if (pe.E >= lineMinMax_[i][2] && pe.E < lineMinMax_[i][3])
   	{
   		if (pe.N > line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
   			crossed_lines_pe++;
   		else if (pe.N == line_Mandb_[i][0] * pe.E + line_Mandb_[i][1])
-  			return false;
+      {
+        // ROS_DEBUG("circle exit 2");
+        return false;
+      }
   	}
   	// ^^^^^^^^^^^^^^^^ Ray Casting, count how many crosses south ^^^^^^^^^^^^^^^^
 
@@ -503,7 +509,8 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   			{
   				if (sqrtf(powf(Ni - cp.N, 2.0f) + powf(Ei - cp.E, 2.0f)) - aradius < r)
   				{
-  					return false;
+            // ROS_DEBUG("circle exit 3");
+            return false;
   				}
   			}
   			else
@@ -515,11 +522,13 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   				{
   					if (sqrtf(powf(Ni - ps.N, 2.0f) + powf(Ei - ps.E, 2.0f)) < r)
   					{
+              // ROS_DEBUG("circle exit 4");
   						return false;
   					}
   				}
   				else if (sqrtf(powf(map_.boundary_pts[i].N - ps.N, 2.0f) + powf(map_.boundary_pts[i].E - ps.E, 2.0f)) < r)
   				{
+            // ROS_DEBUG("circle exit 5");
   					return false;
   				}
   				else if (sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - ps.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - ps.E, 2.0f)) < r) { return false; }
@@ -530,11 +539,13 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   				{
   					if (sqrtf(powf(Ni - pe.N, 2.0f) + powf(Ei - pe.E, 2.0f)) < r)
   					{
+              // ROS_DEBUG("circle exit 6");
   						return false;
   					}
   				}
   				else if (sqrtf(powf(map_.boundary_pts[i].N - pe.N, 2.0f) + powf(map_.boundary_pts[i].E - pe.E, 2.0f)) < r)
   				{
+            // ROS_DEBUG("circle exit 7");
   					return false;
   				}
   				//else if (sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - pe.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - pe.E, 2.0f)) < r) { return false; }
@@ -546,6 +557,7 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   			{
   				if (sqrtf(powf(map_.boundary_pts[i].N - cp.N, 2.0f) + powf(map_.boundary_pts[i].E - cp.E, 2.0f)) - aradius < r)
   				{
+            // ROS_DEBUG("circle exit 8");
   					return false;
   				}
   			}
@@ -555,10 +567,12 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   			//}
   			if (sqrtf(powf(map_.boundary_pts[i].N - ps.N, 2.0f) + powf(map_.boundary_pts[i].E - ps.E, 2.0f)) - aradius < r)
   			{
+          // ROS_DEBUG("circle exit 9");
   				return false;
   			}
   			if (sqrtf(powf(map_.boundary_pts[i].N - pe.N, 2.0f) + powf(map_.boundary_pts[i].E - pe.E, 2.0f)) - aradius < r)
   			{
+          // ROS_DEBUG("circle exit 10");
   				return false;
   			}
   			//if (sqrtf(powf(map_.boundary_pts[(i + 1) % nBPts_].N - ps.N, 2.0f) + powf(map_.boundary_pts[(i + 1) % nBPts_].E - ps.E, 2.0f)) - aradius < r) { return false; }
@@ -571,16 +585,25 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   withinBoundaries_ps = crossed_lines_ps % 2; // If it crosses an even number of boundaries it is NOT inside, if it crosses an odd number it IS inside
   withinBoundaries_pe = crossed_lines_pe % 2;
   if (withinBoundaries_ps == false || withinBoundaries_pe == false)
-  	return false;
+  {
+    // ROS_DEBUG("circle exit 11");
+    return false;
+  }
   // ^^^^^^^^^^^^^^^^ Finish up checking if the end points were both inside the boundary (ray casting) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
   // vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
   if (taking_off_ == false && landing_now_ == false)
   {
   	if (-ps.D < minFlyHeight_ + r || -ps.D > maxFlyHeight_ - r)
-  		return false;
+    {
+      // ROS_DEBUG("circle exit 12");
+      return false;
+    }
   	if (-pe.D < minFlyHeight_ + r || -pe.D > maxFlyHeight_ - r)
-  		return false;
+    {
+      // ROS_DEBUG("circle exit 13");
+      return false;
+    }
   }
   // vvvvvvvvvvvvvvvvvvvvv Check to see if the point is within the right fly altitudes vvvvvvvvvvvvvvvvvvvvvv
 
@@ -619,7 +642,10 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
   			clearThisCylinder = true;
   	}
   	if (clearThisCylinder == false)
-  		return false;
+    {
+      // ROS_DEBUG("circle exit 999");
+      return false;
+    }
   }
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Check for Cylinder Obstacles ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

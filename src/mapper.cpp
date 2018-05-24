@@ -38,9 +38,10 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 	// Pull in the competition boundaries
 	// Get the NED coordinate frame set up
   double rPhi, rLam, rH;
-	rPhi = input_file->lat_ref;
-  rLam = input_file->lon_ref;
-  rH   = input_file->h_ref;
+	rPhi = 38.14326388888889;
+  rLam = -76.43075;
+  rH   = 6.701;
+
   gps_struct gps_converter;
   gps_converter.set_reference(rPhi, rLam, rH);
 

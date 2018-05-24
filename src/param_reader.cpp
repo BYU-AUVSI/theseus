@@ -44,14 +44,14 @@ ParamReader::ParamReader() :
   nh_.param<bool>("testing/init_references", testing, false);
   if (testing)
   {
-    nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
-    nh_.param<double>("lon_ref", lon_ref, -76.43075);
-    nh_.param<double>("h_ref", h_ref, 6.701);
     nh_.param<float>("N_init", N_init, 0.0);
     nh_.param<float>("E_init", E_init, 0.0);
     nh_.param<float>("D_init", D_init, 0.0);
     chi0 = 0.0;
   }
+  nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
+  nh_.param<double>("lon_ref", lon_ref, -76.43075);
+  nh_.param<double>("h_ref", h_ref, 6.701);
 
 	double deg2rad    = M_PI/180.0;
 	max_climb_angle   = max_climb_angle*deg2rad;

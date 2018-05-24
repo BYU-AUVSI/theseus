@@ -22,8 +22,6 @@ PathPlannerBase::PathPlannerBase() :
   path_solver_service7_   = nh_.advertiseService("add_bomb",&theseus::PathPlannerBase::addBomb, this);
   path_solver_service8_   = nh_.advertiseService("bomb_now",&theseus::PathPlannerBase::bombNow, this);
 
-
-
   new_map_service_        = nh_.advertiseService("new_random_map",&theseus::PathPlannerBase::newRandomMap, this);
   plan_mission_service_   = nh_.advertiseService("plan_mission",&theseus::PathPlannerBase::planMission, this);
   send_wps_service_       = nh_.advertiseService("send_waypoints",&theseus::PathPlannerBase::sendWaypoints, this);
@@ -49,9 +47,9 @@ PathPlannerBase::PathPlannerBase() :
   {
     double lat_ref, lon_ref, h_ref;
     float N_init, E_init, D_init;
-    nh_.param<double>("testing/lat_ref", lat_ref, 38.14326388888889);
-    nh_.param<double>("testing/lon_ref", lon_ref, -76.43075);
-    nh_.param<double>("testing/h_ref", h_ref, 6.701);
+    nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
+    nh_.param<double>("lon_ref", lon_ref, -76.43075);
+    nh_.param<double>("h_ref", h_ref, 6.701);
     nh_.param<float>("testing/N_init", N_init, 0.0);
     nh_.param<float>("testing/E_init", E_init, 0.0);
     nh_.param<float>("testing/D_init", D_init, 0.0);
@@ -65,9 +63,6 @@ PathPlannerBase::PathPlannerBase() :
     odometry_.E     = E_init;
     odometry_.D     = D_init;
     chi0_           =  0.0f;
-  }
-  if (recieved_state_)
-  {
     ending_point_ = odometry_;
     ending_chi_   = chi0_;
   }
@@ -450,8 +445,8 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
   {
     new_waypoint.drop_bomb = false;
     // THIS IS A TOTAL HACK
-    // if (i == 2)
-    //   new_waypoint.drop_bomb = true;
+    if (i == 0)
+      new_waypoint.drop_bomb = true;
     new_waypoint.landing = false;
     if (rrt_obj_.landing_now_ && i >= rrt_obj_.all_wps_.size() - 1 - 1) // landing = true on the last 2 waypoints
       new_waypoint.landing = true;
@@ -553,16 +548,27 @@ void PathPlannerBase::getInitialMap()
 }
 void PathPlannerBase::stateCallback(const rosplane_msgs::State &msg)
 {
-  if (recieved_state_ == false)
-  {
-    gps_converter_.set_reference(msg.initial_lat, msg.initial_lon, msg.initial_alt);
-    ROS_INFO("REFERENCE POINT SET");
-    recieved_state_ = true;
-  }
   odometry_.N = msg.position[0];
   odometry_.E = msg.position[1];
   odometry_.D = msg.position[2];
   chi0_       =  msg.chi;
+  if (recieved_state_ == false)
+  {
+    double lat_ref, lon_ref, h_ref;
+    float N_init, E_init, D_init;
+    nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
+    nh_.param<double>("lon_ref", lon_ref, -76.43075);
+    nh_.param<double>("h_ref", h_ref, 6.701);
+    ROS_WARN("testing = false, initializing reference and initial position");
+    ROS_WARN("reference latitude: %f", lat_ref);
+    ROS_WARN("reference longitude: %f", lon_ref);
+    ROS_WARN("reference height: %f", h_ref);
+    gps_converter_.set_reference(lat_ref, lon_ref, h_ref);
+    ROS_INFO("REFERENCE POINT SET");
+    recieved_state_ = true;
+    ending_point_ = odometry_;
+    ending_chi_   = msg.chi;
+  }
   if (has_map_)
   {
     for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
