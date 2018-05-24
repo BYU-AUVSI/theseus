@@ -32,6 +32,7 @@ public:
   bool checkPoint(NED_s point, float clearance);
   std::vector<NED_s> all_wps_;                // final path waypoints
   std::vector<int> all_priorities_;
+  std::vector<bool> all_drop_bombs_;
   map_s map_;
   bool landing_now_;
   bool dropping_bomb_;

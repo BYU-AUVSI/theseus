@@ -606,13 +606,16 @@ void PathPlannerBase::stateCallback(const rosplane_msgs::State &msg)
 }
 void PathPlannerBase::updateViz(const ros::WallTimerEvent&)
 {
-  geometry_msgs::Point p;
-  p.x =  odometry_.E;
-  p.y =  odometry_.N;
-  p.z = -odometry_.D;
-  plt.odomCallback(p);
-  plt.pingBoundaries();
-  // plt.pingPath();
+  if (recieved_state_)
+  {
+    geometry_msgs::Point p;
+    p.x =  odometry_.E;
+    p.y =  odometry_.N;
+    p.z = -odometry_.D;
+    plt.odomCallback(p);
+    plt.pingBoundaries();
+    // plt.pingPath();
+  }
 }
 } // end namespace theseus
 

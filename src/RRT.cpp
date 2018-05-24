@@ -144,6 +144,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
       // ROS_DEBUG("pushing back another waypoint");
       all_wps_.push_back(map_.wps[j]);
       all_priorities_.push_back(landing_priority_);
+      all_drop_bombs_.push_back(false);
       // ROS_DEBUG("N: %f, E: %f, D: %f", all_wps_.back().N, all_wps_.back().E, all_wps_.back().D);
       all_rough_paths.push_back(map_.wps[j]);
     }
@@ -593,6 +594,8 @@ void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
         all_priorities_.push_back(mission_priority_);
       else
         all_priorities_.push_back(loitering_priority_);
+      if (true)
+      all_drop_bombs_.push_back(false);
     }
   }
 }
@@ -889,7 +892,7 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
     if (col_det_.checkArc(p, cea, input_file_.turn_radius, cpa, -1, clearance))
     {
       // ROS_DEBUG("arc passed");
-      if (check_line = col_det_.checkLine(cea, lea, clearance))
+      if (col_det_.checkLine(cea, lea, clearance))
       {
         fillet_s fil1, fil2;
         bool passed1, passed2;
@@ -921,13 +924,13 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         normal_gchild->connects2wp = false;
         fake_child->children.push_back(normal_gchild);
 
-        std::vector<NED_s> temp_path;
-        if (normal_gchild->parent->parent != NULL)
-          temp_path.push_back(normal_gchild->parent->parent->p);
-        temp_path.push_back(normal_gchild->parent->p);
-        temp_path.push_back(normal_gchild->p);
-        plt.displayPath(temp_path, clr.gray, 8.0f);
-        ros::Duration(0.5).sleep();
+        // std::vector<NED_s> temp_path;
+        // if (normal_gchild->parent->parent != NULL)
+        //   temp_path.push_back(normal_gchild->parent->parent->p);
+        // temp_path.push_back(normal_gchild->parent->p);
+        // temp_path.push_back(normal_gchild->p);
+        // plt.displayPath(temp_path, clr.gray, 8.0f);
+        // ros::Duration(0.5).sleep();
       }
     }
     // Check the negative side
@@ -979,13 +982,13 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         normal_gchild->connects2wp = false;
         fake_child->children.push_back(normal_gchild);
 
-        std::vector<NED_s> temp_path;
-        if (normal_gchild->parent->parent != NULL)
-          temp_path.push_back(normal_gchild->parent->parent->p);
-        temp_path.push_back(normal_gchild->parent->p);
-        temp_path.push_back(normal_gchild->p);
-        plt.displayPath(temp_path, clr.gray, 8.0f);
-        ros::Duration(0.5).sleep();
+        // std::vector<NED_s> temp_path;
+        // if (normal_gchild->parent->parent != NULL)
+        //   temp_path.push_back(normal_gchild->parent->parent->p);
+        // temp_path.push_back(normal_gchild->parent->p);
+        // temp_path.push_back(normal_gchild->p);
+        // plt.displayPath(temp_path, clr.gray, 8.0f);
+        // ros::Duration(0.5).sleep();
       }
     }
   }
@@ -1262,6 +1265,7 @@ void RRT::clearForNewPath()
 {
   all_wps_.clear();
   all_priorities_.clear();
+  all_drop_bombs_.clear();
   clearTree();                    // Clear all of those tree pointer nodes
   // std::vector<node*>().swap(root_ptrs_);
 }
