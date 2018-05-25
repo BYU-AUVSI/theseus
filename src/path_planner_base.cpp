@@ -443,10 +443,7 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
   NED_s in_front;
   for (long unsigned int i = 0; i < rrt_obj_.all_wps_.size(); i++)
   {
-    new_waypoint.drop_bomb = false;
-    // THIS IS A TOTAL HACK
-    if (i == 0)
-      new_waypoint.drop_bomb = true;
+    new_waypoint.drop_bomb = rrt_obj_.all_drop_bombs_[i];    
     new_waypoint.landing = false;
     if (rrt_obj_.landing_now_ && i >= rrt_obj_.all_wps_.size() - 1 - 1) // landing = true on the last 2 waypoints
       new_waypoint.landing = true;

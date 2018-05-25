@@ -594,8 +594,10 @@ void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
         all_priorities_.push_back(mission_priority_);
       else
         all_priorities_.push_back(loitering_priority_);
-      if (true)
-      all_drop_bombs_.push_back(false);
+      if (i == 1 && j == smooth_path.size() - 1)
+        all_drop_bombs_.push_back(true);
+      else
+        all_drop_bombs_.push_back(false);
     }
   }
 }
