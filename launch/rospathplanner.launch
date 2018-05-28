@@ -2,7 +2,7 @@
   <group ns="theseus">
     <rosparam command="load" file="$(find theseus)/param/path_planning.yaml"  />
     <!-- ROS Parameters below this line are not needed for the launch file, UNLESS you are testing WITHOUT the plane publishing to state -->
-    <param name="testing/init_references" value="false"/>
+    <param name="testing/init_references" value="true"/>
     <param name="~port" value="/dev/uINS"/>
     <param name="lat_ref" value="39.969582"/> <!-- 40.2679779 -->
     <param name="lon_ref" value="-111.96711"/> <!-- -111.6344569 -->

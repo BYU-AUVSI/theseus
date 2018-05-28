@@ -394,7 +394,7 @@ bool CollisionDetection::checkAfterWP(NED_s p, float chi, float clearance)
   int num_circle_trials = 10;				// Will try num_circle_trials on one side and num_circle_trials on the other side.
   float dalpha = (M_PI - alpha) / num_circle_trials;
 
-  float approach_angle = -chi + M_PI/2.0f; //atan2(p.N - coming_from.N, p.E - coming_from.E) + M_PI;
+  float approach_angle = -(chi + 1.0f*M_PI)  + M_PI/2.0f; //atan2(p.N - coming_from.N, p.E - coming_from.E) + M_PI;
   float beta, lambda, Q, phi, theta, zeta, gamma, d;
   NED_s cpa, cea, lea, fake_wp;
   for (int j = 0; j < num_circle_trials; j++)
@@ -426,7 +426,7 @@ bool CollisionDetection::checkAfterWP(NED_s p, float chi, float clearance)
     lea.E = p.E + R*cosf(approach_angle + alpha);
     lea.D = p.D;
 
-    if (checkArc(p, cea, input_file_.turn_radius, cpa, -1, clearance))
+    if (checkArc(p, cea, input_file_.turn_radius, cpa, 1, clearance))
     {
       if (checkLine(cea, lea, clearance))
       {
@@ -446,7 +446,7 @@ bool CollisionDetection::checkAfterWP(NED_s p, float chi, float clearance)
     lea.E = p.E + R*cosf(approach_angle - alpha);
     lea.D = p.D;
 
-    if (checkArc(p, cea, input_file_.turn_radius, cpa, 1, clearance))
+    if (checkArc(p, cea, input_file_.turn_radius, cpa, -1, clearance))
     {
       if (checkLine(cea, lea, clearance))
       {
@@ -612,38 +612,55 @@ bool CollisionDetection::checkArc(NED_s ps, NED_s pe, float R, NED_s cp, int lam
 
   //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
   //vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv Check for Cylinder Obstacles vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+  //
+  // for (unsigned int i = 0; i < map_.cylinders.size(); i++)
+	// 	if (sqrtf(powf(point.N - map_.cylinders[i].N, 2.0f) + powf(point.E - map_.cylinders[i].E, 2.0f)) < map_.cylinders[i].R + clearance && -point.D - clearance < map_.cylinders[i].H)
+	// 		return false;
+  //
   bool clearThisCylinder;
   for (unsigned int i = 0; i < map_.cylinders.size(); i++)
   {
   	if (sqrtf(powf(map_.cylinders[i].N - cp.N, 2.0f) + powf(map_.cylinders[i].E - cp.E, 2.0f)) > r + aradius + map_.cylinders[i].R)
-  		clearThisCylinder = true;
+  	{
+      clearThisCylinder = true;
+      // ROS_DEBUG("circle passed clearThisCylinder,%i, arc is too far away from the cylinder", i);
+    }
   	else if (lineIntersectsArc(map_.cylinders[i].N, map_.cylinders[i].E, cp, ps, pe, ccw))
   	{
-  		if (sqrtf(powf(map_.cylinders[i].N - cp.N, 2.0f) + powf(map_.cylinders[i].E - cp.E, 2.0f)) - aradius - map_.cylinders[i].R < r)
-  		{
-  			clearThisCylinder = false;
-  		}
+      // ROS_DEBUG("line intersects the arc");
+      float d_to_arc = sqrtf(powf(map_.cylinders[i].N - cp.N, 2.0f) + powf(map_.cylinders[i].E - cp.E, 2.0f)) - aradius;
+      if (fabs(d_to_arc) < r +  map_.cylinders[i].R)
+      {
+        clearThisCylinder = false;
+        // ROS_DEBUG("circle exit 900, arc is too close to a cylinder");
+      }
   	}
   	else
   	{
   		if (sqrtf(powf(map_.cylinders[i].N - ps.N, 2.0f) + powf(map_.cylinders[i].E - ps.E, 2.0f)) - map_.cylinders[i].R < r)
   		{
+        // ROS_DEBUG("circle exit 901, starting point is too close to the cylinder");
   			clearThisCylinder = false;
   		}
   		else if (sqrtf(powf(map_.cylinders[i].N - pe.N, 2.0f) + powf(map_.cylinders[i].E - pe.E, 2.0f)) - map_.cylinders[i].R < r)
   		{
+        // ROS_DEBUG("circle exit 902, ending point is too close to the cylinder");
   			clearThisCylinder = false;
   		}
   		else { clearThisCylinder = true; }
   	}
   	if (clearThisCylinder == false)
   	{
+      // ROS_DEBUG("clearThisCylinder = false if statement");
   		if (ps.D < -map_.cylinders[i].H - r && pe.D < -map_.cylinders[i].H - r)
-  			clearThisCylinder = true;
+  		{
+        // ROS_DEBUG("circle clear exception %i", i);
+        clearThisCylinder = true;
+      }
   	}
   	if (clearThisCylinder == false)
     {
-      // ROS_DEBUG("circle exit 999");
+      // ROS_DEBUG("circle exit 999 %i", i);
       return false;
     }
   }
@@ -691,25 +708,33 @@ bool CollisionDetection::lineIntersectsArc(float Ni, float Ei, NED_s cp, NED_s p
 	// Find angle from cp to Ni, Ei
 	float aC2i = atan2f(Ni - cp.N, Ei - cp.E);
 	// Do they overlap?
+
+  // ROS_DEBUG("aC2s %f, aC2e %f, aC2i %f", aC2s*180.0/M_PI, aC2e*180.0/M_PI, aC2i*180.0/M_PI);
 	if (ccw)
 	{
+    // ROS_DEBUG("ccw");
+    aC2i -= aC2s;
+    aC2e -= aC2s;
+    aC2s -= aC2s;
+    while (aC2e < 0.0)
+      aC2e += 2.0*M_PI;
+    while (aC2i < 0.0)
+      aC2i += 2.0*M_PI;
 		if (aC2i >= aC2s && aC2i <= aC2e)
 			return true;
-		else if (aC2s > aC2e)
-		{
-			if ((aC2i >= aC2s || aC2i <= aC2e))
-				return true;
-		}
 	}
 	else
 	{
+    // ROS_DEBUG("cw");
+    aC2i -= aC2e;
+    aC2s -= aC2e;
+    aC2e -= aC2e;
+    while (aC2s < 0.0)
+      aC2s += 2.0*M_PI;
+    while (aC2i < 0.0)
+      aC2i += 2.0*M_PI;
 		if (aC2i <= aC2s && aC2i >= aC2e)
 			return true;
-		else if (aC2e > aC2s)
-		{
-			if (aC2i <= aC2s || aC2i >= aC2e)
-				return true;
-		}
 	}
 	return false;
 }

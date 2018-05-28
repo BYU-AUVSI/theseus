@@ -55,10 +55,10 @@ private:
   void resetParent(node* nin, node* new_parent);
   node* findClosestNodeGChild(node* root, NED_s p);
   bool checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance, bool connecting_to_end);
-  NED_s randomPoint(unsigned int i);
+  NED_s randomPoint();
   node* findClosestNode(node* nin, NED_s P, node* minNode, float* minD);
   node* findMinConnector(node* nin, node* minNode, float* minCost);
-  void createFan(node* root, NED_s p, float chi, float clearance);
+  bool createFan(node* root, NED_s p, float chi, float clearance);
   float redoRandomDownPoint(unsigned int i, float closest_D);
   bool checkWholePath(node* snode, std::vector<node*> rough_path, int ptr, int i);
   bool checkDirectFan(NED_s coming_from, node* root, node* next_node);

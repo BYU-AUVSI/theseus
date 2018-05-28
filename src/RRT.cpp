@@ -54,7 +54,10 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
   {
     NED_s final_wp;
     col_det_.taking_off_ = false;
-    final_wp = findLoiterSpot(map_.wps.back(), input_file_.loiter_radius);
+    if (map_.wps.size() > 0)
+      final_wp = findLoiterSpot(map_.wps.back(), input_file_.loiter_radius);
+    else
+      final_wp = findLoiterSpot(randomPoint(), input_file_.loiter_radius);
     if (final_wp != map_.wps.back())
     {
       last_wp_safe_to_loiter = false;
@@ -78,17 +81,32 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
   printRRTSetup(pos, chi0);
   if (root_ptrs_[0]->dontConnect)
   {
-    createFan(root_ptrs_[0],root_ptrs_[0]->p, chi0, path_clearance_);
-    ROS_DEBUG("created initial fan");
+    bool created_initial_fan = createFan(root_ptrs_[0],root_ptrs_[0]->p, chi0, path_clearance_);
+    if (created_initial_fan)
+      ROS_DEBUG("created initial fan");
+    else
+    {
+      ROS_ERROR("Creating Initial Fan FAILED");
+      root_ptrs_[0]->dontConnect = false;
+    }
   }
   long unsigned int iters_left = input_file_.iters_limit;
-
   for (unsigned int i = 0; i < map_.wps.size(); i++)
   {
     landing_now_ = landing;
     col_det_.landing_now_ = landing_now_;
     if (i > 0 && taking_off_ == false && direct_hit_ == true)
+    {
+      ROS_DEBUG("creating fan from solveStatic");
       createFan(root_ptrs_[i],root_ptrs_[i]->p, (root_ptrs_[i]->p - root_ptrs_[i]->parent->p).getChi(), path_clearance_);
+    }
+    else
+    {
+      ROS_DEBUG("no fan");
+      ROS_DEBUG("i = %i", i);
+      ROS_DEBUG("taking_off_ = %i", taking_off_);
+      ROS_DEBUG("direct_hit_ = %i", direct_hit_);
+    }
     ROS_INFO("Finding route to waypoint %lu", i + (long unsigned int) 1);
     path_clearance_        = input_file_.clearance;
     bool direct_connection = tryDirectConnect(root_ptrs_[i], root_ptrs_[i + 1], i);
@@ -169,7 +187,7 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
   // ROS_DEBUG("Attempting direct connect");
   float clearance = path_clearance_;
   node* start_of_line;
-  if (ps->dontConnect) // then try one of the grand children
+  if (ps->dontConnect && ps->children.size() > 0) // then try one of the grand children
   {
     // ROS_DEBUG("finding the grand child that is closes TRYDIRECTCONNECT");
     start_of_line = findClosestNodeGChild(ps, pe_node->p);
@@ -178,6 +196,8 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
   {
     // ROS_DEBUG("using ps");
     start_of_line = ps;
+    if (ps->dontConnect)
+      ROS_ERROR("dontConnect = true, but there are no children");
   }
   // ROS_DEBUG("checking the line");
   if (col_det_.checkLine(start_of_line->p, pe_node->p, clearance))
@@ -190,7 +210,13 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
       // ROS_DEBUG("checking after the waypoint");
       bool after_wp_check = true;
       if (direct_hit_)
+      {
         after_wp_check = col_det_.checkAfterWP(pe_node->p, chi, clearance);
+        if (after_wp_check)
+          ROS_DEBUG("check after wp = true null");
+        else
+          ROS_DEBUG("check after wp = false null");
+      }
       if (after_wp_check)
       {
         if (landing_now_)
@@ -218,7 +244,7 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
             return false;
           }
         }
-        // ROS_DEBUG("direct connection success 1");
+        ROS_DEBUG("direct connection success 1");
         start_of_line->cost        = start_of_line->cost + (pe_node->p - start_of_line->p).norm();
         start_of_line->connects2wp = true;
         start_of_line->children.push_back(pe_node);
@@ -255,12 +281,22 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
         // ROS_DEBUG("checking after the waypoint");
         bool after_wp_check = true;
         if (direct_hit_)
+        {
           after_wp_check = col_det_.checkAfterWP(pe_node->p, chi, clearance);
+          if (after_wp_check)
+            ROS_DEBUG("check after wp = true");
+          else
+            ROS_DEBUG("check after wp = false");
+          ROS_DEBUG("pe: N %f E %f D %f", pe_node->p.N, pe_node->p.E, pe_node->p.D);
+          ROS_DEBUG("chi %f", chi);
+          ROS_DEBUG("clearance: %f", clearance);
+        }
         if (after_wp_check)
         {
           // check to see if the change in chi is okay
           if (landing_now_)
           {
+            ROS_DEBUG("try direct connect landing");
             float chi1 = chi;
             float chi2 = (map_.wps.back() - map_.wps[map_.wps.size() - 2]).getChi() - M_PI;
             // ROS_DEBUG("Chi1 %f Chi2 %f", chi1, chi2);
@@ -271,7 +307,7 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
               chi2 -= 2.0f*M_PI;
             if (chi2 < 5.0f*M_PI/180.0 && chi2 > -5.0f*M_PI/180.0)
             {
-              // ROS_DEBUG("too close of chi1 and chi2, number 2");
+              ROS_DEBUG("too close of chi1 and chi2, number 2");
               return false;
             }
             fillet_s fil_e;
@@ -280,11 +316,11 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
             bool passed_final_fillet = fil_e.calculate(start_of_line->p, map_.wps[0], pad, input_file_.turn_radius);
             if (passed_final_fillet == false)
             {
-              // ROS_DEBUG("Failed final fillet 2");
+              ROS_DEBUG("Failed final fillet 2");
               return false;
             }
           }
-          // ROS_DEBUG("direct connection success 2");
+          ROS_DEBUG("direct connection success 2");
           start_of_line->cost        = start_of_line->cost + (pe_node->p - start_of_line->p).norm() - fil.adj;
           start_of_line->connects2wp = true;
           start_of_line->children.push_back(pe_node);
@@ -305,7 +341,9 @@ int RRT::developTree(unsigned int i)
   while (added_new_node == false)
   {
     // generate a good point to test
-    NED_s random_point = randomPoint(i);
+    NED_s random_point = randomPoint();
+    if (landing_now_ && random_point.D > map_.wps[0].D)
+      random_point.D = map_.wps[0].D;
     float min_d        = INFINITY;
     node* closest_node = findClosestNode(root_ptrs_[i], random_point, root_ptrs_[i], &min_d);
     if (taking_off_ == false && landing_now_ == false)
@@ -384,11 +422,13 @@ std::vector<node*> RRT::findMinimumPath(unsigned int i)
 }
 std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
 {
+  // rough_path.erase(rough_path.begin());
+  // return rough_path;
+
+
   std::vector<node*> new_path;
   if (animating_){plt.displayPath(rough_path, clr.blue, 6.0f);}
 
-  // rough_path.erase(rough_path.begin());
-  // return rough_path;
 
   ROS_DEBUG("STARTING THE SMOOTHER");
   new_path.push_back(smooth_rts_[i]);
@@ -484,7 +524,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     coming_from = new_path[0]->p + (new_path[0]->p - new_path[1]->p);
     if (checkDirectFan(coming_from, new_path[0], new_path[3]))
     {
-      ROS_WARN("SMOOTHING THE FAN IS POSSIBLE");
+      ROS_INFO("SMOOTHING THE FAN IS POSSIBLE");
       new_path[1] = most_recent_node_;
       new_path.erase(new_path.begin() + 2);
       // for (int j = 0; j < new_path.size(); j++)
@@ -571,8 +611,14 @@ bool RRT::checkWholePath(node* snode, std::vector<node*> rough_path, int ptr, in
     // ROS_DEBUG("after WP checking N %f E %f D %f", almost_last->p.N, almost_last->p.E, almost_last->p.D);
     // ROS_DEBUG("after WP to       N %f E %f D %f", rough_path.back()->p.N, rough_path.back()->p.E, rough_path.back()->p.D);
     float chi = (rough_path.back()->p - almost_last->p).getChi();
-    // if (col_det_.checkAfterWP(rough_path.back()->p, chi, path_clearance_) == false)
-    //   return false;
+    if (col_det_.checkAfterWP(rough_path.back()->p, chi, path_clearance_) == false)
+    {
+      // ROS_WARN("check after = false");
+      // ROS_DEBUG("pe: N %f E %f D %f", rough_path.back()->p.N, rough_path.back()->p.E, rough_path.back()->p.D);
+      // ROS_DEBUG("chi %f", chi);
+      // ROS_DEBUG("clearance: %f", path_clearance_);
+      return false;
+    }
   }
   most_recent_node_ = add_this_node_next;
   return true;
@@ -632,11 +678,16 @@ node* RRT::findClosestNodeGChild(node* root, NED_s p)
   node* closest_gchild;
   node* closest_node;
   // ROS_DEBUG("num_children = %lu", root->children.size());
+  if (root->children.size() == 0)
+  {
+    ROS_ERROR("finding closest grandchildren, but there are no children");
+    return root;
+  }
   for (unsigned int j = 0; j < root->children.size(); j++)
     for (unsigned int k = 0; k < root->children[j]->children.size(); k++)
     {
       // ROS_DEBUG("j = %u, k = %u", j, k);
-      printNode(root->children[j]->children[k]);
+      // printNode(root->children[j]->children[k]);
       float d_gchild = (p - root->children[j]->children[k]->p).norm();
       closest_gchild = findClosestNode(root->children[j]->children[k], p, root->children[j]->children[k], &d_gchild);
       if (d_gchild < distance)
@@ -646,7 +697,7 @@ node* RRT::findClosestNodeGChild(node* root, NED_s p)
       }
     }
     // ROS_DEBUG("found the closest node");
-    printNode(closest_node);
+    // printNode(closest_node);
     return closest_node;
 }
 bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance, bool connecting_to_end)
@@ -654,7 +705,7 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance,
   // returns true if there was no collision detected.
   // returns false if there was a collision collected.
   node* start_of_line;
-  if (ps->dontConnect) // then try one of the grand children
+  if (ps->dontConnect && ps->children.size() > 0) // then try one of the grand children
   {
     // //ROS_DEBUG("finding one of the grand children");
     start_of_line = findClosestNodeGChild(ps, pe);
@@ -663,6 +714,8 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance,
   {
     // //ROS_DEBUG("using the starting point");
     start_of_line = ps;
+    if (ps->dontConnect)
+      ROS_ERROR("dontConnect = true, but there are no children");
   }
   // //ROS_DEBUG("checking the line");
   if (col_det_.checkLine(start_of_line->p, pe, clearance))
@@ -744,22 +797,20 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance,
   // //ROS_DEBUG("Adding node Failed");
   return false;
 }
-NED_s RRT::randomPoint(unsigned int i)
+NED_s RRT::randomPoint()
 {
   NED_s P;
   P.N = rg_.randLin()*(col_det_.maxNorth_ - col_det_.minNorth_) + col_det_.minNorth_;
 	P.E = rg_.randLin()*(col_det_.maxEast_  - col_det_.minEast_)  + col_det_.minEast_;
-  float angle = rg_.randLin()*(input_file_.max_climb_angle  + input_file_.max_descend_angle) - input_file_.max_descend_angle;
+  // float angle = rg_.randLin()*(input_file_.max_climb_angle  + input_file_.max_descend_angle) - input_file_.max_descend_angle;
   P.D = -(rg_.randLin()*(input_file_.maxFlyHeight  - input_file_.minFlyHeight)  + input_file_.minFlyHeight);
-  if (taking_off_ && -root_ptrs_[i]->p.D < input_file_.minFlyHeight)
-  {
-    // float funnel_height = sqrtf(P.N*P.N + P.E*P.E)*0.6f*input_file_.max_climb_angle;
-    // if (funnel_height > input_file_.minFlyHeight)
-    //   P.D = root_ptrs_[i]->p.D - sqrtf(P.N*P.N + P.E*P.E)*0.6f*input_file_.max_climb_angle;
-  }
+  // if (taking_off_ && -root_ptrs_[i]->p.D < input_file_.minFlyHeight)
+  // {
+  //   // float funnel_height = sqrtf(P.N*P.N + P.E*P.E)*0.6f*input_file_.max_climb_angle;
+  //   // if (funnel_height > input_file_.minFlyHeight)
+  //   //   P.D = root_ptrs_[i]->p.D - sqrtf(P.N*P.N + P.E*P.E)*0.6f*input_file_.max_climb_angle;
+  // }
   // if (landing_now_) {ROS_DEBUG("LANDING redo random point"); ROS_DEBUG("%f %f",P.D, map_.wps[0].D);}
-  if (landing_now_ && P.D > map_.wps[0].D)
-    P.D = map_.wps[0].D;
   return P;
 }
 float RRT::redoRandomDownPoint(unsigned int i, float closest_D)
@@ -821,7 +872,7 @@ NED_s RRT::findLoiterSpot(NED_s cp, float radius)
   ROS_DEBUG("finding loiter spot");
   bool center, first_half, second_half;
   center  = col_det_.checkPoint(cp,input_file_.clearance);
-
+  // ROS_DEBUG("checkpoint 1");
   // ps = 12:00, pe = 6:00
   NED_s ps, pe, ups, upe;
   ups.N = 1.0f; upe.N = -1.0f;
@@ -831,22 +882,26 @@ NED_s RRT::findLoiterSpot(NED_s cp, float radius)
   pe    = cp + upe*radius;
   first_half  = col_det_.checkArc(ps, pe, radius, cp, 1, input_file_.clearance); // cw
   second_half = col_det_.checkArc(pe, ps, radius, cp, 1, input_file_.clearance); // cw
-
+  // ROS_DEBUG("checkpoint 2");
   while ( center == false || first_half == false || second_half == false)
   {
-    cp   = randomPoint(map_.wps.size() - 1);
+    // ROS_DEBUG("checkpoint before random point");
+    cp   = randomPoint();
+    // ROS_DEBUG("checkpoint after random point");
     cp.D = -(rg_.randLin()*(col_det_.maxFlyHeight_  - col_det_.minFlyHeight_ - 15.0f)  + col_det_.minFlyHeight_ + 15.0f);
     center  = col_det_.checkPoint(cp,input_file_.clearance);
     ps   = cp + ups*radius;
     pe   = cp + upe*radius;
     first_half  = col_det_.checkArc(ps, pe, radius, cp, 1, input_file_.clearance); // cw
     second_half = col_det_.checkArc(pe, ps, radius, cp, 1, input_file_.clearance); // cw
+    // ROS_DEBUG("checkpoint 3");
   }
+  ROS_DEBUG("found loiterspot");
   return cp;
 }
-void RRT::createFan(node* root, NED_s p, float chi, float clearance)
+bool RRT::createFan(node* root, NED_s p, float chi, float clearance)
 {
-  // ROS_FATAL("Creating Fan");
+  ROS_DEBUG("Creating Fan");
   // printNode(root);
   // ROS_DEBUG("N: %f, E: %f, D: %f", p.N, p.E, p.D);
   // ROS_DEBUG("chi %f: ", chi);
@@ -873,7 +928,7 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
     theta  = acosf(input_file_.turn_radius / Q);
     zeta   = (2 * M_PI - phi - theta) / 2.0;
     gamma  = M_PI - 2 * zeta;
-    d      = input_file_.turn_radius / tanf(gamma / 2.0) + 1.0f;
+    d      = input_file_.turn_radius / tanf(gamma / 2.0);
 
     // Check the positive side
     fake_wp.N = p.N - d*sinf(approach_angle);
@@ -891,64 +946,18 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
     lea.N = p.N + R*sinf(approach_angle + alpha);
     lea.E = p.E + R*cosf(approach_angle + alpha);
     lea.D = p.D;
-    if (col_det_.checkArc(p, cea, input_file_.turn_radius, cpa, -1, clearance))
-    {
-      // ROS_DEBUG("arc passed");
-      if (col_det_.checkLine(cea, lea, clearance))
-      {
-        fillet_s fil1, fil2;
-        bool passed1, passed2;
-        if (root->parent == NULL)
-        {
-          NED_s fake_parent;
-          fake_parent.N = root->p.N + 100.0f*cosf(chi + M_PI);
-          fake_parent.E = root->p.E + 100.0f*sinf(chi + M_PI);
-          fake_parent.D = root->p.D;
-          passed1 = fil1.calculate(fake_parent, p, fake_wp, input_file_.turn_radius);
-        }
-        else
-          passed1 = fil1.calculate(root->parent->p, p, fake_wp, input_file_.turn_radius);
-        passed2 = fil2.calculate(p, fake_wp, lea, input_file_.turn_radius);
-        node *fake_child        = new node;
-        node *normal_gchild     = new node;
-        fake_child->p           = fake_wp;
-        fake_child->fil         = fil1;
-        fake_child->parent      = root;
-        fake_child->cost        = (fake_wp - p).norm();
-        fake_child->dontConnect = false;
-        fake_child->connects2wp = false;
-        root->children.push_back(fake_child);
-        normal_gchild->p           = lea;
-        normal_gchild->fil         = fil2;
-        normal_gchild->parent      = fake_child;
-        normal_gchild->cost        = normal_gchild->parent->cost + (lea - fake_wp).norm() - fil2.adj;
-        normal_gchild->dontConnect = false;
-        normal_gchild->connects2wp = false;
-        fake_child->children.push_back(normal_gchild);
 
-        // std::vector<NED_s> temp_path;
-        // if (normal_gchild->parent->parent != NULL)
-        //   temp_path.push_back(normal_gchild->parent->parent->p);
-        // temp_path.push_back(normal_gchild->parent->p);
-        // temp_path.push_back(normal_gchild->p);
-        // plt.displayPath(temp_path, clr.gray, 8.0f);
-        // ros::Duration(0.5).sleep();
-      }
-    }
-    // Check the negative side
-    cpa.N = p.N - input_file_.turn_radius*cosf(approach_angle);
-    cpa.E = p.E + input_file_.turn_radius*sinf(approach_angle);
-    cpa.D = p.D;
-
-    cea.N = fake_wp.N + d*sinf(-gamma + approach_angle);
-    cea.E = fake_wp.E + d*cosf(-gamma + approach_angle);
-    cea.D = p.D;
-
-    lea.N = p.N + R*sinf(approach_angle - alpha);
-    lea.E = p.E + R*cosf(approach_angle - alpha);
-    lea.D = p.D;
-
-    if (col_det_.checkArc(p, cea, input_file_.turn_radius, cpa, 1, clearance))
+    // ROS_WARN("p N %f E %f D %f", p.N, p.E, p.D);
+    // ROS_WARN("cea N %f E %f D %f", cea.N, cea.E, cea.D);
+    // ROS_WARN("cpa N %f E %f D %f", cpa.N, cpa.E, cpa.D);
+    // std::vector<NED_s> temp_path0;
+    // temp_path0.push_back(root->p);
+    // temp_path0.push_back(fake_wp);
+    // temp_path0.push_back(lea);
+    // plt.displayPath(temp_path0, clr.blue, 4.0f);
+    // ros::Duration(0.5).sleep();
+    // temp_path0.clear();
+    if (col_det_.checkArc(p, cea, input_file_.turn_radius, cpa, 1, clearance)) // cw
     {
       // ROS_DEBUG("arc passed");
       if (col_det_.checkLine(cea, lea, clearance))
@@ -983,6 +992,77 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         normal_gchild->dontConnect = false;
         normal_gchild->connects2wp = false;
         fake_child->children.push_back(normal_gchild);
+        found_at_least_1_good_path = true;
+
+        // std::vector<NED_s> temp_path;
+        // if (normal_gchild->parent->parent != NULL)
+        //   temp_path.push_back(normal_gchild->parent->parent->p);
+        // temp_path.push_back(normal_gchild->parent->p);
+        // temp_path.push_back(normal_gchild->p);
+        // plt.displayPath(temp_path, clr.orange, 8.0f);
+        // ros::Duration(0.5).sleep();
+      }
+    }
+    // ros::Duration(1.0).sleep();
+    // Check the negative side
+    cpa.N = p.N - input_file_.turn_radius*cosf(approach_angle);
+    cpa.E = p.E + input_file_.turn_radius*sinf(approach_angle);
+    cpa.D = p.D;
+
+    cea.N = fake_wp.N + d*sinf(-gamma + approach_angle);
+    cea.E = fake_wp.E + d*cosf(-gamma + approach_angle);
+    cea.D = p.D;
+
+    lea.N = p.N + R*sinf(approach_angle - alpha);
+    lea.E = p.E + R*cosf(approach_angle - alpha);
+    lea.D = p.D;
+
+    // ROS_FATAL("p N %f E %f D %f", p.N, p.E, p.D);
+    // ROS_FATAL("cea N %f E %f D %f", cea.N, cea.E, cea.D);
+    // ROS_FATAL("cpa N %f E %f D %f", cpa.N, cpa.E, cpa.D);
+    // temp_path0.push_back(root->p);
+    // temp_path0.push_back(fake_wp);
+    // temp_path0.push_back(lea);
+    // plt.displayPath(temp_path0, clr.blue, 4.0f);
+    // ros::Duration(0.5).sleep();
+    // temp_path0.clear();
+
+    if (col_det_.checkArc(p, cea, input_file_.turn_radius, cpa, -1, clearance)) // ccw
+    {
+      // ROS_DEBUG("arc passed");
+      if (col_det_.checkLine(cea, lea, clearance))
+      {
+        // ROS_DEBUG("line passed");
+        fillet_s fil1, fil2;
+        bool passed1, passed2;
+        if (root->parent == NULL)
+        {
+          NED_s fake_parent;
+          fake_parent.N = root->p.N + 100.0f*cosf(chi + M_PI);
+          fake_parent.E = root->p.E + 100.0f*sinf(chi + M_PI);
+          fake_parent.D = root->p.D;
+          passed1 = fil1.calculate(fake_parent, p, fake_wp, input_file_.turn_radius);
+        }
+        else
+          passed1 = fil1.calculate(root->parent->p, p, fake_wp, input_file_.turn_radius);
+        passed2 = fil2.calculate(p, fake_wp, lea, input_file_.turn_radius);
+        node *fake_child        = new node;
+        node *normal_gchild     = new node;
+        fake_child->p           = fake_wp;
+        fake_child->fil         = fil1;
+        fake_child->parent      = root;
+        fake_child->cost        = (fake_wp - p).norm();
+        fake_child->dontConnect = false;
+        fake_child->connects2wp = false;
+        root->children.push_back(fake_child);
+        normal_gchild->p           = lea;
+        normal_gchild->fil         = fil2;
+        normal_gchild->parent      = fake_child;
+        normal_gchild->cost        = normal_gchild->parent->cost + (lea - fake_wp).norm() - fil2.adj;
+        normal_gchild->dontConnect = false;
+        normal_gchild->connects2wp = false;
+        fake_child->children.push_back(normal_gchild);
+        found_at_least_1_good_path = true;
 
         // std::vector<NED_s> temp_path;
         // if (normal_gchild->parent->parent != NULL)
@@ -993,9 +1073,18 @@ void RRT::createFan(node* root, NED_s p, float chi, float clearance)
         // ros::Duration(0.5).sleep();
       }
     }
+    // ros::Duration(1.0).sleep();
   }
   // ROS_FATAL("Created the fan: root node now:");
   // printNode(root);
+  // if (found_at_least_1_good_path)
+  //   ROS_DEBUG("found_at_least_1_good_path = true");
+  // else
+  //   ROS_DEBUG("found_at_least_1_good_path = false");
+  // ROS_DEBUG("ps: N %f E %f D %f", p.N, p.E, p.D);
+  // ROS_DEBUG("chi %f", chi);
+  // ROS_DEBUG("clearance: %f", clearance);
+  return found_at_least_1_good_path;
 }
 bool RRT::checkDirectFan(NED_s coming_from, node* root, node* next_node)
 {
@@ -1004,7 +1093,7 @@ bool RRT::checkDirectFan(NED_s coming_from, node* root, node* next_node)
   second_wp = next_node->p;
 	float R = sqrtf(powf(second_wp.N - primary_wp.N,2) + powf(second_wp.E - primary_wp.E,2)\
                 + powf(second_wp.D - primary_wp.D,2));
-
+  // does this approach_angle need to be changed?
 	float approach_angle = atan2f(primary_wp.N - coming_from.N, primary_wp.E - coming_from.E) + M_PI;
 	float beta, lambda, Q, phi, theta, zeta, gamma, d;
 	NED_s cpa, cea, lea, fake_wp;
@@ -1057,7 +1146,7 @@ bool RRT::checkDirectFan(NED_s coming_from, node* root, node* next_node)
 		lea.N = primary_wp.N + R*sinf(approach_angle + alpha);
 		lea.E = primary_wp.E + R*cosf(approach_angle + alpha);
 		lea.D = primary_wp.D;
-    if (col_det_.checkArc(primary_wp, cea, input_file_.turn_radius, cpa, -1, path_clearance_))
+    if (col_det_.checkArc(primary_wp, cea, input_file_.turn_radius, cpa, 1, path_clearance_))
       if (col_det_.checkLine(cea, lea, path_clearance_))
 			{
 				// Looks like things are going to work out for this maneuver!
@@ -1100,7 +1189,7 @@ bool RRT::checkDirectFan(NED_s coming_from, node* root, node* next_node)
 		lea.E = primary_wp.E + R*cosf(approach_angle - alpha);
 		lea.D = primary_wp.D;
 
-    if (col_det_.checkArc(primary_wp, cea, input_file_.turn_radius, cpa, 1, path_clearance_))
+    if (col_det_.checkArc(primary_wp, cea, input_file_.turn_radius, cpa, -1, path_clearance_))
       if (col_det_.checkLine(cea, lea, path_clearance_))
 			{
         // Looks like things are going to work out for this maneuver!
@@ -1366,9 +1455,9 @@ void RRT::printNode(node* nin)
   ROS_DEBUG("parent %p", (void *)nin->parent);
   ROS_DEBUG("number of children %lu", nin->children.size());
   ROS_DEBUG("cost %f", nin->cost);
-  if (nin->dontConnect) {ROS_DEBUG("dontConnect == true");}
+  if (nin->dontConnect) {ROS_DEBUG("dontConnect = true");}
   else {ROS_DEBUG("dontConnect == false");}
-  if (nin->connects2wp) {ROS_DEBUG("connects2wp == true");}
+  if (nin->connects2wp) {ROS_DEBUG("connects2wp = true");}
   else {ROS_DEBUG("connects2wp == false");}
 }
 void RRT::printFillet(fillet_s fil)
