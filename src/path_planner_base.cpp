@@ -11,6 +11,7 @@ PathPlannerBase::PathPlannerBase() :
   recieved_state_         = false;
   has_map_                = false;
   state_subscriber_       = nh_.subscribe("/state",100,&theseus::PathPlannerBase::stateCallback, this);
+  fstate_subscriber_       = nh_.subscribe("/fixedwing/state",100,&theseus::PathPlannerBase::stateCallback, this);
   waypoint_client_        = nh_.serviceClient<rosplane_msgs::NewWaypoints>("/waypoint_path");
 
   path_solver_service1_   = nh_.advertiseService("wps_now",&theseus::PathPlannerBase::wpsNow, this);
@@ -41,23 +42,27 @@ PathPlannerBase::PathPlannerBase() :
   RRT rrt_obj(myWorld_, input_file_.seed);
   rrt_obj_ = rrt_obj;
 
+
+  double lat_ref, lon_ref, h_ref;
+  nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
+  nh_.param<double>("lon_ref", lon_ref, -76.43075);
+  nh_.param<double>("h_ref", h_ref, 6.701);
+  ROS_WARN("reference latitude: %f", lat_ref);
+  ROS_WARN("reference longitude: %f", lon_ref);
+  ROS_WARN("reference height: %f", h_ref);
+  ROS_INFO("REFERENCE POINT SET");
+
+  gps_converter_.set_reference(lat_ref, lon_ref, h_ref);
+
   bool testing;
   nh_.param<bool>("testing/init_references", testing, false);
   if (testing)
   {
-    double lat_ref, lon_ref, h_ref;
     float N_init, E_init, D_init;
-    nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
-    nh_.param<double>("lon_ref", lon_ref, -76.43075);
-    nh_.param<double>("h_ref", h_ref, 6.701);
     nh_.param<float>("testing/N_init", N_init, 0.0);
     nh_.param<float>("testing/E_init", E_init, 0.0);
     nh_.param<float>("testing/D_init", D_init, 0.0);
     ROS_WARN("testing = true, initializing reference and initial position");
-    ROS_WARN("reference latitude: %f", lat_ref);
-    ROS_WARN("reference longitude: %f", lon_ref);
-    ROS_WARN("reference height: %f", h_ref);
-    gps_converter_.set_reference(lat_ref, lon_ref, h_ref);
     recieved_state_ =  true;
     odometry_.N     = N_init;
     odometry_.E     = E_init;
@@ -443,7 +448,7 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
   NED_s in_front;
   for (long unsigned int i = 0; i < rrt_obj_.all_wps_.size(); i++)
   {
-    new_waypoint.drop_bomb = rrt_obj_.all_drop_bombs_[i];    
+    new_waypoint.drop_bomb = rrt_obj_.all_drop_bombs_[i];
     new_waypoint.landing = false;
     if (rrt_obj_.landing_now_ && i >= rrt_obj_.all_wps_.size() - 1 - 1) // landing = true on the last 2 waypoints
       new_waypoint.landing = true;
@@ -551,20 +556,10 @@ void PathPlannerBase::stateCallback(const rosplane_msgs::State &msg)
   chi0_       =  msg.chi;
   if (recieved_state_ == false)
   {
-    double lat_ref, lon_ref, h_ref;
-    float N_init, E_init, D_init;
-    nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
-    nh_.param<double>("lon_ref", lon_ref, -76.43075);
-    nh_.param<double>("h_ref", h_ref, 6.701);
-    ROS_WARN("testing = false, initializing reference and initial position");
-    ROS_WARN("reference latitude: %f", lat_ref);
-    ROS_WARN("reference longitude: %f", lon_ref);
-    ROS_WARN("reference height: %f", h_ref);
-    gps_converter_.set_reference(lat_ref, lon_ref, h_ref);
-    ROS_INFO("REFERENCE POINT SET");
     recieved_state_ = true;
     ending_point_ = odometry_;
     ending_chi_   = msg.chi;
+    ROS_INFO("Initial state of the UAV recieved.");
   }
   if (has_map_)
   {

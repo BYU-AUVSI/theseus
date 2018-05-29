@@ -59,6 +59,7 @@ private:
   visualization_msgs::Marker odom_mkr_;
   visualization_msgs::Marker planned_path_mkr_;
   int path_id_;
+  int pWPS_id_;
   ParamReader input_file_;
   std::vector<node*> fringe_;
   std::vector<NED_s> tree_path_;

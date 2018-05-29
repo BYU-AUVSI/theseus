@@ -45,6 +45,7 @@ private:
   //************** SUBSCRIBERS AND PUBLISHERS **************//
   ros::ServiceServer plan_mission_service_;
   ros::Subscriber state_subscriber_;
+  ros::Subscriber fstate_subscriber_;
   ros::ServiceClient waypoint_client_;
   ros::ServiceServer path_solver_service1_;
   ros::ServiceServer path_solver_service2_;

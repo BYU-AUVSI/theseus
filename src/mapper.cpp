@@ -125,8 +125,8 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 
 	// Randomly Generate nCyli Cylinders
 	// can be up to 10 cylinders in the competition
-	nCyli = input_file->nCyli;												// Number of Cylinders
-	cyl_s cyl;																// Cylinder object
+	nCyli = input_file->nCyli;        // Number of Cylinders
+	cyl_s cyl;                        // Cylinder object
 	for (unsigned int i = 0; i < nCyli; i++)
 	{
 		// Generate a position and radius

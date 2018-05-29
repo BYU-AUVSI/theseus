@@ -7,6 +7,7 @@ rrtPlotter::rrtPlotter() :
 {
   marker_pub_                  = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 10);
   path_id_                     = 0;
+  pWPS_id_                     = 0;
   odom_mkr_.header.frame_id    = "/local_ENU";
   odom_mkr_.ns                 = "plane_odom";
   odom_mkr_.type               = visualization_msgs::Marker::POINTS;
@@ -111,7 +112,7 @@ void rrtPlotter::displayMap(map_s map)
 
   // primary waypoints
   pWPS_mkr.header.stamp = ros::Time::now();
-  pWPS_mkr.id           =  0;
+  pWPS_mkr.id           =  pWPS_id_++;
   pWPS_mkr.scale.x      =  25.0; // point width
   pWPS_mkr.scale.y      =  25.0; // point height
   ROS_INFO("Number of Waypoints: %lu", map.wps.size());

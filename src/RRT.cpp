@@ -1227,10 +1227,6 @@ void RRT::setupBombWps()
   NED_s target;
   target = map_.wps[0];
   // find possible approaches to the target
-  std::vector<NED_s> wps;
-  std::vector<NED_s> starting_pts;
-  std::vector<NED_s> ending_pts;
-  std::vector<float> points;
 
   // find the minimum height
   NED_s low_point(target.N, target.E, -input_file_.minFlyHeight);
@@ -1249,7 +1245,7 @@ void RRT::setupBombWps()
   for (float h = -low_point.D; h < input_file_.maxFlyHeight; h += 5.0f)
   {
     wp.D = -h;
-    for (float chi = 0.0f; chi < 2.0f*M_PI; chi += 2.0f*M_PI/16.0f)
+    for (float chi = 0.25f*M_PI/180.0f; chi < 2.0f*M_PI; chi += 2.0f*M_PI/16.0f) // there are problems when chi = exactly 90 degrees...
     {
       NED_s ps, pe;
       pe = wp;
@@ -1259,7 +1255,7 @@ void RRT::setupBombWps()
       bool line_passed;
       do
       {
-        std::vector<NED_s> temp_neds;
+        // std::vector<NED_s> temp_neds;
         len = len + 10.0f;
         ps = wp;
         ps.N += len*cosf(chi);
@@ -1268,22 +1264,18 @@ void RRT::setupBombWps()
         // temp_neds.push_back(ps);
         // temp_neds.push_back(pe);
         // plt.displayPath(temp_neds, clr.orange, 5.0f);
-        // ros::Duration(0.01f).sleep();
-        temp_neds.clear();
+        // ros::Duration(0.1f).sleep();
+        // temp_neds.clear();
         if (line_passed)
         {
           // temp_neds.push_back(ps);
           // temp_neds.push_back(pe);
           // plt.displayPath(temp_neds, clr.green, 8.0f);
           // temp_neds.clear();
-          // ros::Duration(0.0001f).sleep();
+          // ros::Duration(0.1f).sleep();
           found_approach = true;
           float value = len + 3.0f*(input_file_.maxFlyHeight - h);
-          wps.push_back(wp);
-          starting_pts.push_back(ps);
-          ending_pts.push_back(pe);
-          points.push_back(value);
-          if (best_value < value)
+          if (best_value < value) // higher number is better
           {
             best_value = value;
             ROS_INFO("height: %f, len %f, value %f chi %f", -wp.D, len, value, chi);

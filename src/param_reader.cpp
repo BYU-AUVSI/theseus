@@ -44,9 +44,9 @@ ParamReader::ParamReader() :
   nh_.param<bool>("testing/init_references", testing, false);
   if (testing)
   {
-    nh_.param<float>("N_init", N_init, 0.0);
-    nh_.param<float>("E_init", E_init, 0.0);
-    nh_.param<float>("D_init", D_init, 0.0);
+    nh_.param<float>("testing/N_init", N_init, 0.0);
+    nh_.param<float>("testing/E_init", E_init, 0.0);
+    nh_.param<float>("testing/D_init", D_init, 0.0);
     chi0 = 0.0;
   }
   nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
