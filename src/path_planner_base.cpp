@@ -466,6 +466,10 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
     else
       new_waypoint.set_current = false;
     new_waypoint.clear_wp_list = false;
+    // if (rrt_obj_.all_drop_bombs_[i])
+    //   ROS_DEBUG("drop bomb");
+    // else
+    //   ROS_DEBUG("don't drop bomb");
     srv.request.waypoints.push_back(new_waypoint);
   }
   if (srv.request.waypoints.back().loiter_point == true)
@@ -480,7 +484,7 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
     new_waypoint.w[0] = in_front.N;
     new_waypoint.w[1] = in_front.E;
     new_waypoint.w[2] = in_front.D;
-    srv.request.waypoints.push_back(new_waypoint);
+    srv.request.waypoints.push_back(new_waypoint); // new_waypoint.loiter_point already = true
   }
   bool found_service = ros::service::waitForService("/waypoint_path", ros::Duration(1.0));
   while (found_service == false)

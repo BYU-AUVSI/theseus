@@ -640,7 +640,7 @@ void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
         all_priorities_.push_back(mission_priority_);
       else
         all_priorities_.push_back(loitering_priority_);
-      if (i == 1 && j == smooth_path.size() - 1)
+      if (i == 1 && j == smooth_path.size() - 1 && dropping_bomb_)
         all_drop_bombs_.push_back(true);
       else
         all_drop_bombs_.push_back(false);
