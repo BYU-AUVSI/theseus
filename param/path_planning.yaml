@@ -1,21 +1,21 @@
 pp:
   Va: 20.0
   turn_radius: 50.0          # Turn radius of the plane to plan for in the path.
-  loiter_radius: 125.0       # loitering radius
+  loiter_radius: 75.0       # loitering radius
   segment_length: 80.0       # Turn radius of the plane to plan for in the path.
-  max_climb_angle: 22.0      # Maximum angle the plane will ascend, must be greater than climb_angle
-  max_descend_angle: 18.0    # Maximum angle the plane will descend, must be greater than descend_angle
-  clearance: 15.0            # Minimum distance the algorithm has to stay away from any obstacle
+  max_climb_angle: 18.0      # Maximum angle the plane will ascend, must be greater than climb_angle
+  max_descend_angle: 12.0    # Maximum angle the plane will descend, must be greater than descend_angle
+  clearance: 30.0            # Minimum distance the algorithm has to stay away from any obstacle
   iters_limit: 5000          # This is a maximum iteration limit - so impossible maps don't hang the program
-  seed: 209202099           # Seed the random generators for all of the simulation seed 90
+  seed: 561968               # Seed the random generators for all of the simulation seed 90
 ppsim:
   # Map Settings
-  numWps: 8                  # Number of waypoints to plan.
+  numWps: 5                  # Number of waypoints to plan.
   minCylRadius: 9.144        # 9.144 m = 30 ft.
   maxCylRadius: 91.44        # 91.44 m = 300 ft.
   minCylHeight: 9.144        # 9.144 m = 30 ft.
   maxCylHeight: 228.6        # 228.6 m = 750 ft.
-  minFlyHeight: 30.48        # 23.7744 m = 100 - 22 ft. (positive value)
-  maxFlyHeight: 228.6        # 221.8944 m = 750 - 22 ft. (positive value)
-  waypoint_clearance: 30.0   # Minimum Distance a waypoint will be placed away from an obstacle (to make it possible)
+  minFlyHeight: 30.48        # 30.48 m = 100 ft. (positive value)
+  maxFlyHeight: 228.6        # 228.6 m = 750 ft. (positive value)
+  waypoint_clearance: 32.0   # Minimum Distance a waypoint will be placed away from an obstacle (to make it possible)
   nCyli: 10                   # Number of Cylindrical Obstacles

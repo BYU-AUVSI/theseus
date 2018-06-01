@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   uav_msgs
   tf
   visualization_msgs
+  message_generation
 )
 
 ## System dependencies are found with CMake's conventions
@@ -56,11 +57,11 @@ find_package(catkin REQUIRED COMPONENTS
 #)
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+   FILES
+   GPS.srv
+   ned2gps.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -70,13 +71,13 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-#generate_messages(
-# DEPENDENCIES
-# rosplane_msgs
-# visualization_msgs
-# std_msgs
-# uav_msgs
-#)
+generate_messages(
+ DEPENDENCIES
+ rosplane_msgs
+ visualization_msgs
+ std_msgs
+ uav_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##

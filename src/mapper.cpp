@@ -18,6 +18,10 @@ mapper::mapper()
 }
 mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 {
+  rPhi_ = 38.144692;
+  rLam_ = -76.428007;
+  rH_   = 0.0;
+
 	// Keep the address of the input file class
 	input_file = input_file_in;
 
@@ -37,13 +41,9 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 
 	// Pull in the competition boundaries
 	// Get the NED coordinate frame set up
-  double rPhi, rLam, rH;
-	rPhi = 38.14326388888889;
-  rLam = -76.43075;
-  rH   = 6.701;
 
   gps_struct gps_converter;
-  gps_converter.set_reference(rPhi, rLam, rH);
+  gps_converter.set_reference(rPhi_, rLam_, rH_);
 
 	NED_s boundary_point;
 	bool setFirstValues = true;
@@ -59,7 +59,7 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
   {
     phi            = default_boundaries_lat[i];
     lambda         = default_boundaries_lon[i];
-    gps_converter.gps2ned(phi, lambda, rH, boundary_point.N, boundary_point.E, boundary_point.D);
+    gps_converter.gps2ned(phi, lambda, rH_, boundary_point.N, boundary_point.E, boundary_point.D);
 		if (setFirstValues == false)
 		{
 			maxNorth = (boundary_point.N > maxNorth) ? boundary_point.N : maxNorth; // if new N is greater than maxN, set maxN = new N
@@ -77,22 +77,6 @@ mapper::mapper(unsigned int seed, ParamReader *input_file_in)
 		}
 		map.boundary_pts.push_back(boundary_point);	// This line puts the boundary points into the map member.
 	}
-
-  // float temp_latitude  =   39.969473f;
-  // float temp_longitude = -111.966988f;
-  // float temp_height    = 1430.860f;
-  // gps_converter.set_reference(temp_latitude, temp_longitude, temp_height);
-  // for (int i = 0; i < 12; i++)
-  // {
-  //   double N, E, D;
-  //   N = (double) map.boundary_pts[i].N;
-  //   E = (double) map.boundary_pts[i].E;
-  //   D = (double) map.boundary_pts[i].D;
-  //   double temp_lat, temp_long, temp_h;
-  //   gps_converter.ned2gps(N, E, D, temp_lat, temp_long, temp_h);
-  //   ROS_INFO("point %i, latitude: %f, longitude: %f, height: %f", i, temp_lat, temp_long, temp_h);
-	// }
-  // gps_converter.set_reference(rPhi, rLam, rH);
 
 	// Set up flyZoneCheck()
 	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv These lines are used to prep the flyZoneCheck() algorithm
@@ -237,5 +221,20 @@ bool mapper::flyZoneCheckMASTER(const NED_s NED, const double radius)	// This fu
 		if (sqrt(pow(NED.N - map.cylinders[i].N, 2) + pow(NED.E - map.cylinders[i].E, 2)) < map.cylinders[i].R + radius && -NED.D - radius < map.cylinders[i].H)
 			return false;
 	return true; // The coordinate is in the safe zone if it got to here!
+}
+void mapper::translateBoundaries(double lat, double lon, double height)
+{
+  gps_struct gps_converter;
+  gps_converter.set_reference(lat, lon, height);
+  for (int i = 0; i < map.boundary_pts.size(); i++)
+  {
+    double N, E, D;
+    N = (double) map.boundary_pts[i].N;
+    E = (double) map.boundary_pts[i].E;
+    D = (double) map.boundary_pts[i].D;
+    double temp_lat, temp_long, temp_h;
+    gps_converter.ned2gps(N, E, D, temp_lat, temp_long, temp_h);
+    ROS_INFO("point %i, latitude: %f, longitude: %f, height: %f", i, temp_lat, temp_long, temp_h);
+	}
 }
 } // end namespace theseus

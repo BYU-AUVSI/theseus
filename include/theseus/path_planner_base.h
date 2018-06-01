@@ -14,6 +14,8 @@
 #include <theseus/gps_struct.h>
 #include <theseus/fillet_s.h>
 #include <theseus/rrt_plotter.h>
+#include <theseus/GPS.h>
+#include <theseus/ned2gps.h>
 
 #include <rosplane_msgs/Waypoint.h>
 #include <rosplane_msgs/NewWaypoints.h>
@@ -59,6 +61,9 @@ private:
   ros::ServiceServer send_wps_service_;
   ros::ServiceServer replot_map_service_;
   ros::ServiceServer wp_distance_service_;
+  ros::ServiceServer translate_bdry_srv_;
+  ros::ServiceServer translate_map_srv_;
+  ros::ServiceServer convert_ned_srv_;
   map_s myWorld_;
   void stateCallback(const rosplane_msgs::State &msg);
 
@@ -109,6 +114,10 @@ public:
   bool displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool displayD2WP(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res);
   bool planMission(uav_msgs::GeneratePath::Request &req, uav_msgs::GeneratePath::Response &res);
+
+  bool translateBoundaries(theseus::GPS::Request &req, theseus::GPS::Response &res);
+  bool translateMap(theseus::GPS::Request &req, theseus::GPS::Response &res);
+  bool convertNED(theseus::ned2gps::Request &req, theseus::ned2gps::Response &res);
 private:
   bool landing(bool now);
   bool textfile(bool now);

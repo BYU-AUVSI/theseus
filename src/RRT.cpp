@@ -43,6 +43,7 @@ RRT::~RRT()
 }
 void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
+  printRRTSetup(pos, chi0);
   dropping_bomb_ = drop_bomb;
   if (animating_) {ros::Duration(initial_map_time_).sleep();}
   if (dropping_bomb_)
@@ -1239,7 +1240,7 @@ void RRT::setupBombWps()
   NED_s best_ps, best_wp, best_pe;
   bool found_approach = false;
   float best_value = 0.0f;
-  float after_wp = 1.25*input_file_.turn_radius;
+  float after_wp = 1.75*input_file_.turn_radius;
   NED_s wp;
   wp = target;
   for (float h = -low_point.D; h < input_file_.maxFlyHeight; h += 5.0f)

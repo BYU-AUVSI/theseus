@@ -1,0 +1,7 @@
+float64 N
+float64 E
+float64 D
+float64 reference_lat
+float64 reference_lon
+float64 reference_height
+---

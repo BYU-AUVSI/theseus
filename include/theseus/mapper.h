@@ -24,6 +24,7 @@ public:
   mapper();
 	mapper(unsigned int seed, ParamReader *input_file);		// default constructor (uses the competition boundaries) with random obstacles.
 	~mapper();
+  void translateBoundaries(double lat, double lon, double height);
 
 	// Members
 	map_s map; // The map struct. This is where all of the important information about the created map.
@@ -53,6 +54,9 @@ private:
 	double maxCylHeight;                            // Maximum Cylinder Height in meters
 	double waypoint_clearance;                      // The radius away from any obstacle that the waypoints are placed
 	bool   is3D;                                    // If true, the board is 3D (cylinders have height) if false board is 2D (cylinders have height = to maxFlyHeight)
+  double rPhi_;
+  double rLam_;
+  double rH_;
 };
 }
 #endif

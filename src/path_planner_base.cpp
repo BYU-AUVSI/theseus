@@ -29,6 +29,10 @@ PathPlannerBase::PathPlannerBase() :
   replot_map_service_     = nh_.advertiseService("replot_map",&theseus::PathPlannerBase::displayMapService, this);
   wp_distance_service_    = nh_.advertiseService("display_wp_distance",&theseus::PathPlannerBase::displayD2WP, this);
 
+  translate_bdry_srv_     = nh_.advertiseService("translate_boundaries",&theseus::PathPlannerBase::translateBoundaries, this);
+  translate_map_srv_      = nh_.advertiseService("translate_map",&theseus::PathPlannerBase::translateMap, this);
+  convert_ned_srv_        = nh_.advertiseService("convert_ned",&theseus::PathPlannerBase::convertNED, this);
+
 
   //******************** CLASS VARIABLES *******************//
   RandGen rg_in(input_file_.seed);
@@ -44,9 +48,9 @@ PathPlannerBase::PathPlannerBase() :
 
 
   double lat_ref, lon_ref, h_ref;
-  nh_.param<double>("lat_ref", lat_ref, 38.14326388888889);
-  nh_.param<double>("lon_ref", lon_ref, -76.43075);
-  nh_.param<double>("h_ref", h_ref, 6.701);
+  nh_.param<double>("lat_ref", lat_ref, 38.144692);
+  nh_.param<double>("lon_ref", lon_ref, -76.428007);
+  nh_.param<double>("h_ref", h_ref, 0.0);
   ROS_WARN("reference latitude: %f", lat_ref);
   ROS_WARN("reference longitude: %f", lon_ref);
   ROS_WARN("reference height: %f", h_ref);
@@ -61,7 +65,7 @@ PathPlannerBase::PathPlannerBase() :
     float N_init, E_init, D_init;
     nh_.param<float>("testing/N_init", N_init, 0.0);
     nh_.param<float>("testing/E_init", E_init, 0.0);
-    nh_.param<float>("testing/D_init", D_init, 0.0);
+    nh_.param<float>("testing/D_init", D_init, -6.0);
     ROS_WARN("testing = true, initializing reference and initial position");
     recieved_state_ =  true;
     odometry_.N     = N_init;
@@ -116,23 +120,51 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     lat   = req.mission.stationary_obstacles[i].point.latitude;
     lon   = req.mission.stationary_obstacles[i].point.longitude;
     alt   = req.mission.stationary_obstacles[i].point.altitude;
-    cyl.R = req.mission.stationary_obstacles[i].cylinder_height;
-    cyl.H = req.mission.stationary_obstacles[i].cylinder_radius;
+    cyl.R = req.mission.stationary_obstacles[i].cylinder_radius;
+    cyl.H = req.mission.stationary_obstacles[i].cylinder_height;
     gps_converter_.gps2ned(lat, lon, alt, cyl.N, cyl.E, D);
     mission_map.cylinders.push_back(cyl);
     ROS_FATAL("cylinder:: %f %f", cyl.N, cyl.E);
   }
+
+  // defaults
+  options.direct_hit = false;
+  options.landing = false;
+  options.drop_bomb = false;
+
+
   if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT)
   {
     last_primary_wps_ = mission_map.wps;
     options.direct_hit = true;
   }
-  else
-    options.direct_hit = false;
-  double chi;
-  options.landing = false;
-  if (req.mission.mission_type == req.mission.MISSION_TYPE_LAND)
+  else if (req.mission.mission_type == req.mission.MISSION_TYPE_DROP)
   {
+    options.drop_bomb = true;
+    mission_map.wps[0].D = 0.0f;
+  }
+  else if (req.mission.mission_type == req.mission.MISSION_TYPE_SEARCH)
+  {
+    options.check_wps = true;
+    rrt_obj_.newMap(mission_map);
+    mission_map.wps.clear();
+    for (int i = 0; i < num_waypoints; i++)
+    {
+      lat = req.mission.waypoints[i].point.latitude;
+      lon = req.mission.waypoints[i].point.longitude;
+      alt = req.mission.waypoints[i].point.altitude;
+      gps_converter_.gps2ned(lat, lon, alt, ned.N, ned.E, ned.D);
+      if (rrt_obj_.checkPoint(ned, input_file_.clearance + 0.5f*input_file_.turn_radius))
+        mission_map.wps.push_back(ned);
+    }
+  }
+  else if (req.mission.mission_type == req.mission.MISSION_TYPE_OTHER)
+  {
+    // TODO
+  }
+  else if (req.mission.mission_type == req.mission.MISSION_TYPE_LAND)
+  {
+    double chi;
     chi = req.mission.waypoints[0].point.chi;
     ROS_INFO("chi: %f", chi);
     options.landing = true;
@@ -149,22 +181,20 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     ned.D = 0.0f;
     mission_map.wps.push_back(ned);
   }
-  if (req.mission.mission_type == req.mission.MISSION_TYPE_SEARCH)
+  else if (req.mission.mission_type == req.mission.MISSION_TYPE_EMERGENT)
   {
-    options.check_wps = true;
-    rrt_obj_.newMap(mission_map);
-    mission_map.wps.clear();
-    for (int i = 0; i < num_waypoints; i++)
-    {
-      lat = req.mission.waypoints[i].point.latitude;
-      lon = req.mission.waypoints[i].point.longitude;
-      alt = req.mission.waypoints[i].point.altitude;
-      gps_converter_.gps2ned(lat, lon, alt, ned.N, ned.E, ned.D);
-      if (rrt_obj_.checkPoint(ned, input_file_.clearance + 0.5f*input_file_.turn_radius))
-        mission_map.wps.push_back(ned);
-    }
+    // TODO
   }
-
+  else if (req.mission.mission_type == req.mission.MISSION_TYPE_OFFAXIS)
+  {
+    // TODO
+  }
+  else
+  {
+    ROS_FATAL("unknown mission type");
+    return false;
+  }
+  ROS_INFO("RECIEVED JUDGES' MAP");
   myWorld_ = mission_map;
   rrt_obj_.newMap(mission_map);
   if (has_map_ == false)
@@ -181,7 +211,6 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
       wp_distances_.push_back(INFINITY);
   }
-  ROS_INFO("RECIEVED JUDGES' MAP");
   plt.displayMap(myWorld_);
   NED_s ref_zero(0.0f, 0.0f, 0.0f);
   if (rrt_obj_.col_det_.checkWithinBoundaries(ref_zero, 0.0f) == false)
@@ -217,6 +246,7 @@ bool PathPlannerBase::solveStatic(rrtOptions options)
     getInitialMap();
   if (options.check_wps == true)
   {
+    ROS_DEBUG("checking waypoints for bad placement");
     std::vector<NED_s> all_wps = myWorld_.wps;
     myWorld_.wps.clear();
     for (int j = 0; j < all_wps.size(); j++)
@@ -533,6 +563,70 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
 bool PathPlannerBase::sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res)
 {
   res.success = sendWaypointsCore(false);
+  return true;
+}
+bool PathPlannerBase::translateBoundaries(theseus::GPS::Request &req, theseus::GPS::Response &res)
+{
+  ROS_INFO("Reference latitude: %f", req.lat);
+  ROS_INFO("Reference longitude: %f", req.lon);
+  ROS_INFO("Reference height: %f", req.height);
+  mapper m(0, &input_file_);
+  m.translateBoundaries(req.lat, req.lon, req.height);
+  return true;
+}
+bool PathPlannerBase::translateMap(theseus::GPS::Request &req, theseus::GPS::Response &res)
+{
+  ROS_INFO("Reference latitude: %f", req.lat);
+  ROS_INFO("Reference longitude: %f", req.lon);
+  ROS_INFO("Reference height: %f", req.height);
+  if (has_map_ == false)
+    getInitialMap();
+  gps_struct gps_converter;
+  gps_converter.set_reference(req.lat, req.lon, req.height);
+  for (int i = 0; i < myWorld_.boundary_pts.size(); i++)
+  {
+    double N, E, D;
+    N = (double) myWorld_.boundary_pts[i].N;
+    E = (double) myWorld_.boundary_pts[i].E;
+    D = (double) myWorld_.boundary_pts[i].D;
+    double temp_lat, temp_long, temp_h;
+    gps_converter.ned2gps(N, E, D, temp_lat, temp_long, temp_h);
+    ROS_INFO("boundary point %i, latitude: %f, longitude: %f, height feet: %f", i, temp_lat, temp_long, temp_h*3.28084);
+  }
+  for (int i = 0; i < myWorld_.cylinders.size(); i++)
+  {
+    double N, E, D;
+    N = (double) myWorld_.cylinders[i].N;
+    E = (double) myWorld_.cylinders[i].E;
+    D = 0.0;
+    double temp_lat, temp_long, temp_h;
+    gps_converter.ned2gps(N, E, D, temp_lat, temp_long, temp_h);
+    ROS_INFO("cylinder %i, latitude: %f, longitude: %f, height feet: %f radius feet %f", i, temp_lat, temp_long,\
+                                   (myWorld_.cylinders[i].H)*3.28084,(myWorld_.cylinders[i].R)*3.28084);
+  }
+  for (int i = 0; i < myWorld_.wps.size(); i++)
+  {
+    double N, E, D;
+    N = (double) myWorld_.wps[i].N;
+    E = (double) myWorld_.wps[i].E;
+    D = (double) myWorld_.wps[i].D;
+    double temp_lat, temp_long, temp_h;
+    gps_converter.ned2gps(N, E, D, temp_lat, temp_long, temp_h);
+    ROS_INFO("wps %i, latitude: %f, longitude: %f, msl height feet: %f", i, temp_lat, temp_long,\
+                                   (temp_h)*3.28084);
+  }
+  return true;
+}
+bool PathPlannerBase::convertNED(theseus::ned2gps::Request &req, theseus::ned2gps::Response &res)
+{
+  ROS_INFO("Reference latitude: %f", req.reference_lat);
+  ROS_INFO("Reference longitude: %f", req.reference_lon);
+  ROS_INFO("Reference height: %f", req.reference_height);
+  gps_struct gps_converter;
+  gps_converter.set_reference(req.reference_lat, req.reference_lon, req.reference_height);
+  double temp_lat, temp_long, temp_h;
+  gps_converter.ned2gps(req.N, req.E, req.D, temp_lat, temp_long, temp_h);
+  ROS_INFO("point latitude: %f, longitude: %f, height feet: %f", temp_lat, temp_long, temp_h*3.28084);
   return true;
 }
 void PathPlannerBase::getInitialMap()
