@@ -85,6 +85,9 @@ private:
   float smoothing_display_time_;
   float smoothed_display_time_;
 
+
+  float comfortable_altitude_;    // comfortable altitude to attain while taking off
+  float chi_take_off_;            // comfortable angle to take off in
   float segment_length_;          // If used, this is the distance the algorithm uses between each node
   ParamReader input_file_;        // address of the input file
   int num_paths_;                 // number of paths to be genererated before choosing the optimal path

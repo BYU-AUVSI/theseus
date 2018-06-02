@@ -49,41 +49,34 @@ rrtPlotter::~rrtPlotter()
 void rrtPlotter::displayMap(map_s map)
 {
   ROS_INFO("Displaying Map");
-  visualization_msgs::Marker obs_mkr, pWPS_mkr, bds_mkr;
+  visualization_msgs::Marker obs_mkr, bds_mkr;
 
   // Set the frame ID and timestamp.  See the TF tutorials for information on these.
-  obs_mkr.header.frame_id = pWPS_mkr.header.frame_id = bds_mkr.header.frame_id = "/local_ENU";
+  obs_mkr.header.frame_id = bds_mkr.header.frame_id = "/local_ENU";
   // Set the namespace and id for this obs_mkr.  This serves to create a unique ID
   // Any obs_mkr sent with the same namespace and id will overwrite the old one
   obs_mkr.ns            = "static_obstacle";
-  pWPS_mkr.ns           = "primary_wps";
-  bds_mkr.ns           = "boundaries";
+  bds_mkr.ns            = "boundaries";
   uint32_t cyl          = visualization_msgs::Marker::CYLINDER;
-  uint32_t pts          = visualization_msgs::Marker::POINTS;
   uint32_t lis          = visualization_msgs::Marker::LINE_STRIP;
   obs_mkr.type          = cyl;
-  pWPS_mkr.type         = pts;
-  bds_mkr.type         = lis;
+  bds_mkr.type          = lis;
   // Set the obs_mkr action.  Options are ADD (Which is really create or modify), DELETE, and new in ROS Indigo: 3 (DELETEALL)
-  obs_mkr.action = pWPS_mkr.action = bds_mkr.action  = visualization_msgs::Marker::ADD;
-  obs_mkr.pose.orientation.x  = pWPS_mkr.pose.orientation.x = bds_mkr.pose.orientation.x = 0.0;
-  obs_mkr.pose.orientation.y  = pWPS_mkr.pose.orientation.y = bds_mkr.pose.orientation.y = 0.0;
-  obs_mkr.pose.orientation.z  = pWPS_mkr.pose.orientation.z = bds_mkr.pose.orientation.z = 0.0;
-  obs_mkr.pose.orientation.w  = pWPS_mkr.pose.orientation.w = bds_mkr.pose.orientation.w = 1.0;
+  obs_mkr.action = bds_mkr.action  = visualization_msgs::Marker::ADD;
+  obs_mkr.pose.orientation.x  = bds_mkr.pose.orientation.x = 0.0;
+  obs_mkr.pose.orientation.y  = bds_mkr.pose.orientation.y = 0.0;
+  obs_mkr.pose.orientation.z  = bds_mkr.pose.orientation.z = 0.0;
+  obs_mkr.pose.orientation.w  = bds_mkr.pose.orientation.w = 1.0;
   // Set the color -- be sure to set alpha to something non-zero!
   obs_mkr.color.r             = 1.0f;
   obs_mkr.color.g             = 0.0f;
   obs_mkr.color.b             = 0.0f;
   obs_mkr.color.a             = 0.9;
-  pWPS_mkr.color.r            = 1.0f;
-  pWPS_mkr.color.g            = 1.0f;
-  pWPS_mkr.color.b            = 0.0f;
-  pWPS_mkr.color.a            = 1.0;
-  bds_mkr.color.r            = 1.0f;
-  bds_mkr.color.g            = 0.0f;
-  bds_mkr.color.b            = 0.0f;
-  bds_mkr.color.a            = 1.0;
-  obs_mkr.lifetime = pWPS_mkr.lifetime = bds_mkr.lifetime  = ros::Duration();
+  bds_mkr.color.r             = 1.0f;
+  bds_mkr.color.g             = 0.0f;
+  bds_mkr.color.b             = 0.0f;
+  bds_mkr.color.a             = 1.0;
+  obs_mkr.lifetime = bds_mkr.lifetime  = ros::Duration();
 
   int id = 0;
   obs_mkr.header.stamp = ros::Time::now();
@@ -111,21 +104,7 @@ void rrtPlotter::displayMap(map_s map)
   }
 
   // primary waypoints
-  pWPS_mkr.header.stamp = ros::Time::now();
-  pWPS_mkr.id           =  pWPS_id_++;
-  pWPS_mkr.scale.x      =  25.0; // point width
-  pWPS_mkr.scale.y      =  25.0; // point height
-  ROS_INFO("Number of Waypoints: %lu", map.wps.size());
-  for (long unsigned int i = 0; i < map.wps.size(); i++)
-  {
-    geometry_msgs::Point p;
-    p.y =  map.wps[i].N;
-    p.x =  map.wps[i].E;
-    p.z = -map.wps[i].D;
-    pWPS_mkr.points.push_back(p);
-  }
-  marker_pub_.publish(pWPS_mkr);
-  sleep(0.05);
+  displayPrimaryWaypoints(map.wps);
 
   // Boundaries
   bds_mkr.header.stamp = ros::Time::now();
@@ -152,6 +131,49 @@ void rrtPlotter::displayMap(map_s map)
   marker_pub_.publish(bds_mkr);
   sleep(0.05);
   ROS_DEBUG("finished displayMap");
+}
+void rrtPlotter::displayPrimaryWaypoints(std::vector<NED_s> wps)
+{
+  ROS_INFO("Displaying Waypoints");
+  visualization_msgs::Marker pWPS_mkr;
+
+  // Set the frame ID and timestamp.  See the TF tutorials for information on these.
+  pWPS_mkr.header.frame_id = "/local_ENU";
+  // Set the namespace and id for this obs_mkr.  This serves to create a unique ID
+  // Any obs_mkr sent with the same namespace and id will overwrite the old one
+  pWPS_mkr.ns           = "primary_wps";
+  uint32_t pts          = visualization_msgs::Marker::POINTS;
+  pWPS_mkr.type         = pts;
+  // Set the obs_mkr action.  Options are ADD (Which is really create or modify), DELETE, and new in ROS Indigo: 3 (DELETEALL)
+  pWPS_mkr.action = visualization_msgs::Marker::ADD;
+  pWPS_mkr.pose.orientation.x = 0.0;
+  pWPS_mkr.pose.orientation.y = 0.0;
+  pWPS_mkr.pose.orientation.z = 0.0;
+  pWPS_mkr.pose.orientation.w = 1.0;
+  // Set the color -- be sure to set alpha to something non-zero!
+  pWPS_mkr.color.r            = 1.0f;
+  pWPS_mkr.color.g            = 1.0f;
+  pWPS_mkr.color.b            = 0.0f;
+  pWPS_mkr.color.a            = 1.0;
+  pWPS_mkr.lifetime = ros::Duration();
+
+  // primary waypoints
+  pWPS_mkr.header.stamp = ros::Time::now();
+  pWPS_mkr.id           =  20;
+  pWPS_mkr.scale.x      =  25.0; // point width
+  pWPS_mkr.scale.y      =  25.0; // point height
+  ROS_INFO("Number of Waypoints: %lu", wps.size());
+  for (long unsigned int i = 0; i < wps.size(); i++)
+  {
+    geometry_msgs::Point p;
+    p.y =  wps[i].N;
+    p.x =  wps[i].E;
+    p.z = -wps[i].D;
+    pWPS_mkr.points.push_back(p);
+  }
+  marker_pub_.publish(pWPS_mkr);
+  sleep(0.05);
+  ROS_DEBUG("finished displaying waypoints");
 }
 void rrtPlotter::odomCallback(geometry_msgs::Point p)
 {

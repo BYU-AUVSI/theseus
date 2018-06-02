@@ -88,6 +88,7 @@ private:
   float chi0_;
   bool recieved_state_;
   bool has_map_;
+  std::vector<NED_s> all_primary_wps_;
 
   std::vector<float> wp_distances_;
   std::vector<float> cyl_distances_;
@@ -97,6 +98,10 @@ private:
   void updateViz(const ros::WallTimerEvent&);
   bool sendWaypoints(uav_msgs::UploadPath::Request &req, uav_msgs::UploadPath::Response &res);
   bool sendWaypointsCore(bool now);
+
+  double lat_ref_;
+  double lon_ref_;
+  double h_ref_;
 
   //********************** FUNCTIONS ***********************//
   bool solveStatic(rrtOptions options);

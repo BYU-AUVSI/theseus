@@ -39,6 +39,7 @@ public:
 
   bool increase_path_id_; // default true
   void displayMap(map_s map);
+  void displayPrimaryWaypoints(std::vector<NED_s> wps);
   void odomCallback(geometry_msgs::Point p);
   void displayPath(std::vector<node*> path, NED_s color, float width);
   void displayPath(std::vector<NED_s> path, NED_s color, float width);

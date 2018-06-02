@@ -8,6 +8,8 @@ pp:
   clearance: 30.0            # Minimum distance the algorithm has to stay away from any obstacle
   iters_limit: 5000          # This is a maximum iteration limit - so impossible maps don't hang the program
   seed: 561968               # Seed the random generators for all of the simulation seed 90
+  comfortable_altitude: 40.0 # altitude to gain while taking off
+  chi_take_off: -1000.0      # chi to take off in. If less than -100 it doesn't matter what direction
 ppsim:
   # Map Settings
   numWps: 5                  # Number of waypoints to plan.

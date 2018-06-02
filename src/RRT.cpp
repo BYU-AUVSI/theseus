@@ -43,7 +43,16 @@ RRT::~RRT()
 }
 void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
-  printRRTSetup(pos, chi0);
+  nh_.param<float>("pp/comfortable_altitude", comfortable_altitude_, 40.0f);
+  nh_.param<float>("pp/chi_take_off", chi_take_off_, -1000.0f);
+  if (chi_take_off_ > -100.0)
+  {
+    while (chi_take_off_ < 0.0)
+      chi_take_off_ += 2.0*M_PI;
+    while (chi_take_off_ > 2.0f*M_PI)
+      chi_take_off_ -= 2.0*M_PI;
+
+  }
   dropping_bomb_ = drop_bomb;
   if (animating_) {ros::Duration(initial_map_time_).sleep();}
   if (dropping_bomb_)
@@ -350,7 +359,33 @@ int RRT::developTree(unsigned int i)
     if (taking_off_ == false && landing_now_ == false)
       random_point.D     = redoRandomDownPoint(i,  closest_node->p.D); // this is so that more often a node passes the climb angle check
     NED_s test_point   = (random_point - closest_node->p).normalize()*segment_length_ + closest_node->p;
-    added_new_node     = checkForCollision(closest_node, test_point, i, clearance, false);
+    if (taking_off_ && chi_take_off_ > -100.0f)
+    {
+      // check to make sure you are getting above the comfortable_altitude_
+      float d2rand = sqrtf(powf(root_ptrs_[i]->p.N - test_point.N, 2.0f) + powf(root_ptrs_[i]->p.E - test_point.E, 2.0f));
+      if ((segment_length_+ 30.0) > d2rand)
+      {
+        // then get in the right direction
+        float chi_random = (test_point - root_ptrs_[i]->p).getChi();
+        while (chi_random < 0.0f)
+          chi_random += 2.0f*M_PI;
+        float chi_diff = chi_random - chi_take_off_;
+        while (chi_diff < -1.0f*M_PI)
+          chi_diff += 2.0f*M_PI;
+        while (chi_diff > 1.0f*M_PI)
+          chi_diff -= 2.0f*M_PI;
+        bool passed_take_off_chi = fabs(chi_diff) < 25.0f*M_PI/180.0;
+        if (passed_take_off_chi)
+          added_new_node     = checkForCollision(closest_node, test_point, i, clearance, false);
+        else
+          added_new_node     = false;
+      }
+      else
+        added_new_node     = checkForCollision(closest_node, test_point, i, clearance, false);
+
+    }
+    else
+      added_new_node     = checkForCollision(closest_node, test_point, i, clearance, false);
 
     // std::vector<NED_s> temp_path;
     // if (closest_node->parent != NULL)
@@ -636,6 +671,12 @@ void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
     // }
     // else
     {
+      // redo any height isssues on take off
+      if (taking_off_ && j == 0 && -smooth_path[j]->p.D < comfortable_altitude_)
+      {
+        ROS_WARN("adjusting height of close waypoint from %f to %f", -smooth_path[j]->p.D, comfortable_altitude_);
+        smooth_path[j]->p.D = -comfortable_altitude_;
+      }
       all_wps_.push_back(smooth_path[j]->p);
       if (i < secondary_wps_indx_)
         all_priorities_.push_back(mission_priority_);
