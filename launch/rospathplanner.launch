@@ -7,9 +7,9 @@
     <param name="h_ref" value="0.0"/>
 
     <param name="testing/init_references" value="true"/>
-    <param name="testing/N_init" value="0.0"/>
-    <param name="testing/E_init" value="0.0"/>
-    <param name="testing/D_init" value="0.0"/>
+    <param name="testing/N_init" value="-36.02"/>
+    <param name="testing/E_init" value="-74.37"/>
+    <param name="testing/D_init" value="-6.0"/>
     <node name="pathplanner" pkg="theseus" type="theseus_path_planner" output="screen"/>
     <!-- <node name="rotation_ping" pkg="theseus" type="theseus_rotation" output="screen"/> -->
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find theseus)/viz/path_planner.rviz" required="true"/>

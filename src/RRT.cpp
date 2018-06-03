@@ -130,7 +130,8 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
       {
         num_found_paths += developTree(i);
         added_nodes++;
-        ROS_INFO("number of nodes %lu, %lu", added_nodes, iters_left);
+        if (added_nodes%50 == 0)
+          ROS_INFO("number of nodes %lu, %lu", added_nodes, iters_left);
         if ((float) added_nodes > iters_left/2.0f)
         {
           ROS_WARN("decreasing the clearance level");
@@ -222,10 +223,10 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
       if (direct_hit_)
       {
         after_wp_check = col_det_.checkAfterWP(pe_node->p, chi, clearance);
-        if (after_wp_check)
-          ROS_DEBUG("check after wp = true null");
-        else
-          ROS_DEBUG("check after wp = false null");
+        // if (after_wp_check)
+        //   ROS_DEBUG("check after wp = true null");
+        // else
+        //   ROS_DEBUG("check after wp = false null");
       }
       if (after_wp_check)
       {
@@ -254,7 +255,7 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
             return false;
           }
         }
-        ROS_DEBUG("direct connection success 1");
+        // ROS_DEBUG("direct connection success 1");
         start_of_line->cost        = start_of_line->cost + (pe_node->p - start_of_line->p).norm();
         start_of_line->connects2wp = true;
         start_of_line->children.push_back(pe_node);
@@ -293,13 +294,13 @@ bool RRT::tryDirectConnect(node* ps, node* pe_node, unsigned int i)
         if (direct_hit_)
         {
           after_wp_check = col_det_.checkAfterWP(pe_node->p, chi, clearance);
-          if (after_wp_check)
-            ROS_DEBUG("check after wp = true");
-          else
-            ROS_DEBUG("check after wp = false");
-          ROS_DEBUG("pe: N %f E %f D %f", pe_node->p.N, pe_node->p.E, pe_node->p.D);
-          ROS_DEBUG("chi %f", chi);
-          ROS_DEBUG("clearance: %f", clearance);
+          // if (after_wp_check)
+          //   ROS_DEBUG("check after wp = true");
+          // else
+          //   ROS_DEBUG("check after wp = false");
+          // ROS_DEBUG("pe: N %f E %f D %f", pe_node->p.N, pe_node->p.E, pe_node->p.D);
+          // ROS_DEBUG("chi %f", chi);
+          // ROS_DEBUG("clearance: %f", clearance);
         }
         if (after_wp_check)
         {
@@ -354,7 +355,7 @@ int RRT::developTree(unsigned int i)
     NED_s random_point = randomPoint();
     if (landing_now_ && random_point.D > map_.wps[0].D)
       random_point.D = map_.wps[0].D;
-    float min_d        = INFINITY;
+    float min_d        = (root_ptrs_[i]->p - random_point).norm();
     node* closest_node = findClosestNode(root_ptrs_[i], random_point, root_ptrs_[i], &min_d);
     if (taking_off_ == false && landing_now_ == false)
       random_point.D     = redoRandomDownPoint(i,  closest_node->p.D); // this is so that more often a node passes the climb angle check
@@ -834,7 +835,7 @@ bool RRT::checkForCollision(node* ps, NED_s pe, unsigned int i, float clearance,
       //   ROS_ERROR("failed fillet");
     }
   }
-  else
+  // else
     //ROS_DEBUG("failed line check");
   // //ROS_DEBUG("Adding node Failed");
   return false;
