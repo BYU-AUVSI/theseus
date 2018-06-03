@@ -123,6 +123,13 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     mission_map.cylinders.push_back(cyl);
     ROS_FATAL("cylinder:: %f %f", cyl.N, cyl.E);
   }
+  nh_.param<double>("flight_tent_N", cyl.N, 60.0);
+  nh_.param<double>("flight_tent_E", cyl.E, -5.0);
+  nh_.param<double>("flight_tent_R", cyl.R, 20.0);
+  nh_.param<double>("flight_tent_H", cyl.H, 230.0);
+  num_obstacles++;
+  mission_map.cylinders.push_back(cyl);
+  ROS_FATAL("FLIGHT TENT cylinder:: %f %f", cyl.N, cyl.E);
 
   // defaults
   options.direct_hit = false;
@@ -648,6 +655,13 @@ void PathPlannerBase::getInitialMap()
   unsigned int seed = rg_.UINT();
   ROS_INFO("seed: %i", seed);
   mapper myWorld(seed, &input_file_);
+  cyl_s cyl;
+  nh_.param<double>("flight_tent_N", cyl.N, 60.0);
+  nh_.param<double>("flight_tent_E", cyl.E, -5.0);
+  nh_.param<double>("flight_tent_R", cyl.R, 20.0);
+  nh_.param<double>("flight_tent_H", cyl.H, 230.0);
+  myWorld.map.cylinders.push_back(cyl);
+  ROS_FATAL("FLIGHT TENT cylinder:: %f %f", cyl.N, cyl.E);
   myWorld_ = myWorld.map;
   rrt_obj_.newMap(myWorld_);
   has_map_ = true;
