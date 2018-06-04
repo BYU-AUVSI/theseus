@@ -32,6 +32,7 @@ PathPlannerBase::PathPlannerBase() :
   translate_bdry_srv_     = nh_.advertiseService("translate_boundaries",&theseus::PathPlannerBase::translateBoundaries, this);
   translate_map_srv_      = nh_.advertiseService("translate_map",&theseus::PathPlannerBase::translateMap, this);
   convert_ned_srv_        = nh_.advertiseService("convert_ned",&theseus::PathPlannerBase::convertNED, this);
+  convert_gps_srv_        = nh_.advertiseService("convert_gps",&theseus::PathPlannerBase::convertGPS, this);
 
 
   //******************** CLASS VARIABLES *******************//
@@ -648,6 +649,16 @@ bool PathPlannerBase::convertNED(theseus::ned2gps::Request &req, theseus::ned2gp
     gps_converter.ned2gps(req.N, req.E, req.D, temp_lat, temp_long, temp_h);
   }
   ROS_INFO("point latitude: %f, longitude: %f, height feet: %f", temp_lat, temp_long, temp_h*3.28084);
+  return true;
+}
+bool PathPlannerBase::convertGPS(theseus::GPS::Request &req, theseus::GPS::Response &res)
+{
+  double N, E, D;
+  ROS_INFO("Reference latitude: %f", lat_ref_);
+  ROS_INFO("Reference longitude: %f", lon_ref_);
+  ROS_INFO("Reference height: %f", h_ref_);
+  gps_converter_.gps2ned(req.lat, req.lon, req.height, N, E, D);
+  ROS_INFO("point north: %f, east: %f, down: %f", N, E, D);
   return true;
 }
 void PathPlannerBase::getInitialMap()

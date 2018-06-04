@@ -64,6 +64,7 @@ private:
   ros::ServiceServer translate_bdry_srv_;
   ros::ServiceServer translate_map_srv_;
   ros::ServiceServer convert_ned_srv_;
+  ros::ServiceServer convert_gps_srv_;
   map_s myWorld_;
   void stateCallback(const rosplane_msgs::State &msg);
 
@@ -123,6 +124,7 @@ public:
   bool translateBoundaries(theseus::GPS::Request &req, theseus::GPS::Response &res);
   bool translateMap(theseus::GPS::Request &req, theseus::GPS::Response &res);
   bool convertNED(theseus::ned2gps::Request &req, theseus::ned2gps::Response &res);
+  bool convertGPS(theseus::GPS::Request &req, theseus::GPS::Response &res);
 private:
   bool landing(bool now);
   bool textfile(bool now);

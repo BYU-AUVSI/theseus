@@ -49,24 +49,26 @@ rrtPlotter::~rrtPlotter()
 void rrtPlotter::displayMap(map_s map)
 {
   ROS_INFO("Displaying Map");
-  visualization_msgs::Marker obs_mkr, bds_mkr;
+  visualization_msgs::Marker obs_mkr, bds_mkr, run_mkr;
 
   // Set the frame ID and timestamp.  See the TF tutorials for information on these.
-  obs_mkr.header.frame_id = bds_mkr.header.frame_id = "/local_ENU";
+  obs_mkr.header.frame_id = bds_mkr.header.frame_id = run_mkr.header.frame_id = "/local_ENU";
   // Set the namespace and id for this obs_mkr.  This serves to create a unique ID
   // Any obs_mkr sent with the same namespace and id will overwrite the old one
   obs_mkr.ns            = "static_obstacle";
   bds_mkr.ns            = "boundaries";
+  run_mkr.ns            = "runway";
   uint32_t cyl          = visualization_msgs::Marker::CYLINDER;
   uint32_t lis          = visualization_msgs::Marker::LINE_STRIP;
   obs_mkr.type          = cyl;
   bds_mkr.type          = lis;
+  run_mkr.type          = lis;
   // Set the obs_mkr action.  Options are ADD (Which is really create or modify), DELETE, and new in ROS Indigo: 3 (DELETEALL)
-  obs_mkr.action = bds_mkr.action  = visualization_msgs::Marker::ADD;
-  obs_mkr.pose.orientation.x  = bds_mkr.pose.orientation.x = 0.0;
-  obs_mkr.pose.orientation.y  = bds_mkr.pose.orientation.y = 0.0;
-  obs_mkr.pose.orientation.z  = bds_mkr.pose.orientation.z = 0.0;
-  obs_mkr.pose.orientation.w  = bds_mkr.pose.orientation.w = 1.0;
+  obs_mkr.action = bds_mkr.action  = run_mkr.action = visualization_msgs::Marker::ADD;
+  obs_mkr.pose.orientation.x  = bds_mkr.pose.orientation.x = run_mkr.pose.orientation.x = 0.0;
+  obs_mkr.pose.orientation.y  = bds_mkr.pose.orientation.y = run_mkr.pose.orientation.y = 0.0;
+  obs_mkr.pose.orientation.z  = bds_mkr.pose.orientation.z = run_mkr.pose.orientation.z = 0.0;
+  obs_mkr.pose.orientation.w  = bds_mkr.pose.orientation.w = run_mkr.pose.orientation.w = 1.0;
   // Set the color -- be sure to set alpha to something non-zero!
   obs_mkr.color.r             = 1.0f;
   obs_mkr.color.g             = 0.0f;
@@ -76,7 +78,11 @@ void rrtPlotter::displayMap(map_s map)
   bds_mkr.color.g             = 0.0f;
   bds_mkr.color.b             = 0.0f;
   bds_mkr.color.a             = 1.0;
-  obs_mkr.lifetime = bds_mkr.lifetime  = ros::Duration();
+  run_mkr.color.r             = 0.0f;
+  run_mkr.color.g             = 1.0f;
+  run_mkr.color.b             = 1.0f;
+  run_mkr.color.a             = 1.0;
+  obs_mkr.lifetime = bds_mkr.lifetime  = run_mkr.lifetime = ros::Duration();
 
   int id = 0;
   obs_mkr.header.stamp = ros::Time::now();
@@ -130,7 +136,65 @@ void rrtPlotter::displayMap(map_s map)
   bds_mkr.points.push_back(p0);
   marker_pub_.publish(bds_mkr);
   sleep(0.05);
+
+  // Runway
+  run_mkr.header.stamp = ros::Time::now();
+  run_mkr.id           =  0;
+  run_mkr.scale.x      =  12.0; // line width
+  geometry_msgs::Point p;
+
+  // Webster field
+
+  p.y = 851.282091;
+  p.x = -671.665872;
+  p.z = 5.907706;
+  NED_s r1(p.y, p.x, -p.z);
+  run_mkr.points.push_back(p);
+  p.y = -323.669996;
+  p.x =  253.258923;
+  p.z = 5.986742;
+  NED_s r2(p.y, p.x, -p.z);
+  run_mkr.points.push_back(p);
+  marker_pub_.publish(run_mkr);
+  run_mkr.id++;
+  sleep(0.05);
+  run_mkr.points.clear();
+  p.y = -246.621673;
+  p.x = -552.535779;
+  p.z = 5.971316;
+  NED_s r3(p.y, p.x, -p.z);
+  run_mkr.points.push_back(p);
+  p.y = 361.343377;
+  p.x = 811.429686;
+  p.z = 5.938186;
+  NED_s r4(p.y, p.x, -p.z);
+  run_mkr.points.push_back(p);
+  marker_pub_.publish(run_mkr);
+  run_mkr.id++;
+  sleep(0.05);
+  run_mkr.points.clear();
+
+  // elberta
+  p.y = -79.073785;
+  p.x = 41.016782;
+  p.z = 5.999377;
+  NED_s r5(p.y, p.x, -p.z);
+  run_mkr.points.push_back(p);
+  p.y = 568.993663;
+  p.x = -770.280935;
+  p.z = 5.928122;
+  NED_s r6(p.y, p.x, -p.z);
+  run_mkr.points.push_back(p);
+  marker_pub_.publish(run_mkr);
+  run_mkr.id++;
+  sleep(0.05);
+  run_mkr.points.clear();
   ROS_DEBUG("finished displayMap");
+
+
+  // ROS_DEBUG("runway 1 chi %f %f", (r1 - r2).getChi(), (r2 - r1).getChi());
+  // ROS_DEBUG("runway 2 chi %f %f", (r3 - r4).getChi(), (r4 - r3).getChi());
+  // ROS_DEBUG("runway 3 chi %f %f", (r5 - r6).getChi(), (r6 - r5).getChi());
 }
 void rrtPlotter::displayPrimaryWaypoints(std::vector<NED_s> wps)
 {
