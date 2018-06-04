@@ -21,6 +21,7 @@ struct rrtColors
   NED_s green;
   NED_s orange;
   NED_s purple;
+  NED_s red;
   rrtColors()
   {
     gray.N = 0.5f;   gray.E = 0.5f;    gray.D = 0.5f;
@@ -28,6 +29,7 @@ struct rrtColors
     green.N = 0.0f;  green.E = 1.0f;   green.D = 0.0f;
     orange.N = 1.0f; orange.E = 0.55f; orange.D = 0.0f;
     purple.N = 0.5f; purple.E = 0.0f;  purple.D = 0.5f;
+    red.N = 1.0f;    red.E = 0.0f;     red.D = 0.0f;
   }
 };
 class rrtPlotter
@@ -41,6 +43,7 @@ public:
   void displayMap(map_s map);
   void displayPrimaryWaypoints(std::vector<NED_s> wps);
   void odomCallback(geometry_msgs::Point p);
+  void mobsCallback(std::vector<NED_s> mobs_in, std::vector<float> radius);
   void displayPath(std::vector<node*> path, NED_s color, float width);
   void displayPath(std::vector<NED_s> path, NED_s color, float width);
   void displayPath(NED_s ps, std::vector<NED_s> path, NED_s color, float width);
@@ -58,6 +61,7 @@ private:
   ros::NodeHandle nh_;
   ros::Publisher marker_pub_;
   visualization_msgs::Marker odom_mkr_;
+  visualization_msgs::Marker mobs_mkr_;
   visualization_msgs::Marker planned_path_mkr_;
   int path_id_;
   int pWPS_id_;

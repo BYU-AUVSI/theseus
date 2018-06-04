@@ -11,7 +11,8 @@ PathPlannerBase::PathPlannerBase() :
   recieved_state_         = false;
   has_map_                = false;
   state_subscriber_       = nh_.subscribe("/state",100,&theseus::PathPlannerBase::stateCallback, this);
-  fstate_subscriber_       = nh_.subscribe("/fixedwing/state",100,&theseus::PathPlannerBase::stateCallback, this);
+  fstate_subscriber_      = nh_.subscribe("/fixedwing/state",100,&theseus::PathPlannerBase::stateCallback, this);
+  mobs_subscriber_        = nh_.subscribe("/moving_obstacles",100,&theseus::PathPlannerBase::movingObsCallback, this);
   waypoint_client_        = nh_.serviceClient<rosplane_msgs::NewWaypoints>("/waypoint_path");
 
   path_solver_service1_   = nh_.advertiseService("wps_now",&theseus::PathPlannerBase::wpsNow, this);
@@ -684,6 +685,20 @@ void PathPlannerBase::getInitialMap()
     cyl_distances_.push_back(INFINITY);
   min_cyl_dis_ = INFINITY;
   last_primary_wps_ = myWorld_.wps;
+}
+void PathPlannerBase::movingObsCallback(const uav_msgs::MovingObstacleCollection &msg)
+{
+  NED_s mobs_pos;
+  std::vector<NED_s> points;
+  std::vector<float> radius;
+  for (int i = 0; i < msg.moving_obstacles.size(); i++)
+  {
+    radius.push_back(msg.moving_obstacles[i].sphere_radius);
+    gps_converter_.gps2ned(msg.moving_obstacles[i].point.latitude, msg.moving_obstacles[i].point.longitude,\
+                           msg.moving_obstacles[i].point.altitude, mobs_pos.N, mobs_pos.E, mobs_pos.D);
+    points.push_back(mobs_pos);
+  }
+  plt.mobsCallback(points, radius);
 }
 void PathPlannerBase::stateCallback(const rosplane_msgs::State &msg)
 {

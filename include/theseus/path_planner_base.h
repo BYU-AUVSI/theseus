@@ -24,6 +24,8 @@
 #include <uav_msgs/GeneratePath.h>
 #include <uav_msgs/UploadPath.h>
 #include <std_srvs/Trigger.h>
+#include <uav_msgs/MovingObstacle.h>
+#include <uav_msgs/MovingObstacleCollection.h>
 
 namespace theseus
 {
@@ -47,6 +49,7 @@ private:
   //************** SUBSCRIBERS AND PUBLISHERS **************//
   ros::ServiceServer plan_mission_service_;
   ros::Subscriber state_subscriber_;
+  ros::Subscriber mobs_subscriber_;
   ros::Subscriber fstate_subscriber_;
   ros::ServiceClient waypoint_client_;
   ros::ServiceServer path_solver_service1_;
@@ -67,6 +70,7 @@ private:
   ros::ServiceServer convert_gps_srv_;
   map_s myWorld_;
   void stateCallback(const rosplane_msgs::State &msg);
+  void movingObsCallback(const uav_msgs::MovingObstacleCollection &msg);
 
 public:
   ros::Publisher mission_map_publisher_;

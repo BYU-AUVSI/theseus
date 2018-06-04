@@ -21,8 +21,8 @@ rrtPlotter::rrtPlotter() :
   odom_mkr_.color.b            = 1.0f;
   odom_mkr_.color.a            = 1.0;
   odom_mkr_.lifetime           = ros::Duration();
-  odom_mkr_.scale.x            = 15.0; // point width
-  odom_mkr_.scale.y            = 15.0; // point width
+  odom_mkr_.scale.x            = 5.0; // point width
+  odom_mkr_.scale.y            = 5.0; // point width
   increase_path_id_            = true;
 
   planned_path_mkr_.header.frame_id = "/local_ENU";
@@ -41,6 +41,21 @@ rrtPlotter::rrtPlotter() :
   planned_path_mkr_.scale.x    = 8.0; // line width
   planned_path_mkr_.lifetime   = ros::Duration();
   planned_path_mkr_.id         = 0;
+
+  mobs_mkr_.header.frame_id    = "/local_ENU";
+  mobs_mkr_.ns                 = "moving_obstacle";
+  mobs_mkr_.type               = visualization_msgs::Marker::SPHERE;
+  mobs_mkr_.action             = visualization_msgs::Marker::ADD;
+  mobs_mkr_.pose.orientation.x = 0.0;
+  mobs_mkr_.pose.orientation.y = 0.0;
+  mobs_mkr_.pose.orientation.z = 0.0;
+  mobs_mkr_.pose.orientation.w = 1.0;
+  mobs_mkr_.color.r            = clr.red.N;
+  mobs_mkr_.color.g            = clr.red.E;
+  mobs_mkr_.color.b            = clr.red.D;
+  mobs_mkr_.color.a            = 0.7;
+  mobs_mkr_.lifetime           = ros::Duration();
+  mobs_mkr_.id                 = 0;
 }
 rrtPlotter::~rrtPlotter()
 {
@@ -244,6 +259,23 @@ void rrtPlotter::odomCallback(geometry_msgs::Point p)
   odom_mkr_.header.stamp = ros::Time::now();
   odom_mkr_.points.push_back(p);
   marker_pub_.publish(odom_mkr_);
+}
+void rrtPlotter::mobsCallback(std::vector<NED_s> mobs_in, std::vector<float> radius)
+{
+  mobs_mkr_.header.stamp = ros::Time::now();
+
+  for (int i = 0; i < mobs_in.size(); i++)
+  {
+    mobs_mkr_.scale.x         = radius[i];
+    mobs_mkr_.scale.y         = radius[i];
+    mobs_mkr_.scale.z         = radius[i];
+    mobs_mkr_.pose.position.x = mobs_in[i].E;
+    mobs_mkr_.pose.position.y = mobs_in[i].N;
+    mobs_mkr_.pose.position.z = -mobs_in[i].D;
+    mobs_mkr_.id = i;
+    marker_pub_.publish(mobs_mkr_);
+    ros::Duration(0.01).sleep();
+  }
 }
 void rrtPlotter::pingBoundaries()
 {
