@@ -36,6 +36,7 @@ struct rrtOptions
   bool now;
   bool check_wps;
   bool drop_bomb;
+  bool loiter_mission;
 };
 class PathPlannerBase
 {

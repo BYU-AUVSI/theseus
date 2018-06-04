@@ -14,6 +14,7 @@ pp:
   flight_tent_E: -5.0
   flight_tent_R: 20
   flight_tent_H: 230.0
+  loiter_serch_alt: 50.0
 ppsim:
   # Map Settings
   numWps: 5                  # Number of waypoints to plan.

@@ -134,11 +134,12 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
   ROS_FATAL("FLIGHT TENT cylinder:: %f %f", cyl.N, cyl.E);
 
   // defaults
-  options.direct_hit = false;
-  options.landing    = false;
-  options.drop_bomb  = false;
-  options.check_wps  = false;
-  options.now        = req.mission.now; // Whether to immediately send the planned path to the plane.
+  options.direct_hit     = false;
+  options.landing        = false;
+  options.drop_bomb      = false;
+  options.check_wps      = false;
+  options.now            = req.mission.now; // Whether to immediately send the planned path to the plane.
+  options.loiter_mission = false;
 
 
   if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT)
@@ -168,7 +169,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
   }
   else if (req.mission.mission_type == req.mission.MISSION_TYPE_OTHER)
   {
-    // TODO
+    // TODO, what is this?
   }
   else if (req.mission.mission_type == req.mission.MISSION_TYPE_LAND)
   {
@@ -191,11 +192,11 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
   }
   else if (req.mission.mission_type == req.mission.MISSION_TYPE_EMERGENT)
   {
-    // TODO
+    options.loiter_mission = true;
   }
   else if (req.mission.mission_type == req.mission.MISSION_TYPE_OFFAXIS)
   {
-    // TODO
+    options.loiter_mission = true;
   }
   else
   {
@@ -280,7 +281,7 @@ bool PathPlannerBase::solveStatic(rrtOptions options)
   for (int j = 0; j < myWorld_.wps.size(); j++)
     all_primary_wps_.push_back(myWorld_.wps[j]);
   plt.displayPrimaryWaypoints(all_primary_wps_);
-  rrt_obj_.solveStatic(initial_pos, initial_chi, options.direct_hit, options.landing, options.drop_bomb);
+  rrt_obj_.solveStatic(initial_pos, initial_chi, options.direct_hit, options.landing, options.drop_bomb, options.loiter_mission);
   if (options.now)
     sendWaypointsCore(options.now);
   plt.displayPath(initial_pos, rrt_obj_.all_wps_, clr.green, 8.0);
@@ -305,6 +306,7 @@ bool PathPlannerBase::wpsNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:
   options.now = true;
   options.check_wps = false;
   options.drop_bomb = false;
+  options.loiter_mission = false;
   res.success = solveStatic(options);
   return true;
 }
@@ -324,6 +326,7 @@ bool PathPlannerBase::addWps(std_srvs::Trigger::Request &req, std_srvs::Trigger:
   options.now = false;
   options.check_wps = false;
   options.drop_bomb = false;
+  options.loiter_mission = false;
   res.success = solveStatic(options);
   return true;
 }
@@ -367,6 +370,7 @@ bool PathPlannerBase::landing(bool now)
   options.now = now;
   options.check_wps = false;
   options.drop_bomb = false;
+  options.loiter_mission = false;
   return solveStatic(options);
 }
 bool PathPlannerBase::addLanding(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
@@ -407,6 +411,7 @@ bool PathPlannerBase::textfile(bool now)
   options.now = now;
   options.check_wps = true;
   options.drop_bomb = false;
+  options.loiter_mission = false;
   return solveStatic(options);
 }
 bool PathPlannerBase::addTextfile(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
@@ -452,6 +457,7 @@ bool PathPlannerBase::bomb(bool now)
   options.now = now;
   options.check_wps = false;
   options.drop_bomb = true;
+  options.loiter_mission = false;
   return solveStatic(options);
 }
 bool PathPlannerBase::displayMapService(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
@@ -522,6 +528,8 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
                ((rrt_obj_.all_wps_[last_idx] - rrt_obj_.all_wps_[last_idx - 1]).normalize())*0.1;
     ROS_DEBUG("in_front N: %f, E: %f, D: %f", in_front.N, in_front.E, in_front.D);
     new_waypoint.priority = 3;
+    if (rrt_obj_.loiter_mission_)
+      new_waypoint.priority = 4;
     new_waypoint.w[0] = in_front.N;
     new_waypoint.w[1] = in_front.E;
     new_waypoint.w[2] = in_front.D;

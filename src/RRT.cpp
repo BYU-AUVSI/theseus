@@ -17,15 +17,15 @@ RRT::RRT()
 }
 void RRT::setup()
 {
-  animating_          = false;
-  emergency_priority_ = 5;
-  mission_priority_   = 4;
-  landing_priority_   = 4;
-  loitering_priority_ = 3;
-  initial_map_time_       = 5.0f;
+  animating_              = false;
+  emergency_priority_     = 5;
+  mission_priority_       = 4;
+  landing_priority_       = 4;
+  loitering_priority_     = 3;
+  initial_map_time_       = 1.0f;
   tree_display_time_      = 0.04f;
-  smoothing_display_time_ = 0.26f;
-  smoothed_display_time_  = 3.0f;
+  smoothing_display_time_ = 0.1f;
+  smoothed_display_time_  = 1.0f;
   if(ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug))
   {
    ros::console::notifyLoggerLevelsChanged();
@@ -35,13 +35,14 @@ void RRT::setup()
   RandGen rg_in(1);               // Make a random generator object that is seeded
   rg_             = rg_in;        // Copy that random generator into the class.
   ending_chi_     = 0.0f;
+  loiter_mission_ = false;
 }
 RRT::~RRT()
 {
 	deleteTree();                          // Delete all of those tree pointer nodes
 	std::vector<node*>().swap(root_ptrs_); // Free the memory of the vector.
 }
-void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb)         // This function solves for a path in between the waypoinnts (2 Dimensional)
+void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb, bool loiter_mission)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
   nh_.param<float>("pp/comfortable_altitude", comfortable_altitude_, 40.0f);
   nh_.param<float>("pp/chi_take_off", chi_take_off_, -1000.0f);
@@ -52,6 +53,16 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
     while (chi_take_off_ > 2.0f*M_PI)
       chi_take_off_ -= 2.0*M_PI;
 
+  }
+  loiter_mission_ = loiter_mission;
+  if (loiter_mission_)
+  {
+    float alt;
+    nh_.param<float>("pp/loiter_serch_alt", alt, 50.0);
+    map_.wps[0].D = -alt;
+    NED_s lp;
+    lp = findCloseLoiterSpot(map_.wps[0], input_file_.loiter_radius);
+    map_.wps[0] = lp;
   }
   dropping_bomb_ = drop_bomb;
   if (animating_) {ros::Duration(initial_map_time_).sleep();}
@@ -681,8 +692,10 @@ void RRT::addPath(std::vector<node*> smooth_path, unsigned int i)
       all_wps_.push_back(smooth_path[j]->p);
       if (i < secondary_wps_indx_)
         all_priorities_.push_back(mission_priority_);
-      else
+      else if (loiter_mission_ == false)
         all_priorities_.push_back(loitering_priority_);
+      else
+        all_priorities_.push_back(mission_priority_);
       if (i == 1 && j == smooth_path.size() - 1 && dropping_bomb_)
         all_drop_bombs_.push_back(true);
       else
@@ -932,6 +945,51 @@ NED_s RRT::findLoiterSpot(NED_s cp, float radius)
     cp   = randomPoint();
     // ROS_DEBUG("checkpoint after random point");
     cp.D = -(rg_.randLin()*(col_det_.maxFlyHeight_  - col_det_.minFlyHeight_ - 15.0f)  + col_det_.minFlyHeight_ + 15.0f);
+    center  = col_det_.checkPoint(cp,input_file_.clearance);
+    ps   = cp + ups*radius;
+    pe   = cp + upe*radius;
+    first_half  = col_det_.checkArc(ps, pe, radius, cp, 1, input_file_.clearance); // cw
+    second_half = col_det_.checkArc(pe, ps, radius, cp, 1, input_file_.clearance); // cw
+    // ROS_DEBUG("checkpoint 3");
+  }
+  ROS_DEBUG("found loiterspot");
+  return cp;
+}
+NED_s RRT::findCloseLoiterSpot(NED_s cp, float radius)
+{
+  ROS_DEBUG("finding loiter spot for loiter mission");
+  NED_s cp0;
+  cp0 = cp;
+  bool center, first_half, second_half;
+  center  = col_det_.checkPoint(cp,input_file_.clearance);
+  ROS_WARN("down: %f", cp.D);
+  // ROS_DEBUG("checkpoint 1");
+  // ps = 12:00, pe = 6:00
+  NED_s ps, pe, ups, upe;
+  ups.N = 1.0f; upe.N = -1.0f;
+  ups.E = 0.0f; upe.E =  0.0f;
+  ups.D = 0.0f; upe.D =  0.0f;
+  ps    = cp + ups*radius;
+  pe    = cp + upe*radius;
+  first_half  = col_det_.checkArc(ps, pe, radius, cp, 1, input_file_.clearance); // cw
+  second_half = col_det_.checkArc(pe, ps, radius, cp, 1, input_file_.clearance); // cw
+  // ROS_DEBUG("checkpoint 2");
+  float chi   = 0.0f;
+  float d     = 1.0f;
+  float dchi  = M_PI/8.0f;
+  float dd    = 1.2f;
+  float Down  = 0.0f;
+  float dDown = -0.5f;
+  while ( center == false || first_half == false || second_half == false)
+  {
+    // ROS_DEBUG("checkpoint before random point");
+    cp.N = cp0.N + cosf(chi)*d*rg_.randLin();
+    cp.E = cp0.E + sinf(chi)*d*rg_.randLin();
+    cp.D = cp0.D + Down*rg_.randLin();
+    Down += dDown;
+    d    += dd;
+    chi  += dchi;
+    // ROS_DEBUG("checkpoint after random point");
     center  = col_det_.checkPoint(cp,input_file_.clearance);
     ps   = cp + ups*radius;
     pe   = cp + upe*radius;

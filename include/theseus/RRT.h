@@ -26,7 +26,7 @@ public:
   RRT(map_s map_in, unsigned int seed);
 	RRT();
   ~RRT();                                                                 // Deconstructor - deletes the tree
-	void solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb); // Solves the static path
+	void solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb, bool loiter_mission); // Solves the static path
   void newMap(map_s map_in);                                              // creates a new map
   void newSeed(unsigned int seed);
   bool checkPoint(NED_s point, float clearance);
@@ -36,6 +36,7 @@ public:
   map_s map_;
   bool landing_now_;
   bool dropping_bomb_;
+  bool loiter_mission_;
   NED_s ending_point_;
   float ending_chi_;
   CollisionDetection col_det_;    // collision detecter
@@ -50,6 +51,7 @@ private:
   std::vector<node*> smoothPath(std::vector<node*> rough_path, int i);
   void addPath(std::vector<node*> smooth_path, unsigned int i);
   NED_s findLoiterSpot(NED_s cp, float radius);
+  NED_s findCloseLoiterSpot(NED_s cp, float radius);
 
   // secondary functions
   void resetParent(node* nin, node* new_parent);

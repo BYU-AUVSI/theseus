@@ -37,7 +37,7 @@ Visualization Manager:
       Name: Grid
       Normal Cell Count: 0
       Offset:
-        X: 0
+        X: -50
         Y: 150
         Z: 0
       Plane: XY
@@ -51,10 +51,12 @@ Visualization Manager:
       Namespaces:
         boundaries: true
         cp: true
+        moving_obstacle: true
         path: true
         plane_odom: true
         planned_path: true
         primary_wps: true
+        runway: true
         static_obstacle: true
       Queue Size: 100
       Value: true
@@ -81,25 +83,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1156.1499
+      Distance: 1221.16016
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -241.45224
-        Y: -58.5484695
-        Z: 47.5092621
+        X: -337.905762
+        Y: -147.361984
+        Z: 158.193832
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.834796429
+      Pitch: 0.959795654
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 4.25050497
+      Yaw: 4.49052572
     Saved: ~
 Window Geometry:
   Displays:
