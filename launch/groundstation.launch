@@ -1,5 +1,6 @@
 <launch>
   <group ns="theseus">
     <node name="rviz_groundstation" pkg="rviz" type="rviz" args="-d $(find theseus)/viz/groundstation.rviz" required="true"/>
+    <node name="groundstation" pkg="theseus" type="theseus_groundstation" output="screen"/>
   </group>
 </launch>

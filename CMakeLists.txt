@@ -153,7 +153,12 @@ add_dependencies(theseus_path_planner ${catkin_EXPORTED_TARGETS})
 #add_dependencies(theseus_path_planner theseus_generate_messages_cpp)
 target_link_libraries(theseus_path_planner ${catkin_LIBRARIES})
 
-
+add_executable(theseus_groundstation
+               src/groundstation.cpp
+               )
+add_dependencies(theseus_groundstation ${catkin_EXPORTED_TARGETS})
+#add_dependencies(theseus_groundstation theseus_generate_messages_cpp)
+target_link_libraries(theseus_groundstation ${catkin_LIBRARIES})
 
 add_executable(theseus_rotation
                src/rotate_viz.cpp
