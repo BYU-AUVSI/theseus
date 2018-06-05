@@ -123,7 +123,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     cyl.H = req.mission.stationary_obstacles[i].cylinder_height;
     gps_converter_.gps2ned(lat, lon, alt, cyl.N, cyl.E, D);
     mission_map.cylinders.push_back(cyl);
-    ROS_FATAL("cylinder:: %f %f", cyl.N, cyl.E);
+    ROS_INFO("cylinder:: %f %f", cyl.N, cyl.E);
   }
   nh_.param<double>("flight_tent_N", cyl.N, 60.0);
   nh_.param<double>("flight_tent_E", cyl.E, -5.0);
@@ -131,7 +131,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
   nh_.param<double>("flight_tent_H", cyl.H, 230.0);
   num_obstacles++;
   mission_map.cylinders.push_back(cyl);
-  ROS_FATAL("FLIGHT TENT cylinder:: %f %f", cyl.N, cyl.E);
+  ROS_WARN("FLIGHT TENT cylinder:: %f %f", cyl.N, cyl.E);
 
   // defaults
   options.direct_hit     = false;
@@ -687,7 +687,7 @@ void PathPlannerBase::getInitialMap()
   nh_.param<double>("flight_tent_R", cyl.R, 20.0);
   nh_.param<double>("flight_tent_H", cyl.H, 230.0);
   myWorld.map.cylinders.push_back(cyl);
-  ROS_FATAL("FLIGHT TENT cylinder:: %f %f", cyl.N, cyl.E);
+  ROS_WARN("FLIGHT TENT cylinder:: %f %f", cyl.N, cyl.E);
   myWorld_ = myWorld.map;
   rrt_obj_.newMap(myWorld_);
   has_map_ = true;
@@ -771,7 +771,7 @@ void PathPlannerBase::updateViz(const ros::WallTimerEvent&)
     p.y =  odometry_.N;
     p.z = -odometry_.D;
     plt.odomCallback(p);
-    plt.pingBoundaries();
+    // plt.pingBoundaries(); // this seems to cause segfault
     // plt.pingPath();
   }
   tf_frame_.sendTransform(

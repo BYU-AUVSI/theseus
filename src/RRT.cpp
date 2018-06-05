@@ -499,15 +499,38 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
   ros::Time smooth_start_time = ros::Time::now();
   float max_smoothing_time = 12.0f;
   float ts_;
-  new_path.push_back(smooth_rts_[i]);
+  if (smooth_rts_.size() > i)
+    new_path.push_back(smooth_rts_[i]);
+  else
+  {
+    ROS_FATAL("smooth roots error");
+    ROS_FATAL("pushing the rough path");
+    rough_path.erase(rough_path.begin());
+    return rough_path;
+  }
   // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
   // printNode(new_path.back());
   std::vector<NED_s> temp_path; // used for plotting
+  if (root_ptrs_.size() < i + 1)
+  {
+    ROS_FATAL("roots size error");
+    ROS_FATAL("pushing the rough path");
+    rough_path.erase(rough_path.begin());
+    return rough_path;
+  }
   if (root_ptrs_[i]->dontConnect)
   {
-    // ROS_DEBUG("DONT CONNECT Smoother");
+    ROS_DEBUG("DONT CONNECT Smoother");
     int ptr;
     ptr = 0;
+
+    if (rough_path.size() < ptr + 2 + 1)
+    {
+      ROS_FATAL("rough_path size error, less than 3");
+      ROS_FATAL("pushing the rough path");
+      rough_path.erase(rough_path.begin());
+      return rough_path;
+    }
     fillet_s fil1, fil2;
     // printNode(new_path.back());
     NED_s parent_point;
@@ -517,7 +540,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
       parent_point = new_path.back()->parent->p;
     bool passed1 = fil1.calculate(parent_point, new_path.back()->p, rough_path[ptr + 1]->p, input_file_.turn_radius);
     bool passed2 = fil2.calculate(new_path.back()->p, rough_path[ptr + 1]->p, rough_path[ptr + 2]->p, input_file_.turn_radius);
-    // if (passed1) {ROS_DEBUG("passed");}
+    if (passed1) {ROS_DEBUG("passed");}
     node *fake_child           = new node;
     node *normal_gchild        = new node;
     fake_child->p              = rough_path[ptr + 1]->p;
@@ -539,9 +562,15 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     new_path.push_back(fake_child);
     new_path.push_back(normal_gchild);
     node* best_so_far;
-    while (ptr < rough_path.size() - 1)
+    while (ptr < rough_path.size() - 1) // should this be -2 ?
     {
-      // ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
+      ROS_DEBUG("while ptr = %i of %lu",ptr, rough_path.size() - 1);
+      // if (ptr == 2)
+      // {
+      //   ROS_FATAL("ptr = 2 in direct connect, something went wrong, adding the rough path.");
+      //   rough_path.erase(rough_path.begin());
+      //   return rough_path;
+      // }
       if (animating_)
       {
         if (new_path.back()->parent != NULL)
@@ -553,10 +582,10 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
         temp_path.clear();
       }
 
-      // ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
+      ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
       if (checkWholePath(new_path.back(), rough_path, ptr + 1, i) == false)
       {
-        // ROS_DEBUG("Collision, adding the most recent node");
+        ROS_DEBUG("Collision, adding the most recent node");
         // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
         // ROS_DEBUG("N: %f, E: %f, D: %f", best_so_far->p.N, best_so_far->p.E,best_so_far->p.D);
         if (animating_)
@@ -570,7 +599,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
           temp_path.clear();
         }
         new_path.push_back(best_so_far);
-        // ROS_DEBUG("Adding most recent node");
+        ROS_DEBUG("Adding most recent node");
       }
       else
       {
@@ -589,6 +618,13 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
         return rough_path;
       }
     }
+    if (smooth_rts_.size() < i + 1 + 1)
+    {
+      ROS_FATAL("smooth_rts_ size error, less than i + 1 + 1");
+      ROS_FATAL("pushing the rough path");
+      rough_path.erase(rough_path.begin());
+      return rough_path;
+    }
     new_path.push_back(smooth_rts_[i + 1]);
     // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
     // for (int j = 0; j < new_path.size(); j++)
@@ -599,7 +635,16 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
     // if possible move the second waypoint and delete the third.
 
     NED_s coming_from;
+    if (new_path.size() < 4 || new_path.size() < 2)
+    {
+      ROS_FATAL("new_path size error, less than 4 or 2, %lu", new_path.size());
+      ROS_FATAL("pushing the rough path");
+      rough_path.erase(rough_path.begin());
+      return rough_path;
+    }
+    ROS_DEBUG("looking at coming from");
     coming_from = new_path[0]->p + (new_path[0]->p - new_path[1]->p);
+    ROS_DEBUG("checking to create direct fan");
     if (checkDirectFan(coming_from, new_path[0], new_path[3]))
     {
       ROS_INFO("SMOOTHING THE FAN IS POSSIBLE");
@@ -613,11 +658,12 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
   }
   else
   {
+    ROS_DEBUG("connect smoother");
     int ptr = 0;
     node* best_so_far;
-    while (ptr < rough_path.size() - 1)
+    while (ptr < rough_path.size() - 1) // should this be -2?
     {
-      // ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
+      ROS_DEBUG("ptr = %i of %lu",ptr, rough_path.size() - 1);
       if (animating_)
       {
         if (new_path.back()->parent != NULL)
@@ -630,7 +676,13 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
       }
       if (checkWholePath(new_path.back(), rough_path, ptr + 1, i) == false)
       {
-        // ROS_DEBUG("Collision, adding the most recent node");
+        ROS_DEBUG("Collision, adding the most recent node");
+        if (ptr == 0)
+        {
+          ROS_FATAL("ptr = 0, something went wrong, adding the rough path.");
+          rough_path.erase(rough_path.begin());
+          return rough_path;
+        }
         // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
         // ROS_DEBUG("N: %f, E: %f, D: %f", best_so_far->p.N, best_so_far->p.E,best_so_far->p.D);
         if (animating_)
@@ -650,7 +702,7 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
       {
         best_so_far = most_recent_node_;
         ptr++;
-        // ROS_DEBUG("no collision");
+        ROS_DEBUG("no collision");
         // ROS_DEBUG("best so far: N: %f, E: %f, D: %f", best_so_far->p.N, best_so_far->p.E,best_so_far->p.D);
       }
       // ROS_DEBUG("best so far: N: %f, E: %f, D: %f", best_so_far->p.N, best_so_far->p.E,best_so_far->p.D);
@@ -660,14 +712,24 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
       ts_ = time_step.toSec();
       if (ts_ > max_smoothing_time)
       {
-        rough_path.erase(rough_path.begin());
         ROS_FATAL("SMOOTHER FAILED");
+        rough_path.erase(rough_path.begin());
         return rough_path;
       }
     }
+    if (smooth_rts_.size() < i + 1 + 1)
+    {
+      ROS_FATAL("smooth_rts_ size error, less than i + 1 + 1");
+      ROS_FATAL("pushing the rough path");
+      rough_path.erase(rough_path.begin());
+      return rough_path;
+    }
     new_path.push_back(smooth_rts_[i + 1]);
   }
-  resetParent(root_ptrs_[i + 1], new_path[new_path.size() - 2]);
+  if (root_ptrs_.size() > i + 1)
+    resetParent(root_ptrs_[i + 1], new_path[new_path.size() - 2]);
+  else
+    ROS_FATAL("resetting parent issue");
   if (animating_){plt.displayPath(new_path, clr.green, 10.0f);}
   new_path.erase(new_path.begin());
   if (animating_) {ros::Duration(smoothed_display_time_).sleep();}

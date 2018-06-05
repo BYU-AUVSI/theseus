@@ -7,7 +7,7 @@ pp:
   max_descend_angle: 14.0    # Maximum angle the plane will descend, must be greater than descend_angle
   clearance: 30.0            # Minimum distance the algorithm has to stay away from any obstacle
   iters_limit: 5000          # This is a maximum iteration limit - so impossible maps don't hang the program
-  seed: 1210               # Seed the random generators for all of the simulation seed 90
+  seed: 122222               # Seed the random generators for all of the simulation seed 90
   comfortable_altitude: 40.0 # altitude to gain while taking off
   chi_take_off: -1000.0      # chi to take off in. If less than -100 it doesn't matter what direction
   flight_tent_N: 60.0
