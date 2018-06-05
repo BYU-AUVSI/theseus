@@ -575,6 +575,7 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
     all_sent_priorities_.push_back(srv.request.waypoints[i].priority);
     all_sent_wps_.push_back(next_wp);
   }
+  plt.display_on_judges_map_ = true;
   plt.clearRViz(myWorld_, all_sent_wps_, clr.purple, 5.0);
   plt.displayPrimaryWaypoints(all_primary_wps_);
   if (srv.request.waypoints.back().loiter_point == true)

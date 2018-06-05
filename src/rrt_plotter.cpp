@@ -6,6 +6,7 @@ rrtPlotter::rrtPlotter() :
   nh_(ros::NodeHandle())
 {
   marker_pub_                  = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 10);
+  ground_pub_                  = nh_.advertise<visualization_msgs::Marker>("groundstation/visualization_marker", 10);
   path_id_                     = 0;
   pWPS_id_                     = 0;
   odom_mkr_.header.frame_id    = "/local_ENU";
@@ -56,6 +57,8 @@ rrtPlotter::rrtPlotter() :
   mobs_mkr_.color.a            = 0.7;
   mobs_mkr_.lifetime           = ros::Duration();
   mobs_mkr_.id                 = 0;
+
+  display_on_judges_map_ = false;
 }
 rrtPlotter::~rrtPlotter()
 {
@@ -122,6 +125,8 @@ void rrtPlotter::displayMap(map_s map)
     }
     marker_pub_.publish(obs_mkr);
     sleep(0.05); // apparently needs a small delay otherwise rviz can't keep up?
+    ground_pub_.publish(obs_mkr);
+    sleep(0.05); // apparently needs a small delay otherwise rviz can't keep up?
   }
 
   // primary waypoints
@@ -151,6 +156,7 @@ void rrtPlotter::displayMap(map_s map)
   bds_mkr.points.push_back(p0);
   marker_pub_.publish(bds_mkr);
   sleep(0.05);
+  ground_pub_.publish(bds_mkr);
 
   // Runway
   run_mkr.header.stamp = ros::Time::now();
@@ -171,6 +177,7 @@ void rrtPlotter::displayMap(map_s map)
   NED_s r2(p.y, p.x, -p.z);
   run_mkr.points.push_back(p);
   marker_pub_.publish(run_mkr);
+  ground_pub_.publish(run_mkr);
   run_mkr.id++;
   sleep(0.05);
   run_mkr.points.clear();
@@ -185,6 +192,7 @@ void rrtPlotter::displayMap(map_s map)
   NED_s r4(p.y, p.x, -p.z);
   run_mkr.points.push_back(p);
   marker_pub_.publish(run_mkr);
+  ground_pub_.publish(run_mkr);
   run_mkr.id++;
   sleep(0.05);
   run_mkr.points.clear();
@@ -201,6 +209,7 @@ void rrtPlotter::displayMap(map_s map)
   NED_s r6(p.y, p.x, -p.z);
   run_mkr.points.push_back(p);
   marker_pub_.publish(run_mkr);
+  ground_pub_.publish(run_mkr);
   run_mkr.id++;
   sleep(0.05);
   run_mkr.points.clear();
@@ -251,6 +260,7 @@ void rrtPlotter::displayPrimaryWaypoints(std::vector<NED_s> wps)
     pWPS_mkr.points.push_back(p);
   }
   marker_pub_.publish(pWPS_mkr);
+  ground_pub_.publish(pWPS_mkr);
   sleep(0.05);
   ROS_DEBUG("finished displaying waypoints");
 }
@@ -259,6 +269,7 @@ void rrtPlotter::odomCallback(geometry_msgs::Point p)
   odom_mkr_.header.stamp = ros::Time::now();
   odom_mkr_.points.push_back(p);
   marker_pub_.publish(odom_mkr_);
+  ground_pub_.publish(odom_mkr_);
 }
 void rrtPlotter::mobsCallback(std::vector<NED_s> mobs_in, std::vector<float> radius)
 {
@@ -274,12 +285,15 @@ void rrtPlotter::mobsCallback(std::vector<NED_s> mobs_in, std::vector<float> rad
     mobs_mkr_.pose.position.z = -mobs_in[i].D;
     mobs_mkr_.id = i;
     marker_pub_.publish(mobs_mkr_);
+    ground_pub_.publish(mobs_mkr_);
+
     ros::Duration(0.01).sleep();
   }
 }
 void rrtPlotter::pingBoundaries()
 {
   marker_pub_.publish(bds_mkr_);
+  ground_pub_.publish(bds_mkr_);
 }
 void rrtPlotter::addFinalPath(NED_s ps, std::vector<NED_s> stuff_in)
 {
@@ -335,6 +349,7 @@ void rrtPlotter::addFinalPath(NED_s ps, std::vector<NED_s> stuff_in)
     planned_path_mkr_.points.push_back(p);
   }
   marker_pub_.publish(planned_path_mkr_);
+  ground_pub_.publish(planned_path_mkr_);
 }
 void rrtPlotter::pingPath()
 {
@@ -414,6 +429,7 @@ void rrtPlotter::displayBoundaries(map_s map)
   p0.z = 0.0;
   bds_mkr_.points.push_back(p0);
   marker_pub_.publish(bds_mkr_);
+  ground_pub_.publish(bds_mkr_);
   sleep(0.05);
 }
 void rrtPlotter::displayPath(std::vector<NED_s> path, NED_s color, float width)
@@ -529,6 +545,12 @@ void rrtPlotter::displayPath(std::vector<NED_s> path, NED_s color, float width)
     planned_path_mkr.points.push_back(p);
   }
   marker_pub_.publish(planned_path_mkr);
+
+  if (display_on_judges_map_)
+  {
+    ground_pub_.publish(planned_path_mkr);
+    display_on_judges_map_ = false;
+  }
   sleep(0.05);
 }
 void rrtPlotter::drawCircle(NED_s cp, float r)
@@ -628,6 +650,7 @@ void rrtPlotter::clearRViz(map_s map)
   visualization_msgs::Marker clear_mkr;
   clear_mkr.action = visualization_msgs::Marker::DELETEALL;
   marker_pub_.publish(clear_mkr);
+  ground_pub_.publish(clear_mkr);
   displayMap(map);
   path_id_ = 0;
 }

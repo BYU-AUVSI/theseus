@@ -40,6 +40,7 @@ public:
 	~rrtPlotter();
 
   bool increase_path_id_; // default true
+  bool display_on_judges_map_;
   void displayMap(map_s map);
   void displayPrimaryWaypoints(std::vector<NED_s> wps);
   void odomCallback(geometry_msgs::Point p);
@@ -60,6 +61,7 @@ public:
 private:
   ros::NodeHandle nh_;
   ros::Publisher marker_pub_;
+  ros::Publisher ground_pub_;
   visualization_msgs::Marker odom_mkr_;
   visualization_msgs::Marker mobs_mkr_;
   visualization_msgs::Marker planned_path_mkr_;
