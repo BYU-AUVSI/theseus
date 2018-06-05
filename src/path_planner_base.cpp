@@ -232,6 +232,7 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     }
   }
   solveStatic(options);
+  ROS_INFO("End of planMisison");
   return true;
 }
 bool PathPlannerBase::newRandomMap(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res)
@@ -281,13 +282,17 @@ bool PathPlannerBase::solveStatic(rrtOptions options)
   for (int j = 0; j < myWorld_.wps.size(); j++)
     all_primary_wps_.push_back(myWorld_.wps[j]);
   plt.displayPrimaryWaypoints(all_primary_wps_);
-  rrt_obj_.solveStatic(initial_pos, initial_chi, options.direct_hit, options.landing, options.drop_bomb, options.loiter_mission);
-  if (options.now)
+  bool solved_path = rrt_obj_.solveStatic(initial_pos, initial_chi, options.direct_hit, options.landing, options.drop_bomb, options.loiter_mission);
+  if (solved_path)
+  {
+    if (options.now)
     sendWaypointsCore(options.now);
-  plt.displayPath(initial_pos, rrt_obj_.all_wps_, clr.green, 8.0);
-  // plt.addFinalPath(initial_pos, rrt_obj_.all_wps_);
-  if (rrt_obj_.landing_now_ == false)
-    plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
+    plt.displayPath(initial_pos, rrt_obj_.all_wps_, clr.green, 8.0);
+    // plt.addFinalPath(initial_pos, rrt_obj_.all_wps_);
+    if (rrt_obj_.landing_now_ == false)
+      plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
+  }
+  ROS_INFO("End of SolveStatic path_planner_base");
   return true;
 }
 bool PathPlannerBase::wpsNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
@@ -769,6 +774,10 @@ void PathPlannerBase::updateViz(const ros::WallTimerEvent&)
     plt.pingBoundaries();
     // plt.pingPath();
   }
+  tf_frame_.sendTransform(
+         tf::StampedTransform(
+           tf::Transform(tf::Quaternion(0, 0, 0, 1), tf::Vector3(0.0, 0.0, 0.0)),
+           ros::Time::now(),"base_link", "local_ENU"));
 }
 } // end namespace theseus
 

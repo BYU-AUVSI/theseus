@@ -54,16 +54,27 @@ bool CollisionDetection::checkFillet(fillet_s fil, float clearance)
 bool CollisionDetection::checkPoint(NED_s point, float clearance)
 {
   if (checkWithinBoundaries(point, clearance) == false)
+  {
+    // ROS_DEBUG("point is not within boundaries");
     return false;
+  }
   // Check to see if the point is within the right fly altitudes
   if (taking_off_ == false && landing_now_ == false)
+  {
     if (-point.D < minFlyHeight_ + clearance || -point.D > maxFlyHeight_ - clearance)
+    {
+      // ROS_DEBUG("point is not in flying zone");
       return false;
+    }
+  }
 	// Second, Check for Cylinders
 	// Check if the point falls into the volume of the cylinder
 	for (unsigned int i = 0; i < map_.cylinders.size(); i++)
 		if (sqrtf(powf(point.N - map_.cylinders[i].N, 2.0f) + powf(point.E - map_.cylinders[i].E, 2.0f)) < map_.cylinders[i].R + clearance && -point.D - clearance < map_.cylinders[i].H)
-			return false;
+		{
+      // ROS_DEBUG("point violates obstacle");
+      return false;
+    }
 	return true; // The coordinate is in the safe zone if it got to here!
 }
 bool CollisionDetection::checkWithinBoundaries(NED_s point, float clearance)

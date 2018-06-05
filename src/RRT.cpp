@@ -42,7 +42,7 @@ RRT::~RRT()
 	deleteTree();                          // Delete all of those tree pointer nodes
 	std::vector<node*>().swap(root_ptrs_); // Free the memory of the vector.
 }
-void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb, bool loiter_mission)         // This function solves for a path in between the waypoinnts (2 Dimensional)
+bool RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb, bool loiter_mission)         // This function solves for a path in between the waypoinnts (2 Dimensional)
 {
   nh_.param<float>("pp/comfortable_altitude", comfortable_altitude_, 40.0f);
   nh_.param<float>("pp/chi_take_off", chi_take_off_, -1000.0f);
@@ -111,6 +111,11 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
       root_ptrs_[0]->dontConnect = false;
     }
   }
+  if (col_det_.checkPoint(root_ptrs_[0]->p, 1.0f) == false)
+  {
+    ROS_FATAL("Initial position violates an obstacle or boundary");
+    return false;
+  }
   long unsigned int iters_left = input_file_.iters_limit;
   for (unsigned int i = 0; i < map_.wps.size(); i++)
   {
@@ -142,13 +147,17 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
         num_found_paths += developTree(i);
         added_nodes++;
         if (added_nodes%50 == 0)
-          ROS_INFO("number of nodes %lu, %lu", added_nodes, iters_left);
+          ROS_INFO("number of nodes %lu, %i", added_nodes, input_file_.iters_limit);
         if ((float) added_nodes > iters_left/2.0f)
         {
-          ROS_WARN("decreasing the clearance level");
           path_clearance_  = path_clearance_/2.0f;
           iters_left  = iters_left/2.0f;
-          added_nodes = 0;
+          ROS_WARN("decreasing the clearance level to %f", path_clearance_);
+        }
+        if (added_nodes > input_file_.iters_limit)
+        {
+          ROS_FATAL("ADDED TOO MANY NODES");
+          return false;
         }
       }
     }
@@ -201,6 +210,7 @@ void RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
   // plt.displayPath(all_rough_paths, clr.blue, 10.0f);
   ROS_INFO("FINISHED THE RRT ALGORITHM");
   // sleep(15.0);
+  return true;
 }
 
 
@@ -360,6 +370,8 @@ int RRT::developTree(unsigned int i)
   // ROS_DEBUG("looking for next node");
   bool added_new_node = false;
   float clearance = path_clearance_;
+  int num_test_points = 0;
+  int max_num_test_points = 250;
   while (added_new_node == false)
   {
     // generate a good point to test
@@ -405,7 +417,12 @@ int RRT::developTree(unsigned int i)
     // temp_path.push_back(closest_node->p);
     // temp_path.push_back(test_point);
     // plt.displayPath(temp_path, clr.orange, 3.2f);
-
+    num_test_points++;
+    if (num_test_points > max_num_test_points)
+    {
+      ROS_WARN("Reached maximum number of test points in develop tree, starting again.");
+      return false;
+    }
   }
   // ROS_DEBUG("found a new node");
   if (animating_)
@@ -423,9 +440,9 @@ int RRT::developTree(unsigned int i)
   // ROS_DEBUG("trying direct connect for the new node");
   bool connect_to_end = tryDirectConnect(most_recent_node_, root_ptrs_[i + 1], i);
   if (connect_to_end == true)
-    return 1;
+    return true;
   else
-    return 0;
+    return false;
 }
 std::vector<node*> RRT::findMinimumPath(unsigned int i)
 {
@@ -479,6 +496,9 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
 
 
   ROS_DEBUG("STARTING THE SMOOTHER");
+  ros::Time smooth_start_time = ros::Time::now();
+  float max_smoothing_time = 12.0f;
+  float ts_;
   new_path.push_back(smooth_rts_[i]);
   // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
   // printNode(new_path.back());
@@ -558,6 +578,16 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
         // ROS_DEBUG("best so far: N: %f, E: %f, D: %f", best_so_far->p.N, best_so_far->p.E,best_so_far->p.D);
         ptr++;
       }
+
+      ros::Time new_time = ros::Time::now();
+      ros::Duration time_step = new_time - smooth_start_time;
+      ts_ = time_step.toSec();
+      if (ts_ > max_smoothing_time)
+      {
+        rough_path.erase(rough_path.begin());
+        ROS_FATAL("SMOOTHER FAILED");
+        return rough_path;
+      }
     }
     new_path.push_back(smooth_rts_[i + 1]);
     // ROS_DEBUG("N: %f, E: %f, D: %f", new_path.back()->p.N, new_path.back()->p.E,new_path.back()->p.D);
@@ -624,6 +654,16 @@ std::vector<node*> RRT::smoothPath(std::vector<node*> rough_path, int i)
         // ROS_DEBUG("best so far: N: %f, E: %f, D: %f", best_so_far->p.N, best_so_far->p.E,best_so_far->p.D);
       }
       // ROS_DEBUG("best so far: N: %f, E: %f, D: %f", best_so_far->p.N, best_so_far->p.E,best_so_far->p.D);
+
+      ros::Time new_time = ros::Time::now();
+      ros::Duration time_step = new_time - smooth_start_time;
+      ts_ = time_step.toSec();
+      if (ts_ > max_smoothing_time)
+      {
+        rough_path.erase(rough_path.begin());
+        ROS_FATAL("SMOOTHER FAILED");
+        return rough_path;
+      }
     }
     new_path.push_back(smooth_rts_[i + 1]);
   }

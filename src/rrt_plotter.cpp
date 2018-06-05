@@ -269,7 +269,7 @@ void rrtPlotter::odomCallback(geometry_msgs::Point p)
   odom_mkr_.header.stamp = ros::Time::now();
   odom_mkr_.points.push_back(p);
   marker_pub_.publish(odom_mkr_);
-  ground_pub_.publish(odom_mkr_);
+  // ground_pub_.publish(odom_mkr_);
 }
 void rrtPlotter::mobsCallback(std::vector<NED_s> mobs_in, std::vector<float> radius)
 {
@@ -285,7 +285,7 @@ void rrtPlotter::mobsCallback(std::vector<NED_s> mobs_in, std::vector<float> rad
     mobs_mkr_.pose.position.z = -mobs_in[i].D;
     mobs_mkr_.id = i;
     marker_pub_.publish(mobs_mkr_);
-    ground_pub_.publish(mobs_mkr_);
+    // ground_pub_.publish(mobs_mkr_);
 
     ros::Duration(0.01).sleep();
   }
@@ -586,6 +586,7 @@ void rrtPlotter::drawCircle(NED_s cp, float r)
   cir_mkr.color.a             = 1.0;
   pWPS_mkr.lifetime = cir_mkr.lifetime  = ros::Duration();
 
+  ROS_INFO("checking for subscribers");
   int id = 0;
   while (marker_pub_.getNumSubscribers() < 1)
   {
@@ -594,6 +595,7 @@ void rrtPlotter::drawCircle(NED_s cp, float r)
     ROS_WARN_ONCE("Please create a subscriber to the marker");
     sleep(1);
   }
+  ROS_INFO("found subscribers");
   // primary waypoints
   pWPS_mkr.header.stamp = ros::Time::now();
   pWPS_mkr.id           =  0;
@@ -624,6 +626,7 @@ void rrtPlotter::drawCircle(NED_s cp, float r)
   }
   marker_pub_.publish(cir_mkr);
   sleep(0.05);
+  ROS_INFO("End of drawCircle");
 }
 std::vector<std::vector<float > > rrtPlotter::arc(float N, float E, float r, float aS, float aE)
 {

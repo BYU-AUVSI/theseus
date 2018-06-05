@@ -26,7 +26,7 @@ public:
   RRT(map_s map_in, unsigned int seed);
 	RRT();
   ~RRT();                                                                 // Deconstructor - deletes the tree
-	void solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb, bool loiter_mission); // Solves the static path
+	bool solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool drop_bomb, bool loiter_mission); // Solves the static path
   void newMap(map_s map_in);                                              // creates a new map
   void newSeed(unsigned int seed);
   bool checkPoint(NED_s point, float clearance);

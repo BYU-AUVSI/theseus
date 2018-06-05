@@ -26,6 +26,7 @@
 #include <std_srvs/Trigger.h>
 #include <uav_msgs/MovingObstacle.h>
 #include <uav_msgs/MovingObstacleCollection.h>
+#include <tf/transform_broadcaster.h>
 
 namespace theseus
 {
@@ -46,7 +47,7 @@ public:
 private:
   //********************* NODE HANDLES *********************//
   ros::NodeHandle nh_;         // public node handle for publishing, subscribing
-
+  tf::TransformBroadcaster tf_frame_;
   //************** SUBSCRIBERS AND PUBLISHERS **************//
   ros::ServiceServer plan_mission_service_;
   ros::Subscriber state_subscriber_;
