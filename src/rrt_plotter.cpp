@@ -76,6 +76,7 @@ void rrtPlotter::displayMap(map_s map)
   obs_mkr.ns            = "static_obstacle";
   bds_mkr.ns            = "boundaries";
   run_mkr.ns            = "runway";
+  run_mkr2.ns           = "runway2";
   uint32_t cyl          = visualization_msgs::Marker::CYLINDER;
   uint32_t lis          = visualization_msgs::Marker::LINE_STRIP;
   obs_mkr.type          = cyl;
@@ -280,9 +281,9 @@ void rrtPlotter::mobsCallback(std::vector<NED_s> mobs_in, std::vector<float> rad
 
   for (int i = 0; i < mobs_in.size(); i++)
   {
-    mobs_mkr_.scale.x         = radius[i];
-    mobs_mkr_.scale.y         = radius[i];
-    mobs_mkr_.scale.z         = radius[i];
+    mobs_mkr_.scale.x         = radius[i]*2.0f;
+    mobs_mkr_.scale.y         = radius[i]*2.0f;
+    mobs_mkr_.scale.z         = radius[i]*2.0f;
     mobs_mkr_.pose.position.x = mobs_in[i].E;
     mobs_mkr_.pose.position.y = mobs_in[i].N;
     mobs_mkr_.pose.position.z = -mobs_in[i].D;
@@ -628,6 +629,7 @@ void rrtPlotter::drawCircle(NED_s cp, float r)
     cir_mkr.points.push_back(p);
   }
   marker_pub_.publish(cir_mkr);
+  ground_pub_.publish(cir_mkr);
   sleep(0.05);
   ROS_INFO("End of drawCircle");
 }

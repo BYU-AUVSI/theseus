@@ -51,8 +51,8 @@ Groundstation::Groundstation() :
   mobs_mkr_.id                 = 0;
 
   pose_mkr_.header.frame_id    = "/local_ENU";
-  pose_mkr_.ns                 = "plane_odom";
-  pose_mkr_.type               = visualization_msgs::Marker::POINTS;
+  pose_mkr_.ns                 = "plane_odom_front";
+  pose_mkr_.type               = visualization_msgs::Marker::SPHERE;
   pose_mkr_.action             = visualization_msgs::Marker::ADD;
   pose_mkr_.pose.orientation.x = 0.0;
   pose_mkr_.pose.orientation.y = 0.0;
@@ -63,8 +63,10 @@ Groundstation::Groundstation() :
   pose_mkr_.color.b            = 0.0f;
   pose_mkr_.color.a            = 1.0;
   pose_mkr_.lifetime           = ros::Duration();
-  pose_mkr_.scale.x            = 20.0; // point width
-  pose_mkr_.scale.y            = 20.0; // point width
+  pose_mkr_.scale.x            = 20.0; // diameter of the plane
+  pose_mkr_.scale.y            = 20.0; // diameter of the plane
+  pose_mkr_.scale.z            = 20.0; // diameter of the plane
+  pose_mkr_.id                 = 1;
 
   nh_.param<double>("lat_ref", lat_ref_, 38.144692);
   nh_.param<double>("lon_ref", lon_ref_, -76.428007);
@@ -127,11 +129,13 @@ void Groundstation::updateViz(const ros::WallTimerEvent&)
     p.z = -odometry_.D;
     odom_mkr_.header.stamp = ros::Time::now();
     odom_mkr_.points.push_back(p);
-    // ground_pub_.publish(odom_mkr_);
-    ros::Duration(0.05).sleep();
+    ground_pub_.publish(odom_mkr_);
+    ros::Duration(0.005).sleep();
     pose_mkr_.header.stamp = ros::Time::now();
-    pose_mkr_.points.clear();
-    pose_mkr_.points.push_back(p);
+    pose_mkr_.pose.position.x = p.x;
+    pose_mkr_.pose.position.y = p.y;
+    pose_mkr_.pose.position.z = p.z;
+    ros::Duration(0.005).sleep();
     ground_pub_.publish(pose_mkr_);
   }
 }

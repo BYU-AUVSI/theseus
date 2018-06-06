@@ -217,8 +217,12 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
   if (req.mission.mission_type == req.mission.MISSION_TYPE_WAYPOINT)
   {
     wp_distances_.clear();
+    waypoints_to_hit_.clear();
     for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
+    {
       wp_distances_.push_back(INFINITY);
+      waypoints_to_hit_.push_back(rrt_obj_.map_.wps[i]);
+    }
   }
   NED_s ref_zero(0.0f, 0.0f, 0.0f);
   if (rrt_obj_.col_det_.checkWithinBoundaries(ref_zero, 0.0f) == false)
@@ -292,7 +296,6 @@ bool PathPlannerBase::solveStatic(rrtOptions options)
     if (rrt_obj_.landing_now_ == false)
       plt.drawCircle(rrt_obj_.all_wps_.back(), input_file_.loiter_radius);
   }
-  ROS_INFO("End of SolveStatic path_planner_base");
   return true;
 }
 bool PathPlannerBase::wpsNow(std_srvs::Trigger::Request &req, std_srvs::Trigger:: Response &res)
@@ -518,10 +521,6 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
     else
       new_waypoint.set_current = false;
     new_waypoint.clear_wp_list = false;
-    // if (rrt_obj_.all_drop_bombs_[i])
-    //   ROS_DEBUG("drop bomb");
-    // else
-    //   ROS_DEBUG("don't drop bomb");
     srv.request.waypoints.push_back(new_waypoint);
   }
   if (srv.request.waypoints.back().loiter_point == true)
@@ -529,9 +528,14 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
     srv.request.waypoints.back().loiter_point = false;
     new_waypoint.set_current  = false;
     int last_idx = rrt_obj_.all_wps_.size() - 1;
+
+    if (rrt_obj_.all_wps_.size() > 2)
+      in_front = rrt_obj_.all_wps_[last_idx] + \
+                 ((rrt_obj_.all_wps_[last_idx] - rrt_obj_.all_wps_[last_idx - 1]).normalize())*0.1;
+    else
     in_front = rrt_obj_.all_wps_[last_idx] + \
-               ((rrt_obj_.all_wps_[last_idx] - rrt_obj_.all_wps_[last_idx - 1]).normalize())*0.1;
-    ROS_DEBUG("in_front N: %f, E: %f, D: %f", in_front.N, in_front.E, in_front.D);
+               ((rrt_obj_.all_wps_[last_idx] - odometry_).normalize())*0.1;
+    // ROS_DEBUG("in_front N: %f, E: %f, D: %f", in_front.N, in_front.E, in_front.D);
     new_waypoint.priority = 3;
     if (rrt_obj_.loiter_mission_)
       new_waypoint.priority = 4;
@@ -554,11 +558,16 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
 
   ending_point_ = rrt_obj_.ending_point_;
   ending_chi_ = rrt_obj_.ending_chi_;
-
   int priority_level = 0;
   for (int i = 0; i < srv.request.waypoints.size(); i++)
     if (srv.request.waypoints[i].priority > priority_level)
       priority_level = srv.request.waypoints[i].priority;
+
+  if (now)
+  {
+    all_sent_wps_.clear();
+    all_sent_priorities_.clear();
+  }
   for (int i = 0; i < all_sent_wps_.size(); i++)
     if (all_sent_priorities_[i] < priority_level)
     {
@@ -692,9 +701,13 @@ void PathPlannerBase::getInitialMap()
   rrt_obj_.newMap(myWorld_);
   has_map_ = true;
   wp_distances_.clear();
+  waypoints_to_hit_.clear();
   cyl_distances_.clear();
   for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
+  {
     wp_distances_.push_back(INFINITY);
+    waypoints_to_hit_.push_back(rrt_obj_.map_.wps[i]);
+  }
   for (int i = 0; i < rrt_obj_.map_.cylinders.size(); i++)
     cyl_distances_.push_back(INFINITY);
   min_cyl_dis_ = INFINITY;
@@ -729,9 +742,9 @@ void PathPlannerBase::stateCallback(const rosplane_msgs::State &msg)
   }
   if (has_map_)
   {
-    for (int i = 0; i < rrt_obj_.map_.wps.size(); i++)
+    for (int i = 0; i < waypoints_to_hit_.size(); i++)
     {
-      float d = (odometry_ - rrt_obj_.map_.wps[i]).norm();
+      float d = (odometry_ - waypoints_to_hit_[i]).norm();
       if (d < wp_distances_[i])
         wp_distances_[i] = d;
     }

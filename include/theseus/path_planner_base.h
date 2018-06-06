@@ -97,6 +97,7 @@ private:
   bool has_map_;
   std::vector<NED_s> all_primary_wps_;
 
+  std::vector<NED_s> waypoints_to_hit_;
   std::vector<float> wp_distances_;
   std::vector<float> cyl_distances_;
   float min_cyl_dis_;
