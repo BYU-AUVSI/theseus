@@ -16,10 +16,12 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   visualization_msgs
   message_generation
+  rviz
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
+find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -125,11 +127,34 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
 )
+include_directories(
+  ${Qt5Core_INCLUDE_DIRS}
+  ${Qt5Gui_INCLUDE_DIRS}
+  ${Qt5Widgets_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+)
+
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/theseus.cpp
 # )
+qt5_wrap_cpp(MOC_FILES
+  src/groundstation_panel.h
+)
+add_library(theseus
+  src/groundstation_panel.cpp
+  ${MOC_FILES}
+)
+add_dependencies(theseus ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(theseus
+  ${Qt5Core_LIBRARIES}
+  ${Qt5Gui_LIBRARIES}
+  ${Qt5Widgets_LIBRARIES}
+  ${QT_LIBRARIES}
+  ${catkin_LIBRARIES}
+)
+
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries

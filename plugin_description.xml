@@ -1,0 +1,9 @@
+<library path="lib/libtheseus">
+  <class name="theseus/Groundstation"
+         type="theseus::GroundstationPanel"
+         base_class_type="rviz::Panel">
+    <description>
+      A panel widget for interacting with the groundstation
+    </description>
+  </class>
+</library>
