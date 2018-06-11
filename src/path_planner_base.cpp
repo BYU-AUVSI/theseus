@@ -157,12 +157,15 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
     options.check_wps = true;
     rrt_obj_.newMap(mission_map);
     mission_map.wps.clear();
+    float search_area_height;
+    nh_.param<float>("pp/search_area_height", search_area_height, 100.0);
     for (int i = 0; i < num_waypoints; i++)
     {
       lat = req.mission.waypoints[i].point.latitude;
       lon = req.mission.waypoints[i].point.longitude;
       alt = req.mission.waypoints[i].point.altitude;
       gps_converter_.gps2ned(lat, lon, alt, ned.N, ned.E, ned.D);
+      ned.D = -search_area_height;
       if (rrt_obj_.checkPoint(ned, input_file_.clearance + 0.5f*input_file_.turn_radius))
         mission_map.wps.push_back(ned);
     }

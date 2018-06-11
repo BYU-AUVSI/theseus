@@ -82,6 +82,7 @@ void rrtPlotter::displayMap(map_s map)
   obs_mkr.type          = cyl;
   bds_mkr.type          = lis;
   run_mkr.type          = lis;
+  run_mkr2.type         = lis;
   // Set the obs_mkr action.  Options are ADD (Which is really create or modify), DELETE, and new in ROS Indigo: 3 (DELETEALL)
   obs_mkr.action = bds_mkr.action  = run_mkr.action = run_mkr2.action = visualization_msgs::Marker::ADD;
   obs_mkr.pose.orientation.x  = bds_mkr.pose.orientation.x = run_mkr.pose.orientation.x = run_mkr2.pose.orientation.x = 0.0;
