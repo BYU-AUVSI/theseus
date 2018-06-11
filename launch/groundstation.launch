@@ -1,6 +1,7 @@
 <launch>
   <group ns="theseus">
-    <node name="rviz_groundstation" pkg="rviz" type="rviz" args="-d $(find theseus)/viz/groundstation.rviz" required="true"/>
     <node name="groundstation" pkg="theseus" type="theseus_groundstation" output="screen"/>
+    <node pkg="rostopic" type="rostopic" name="fake_gps_fix" args="pub /gps/fix sensor_msgs/NavSatFix --latch --file=$(find theseus)/viz/webster_field.gps" output="screen"/>
+    <node pkg="rviz" type="rviz" name="rviz" args="-d $(find theseus)/viz/gs.rviz"/>
   </group>
 </launch>
