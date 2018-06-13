@@ -615,13 +615,24 @@ bool PathPlannerBase::translateBoundaries(theseus::GPS::Request &req, theseus::G
 }
 bool PathPlannerBase::translateMap(theseus::GPS::Request &req, theseus::GPS::Response &res)
 {
-  ROS_INFO("Reference latitude: %f", req.lat);
-  ROS_INFO("Reference longitude: %f", req.lon);
-  ROS_INFO("Reference height: %f", req.height);
+  double temp_lat, temp_long, temp_h;
+  gps_struct gps_converter;
+  if (req.lat == 0.0 && req.lon == 0.0 && req.height == 0.0)
+  {
+    ROS_INFO("Reference latitude: %f", lat_ref_);
+    ROS_INFO("Reference longitude: %f", lon_ref_);
+    ROS_INFO("Reference height: %f", h_ref_);
+    gps_converter.set_reference(lat_ref_, lon_ref_, h_ref_);
+  }
+  else
+  {
+    ROS_INFO("Reference latitude: %f", req.lat);
+    ROS_INFO("Reference longitude: %f", req.lon);
+    ROS_INFO("Reference height: %f", req.height);
+    gps_converter.set_reference(req.lat, req.lon, req.height);
+  }
   if (has_map_ == false)
     getInitialMap();
-  gps_struct gps_converter;
-  gps_converter.set_reference(req.lat, req.lon, req.height);
   for (int i = 0; i < myWorld_.boundary_pts.size(); i++)
   {
     double N, E, D;
@@ -659,7 +670,7 @@ bool PathPlannerBase::translateMap(theseus::GPS::Request &req, theseus::GPS::Res
 bool PathPlannerBase::convertNED(theseus::ned2gps::Request &req, theseus::ned2gps::Response &res)
 {
   double temp_lat, temp_long, temp_h;
-  if (req.reference_lat == 0.0 && req.reference_lat == 0.0 && req.reference_lat == 0.0)
+  if (req.reference_lat == 0.0 && req.reference_lon == 0.0 && req.reference_height == 0.0)
   {
     ROS_INFO("Reference latitude: %f", lat_ref_);
     ROS_INFO("Reference longitude: %f", lon_ref_);
@@ -736,6 +747,20 @@ void PathPlannerBase::stateCallback(const rosplane_msgs::State &msg)
   odometry_.E = msg.position[1];
   odometry_.D = msg.position[2];
   chi0_       =  msg.chi;
+
+
+  // // Check if the ned conversion is okay
+  // double HOME[2];
+  // HOME[0] = 38.144692;
+  // HOME[1] = -76.428007;
+  // double R_EARTH = 6370027;
+  // double e_lat = HOME[0] + asin(msg.position[0]/R_EARTH)*180.0/M_PI;
+  // double e_lon = HOME[1] + asin(msg.position[1]/(cos(HOME[0]*M_PI/180.0)*R_EARTH))*180.0/M_PI;
+  // double e_alt = -msg.position[2];
+  // NED_s e_ned;
+  // gps_converter_.gps2ned(e_lat, e_lon, e_alt, e_ned.N, e_ned.E, e_ned.D);
+  // ROS_INFO("offset = %f", (odometry_ - e_ned).norm());
+
   if (recieved_state_ == false)
   {
     recieved_state_ = true;

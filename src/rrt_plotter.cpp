@@ -182,7 +182,7 @@ void rrtPlotter::displayMap(map_s map)
   NED_s r2(p.y, p.x, -p.z);
   run_mkr.points.push_back(p);
   marker_pub_.publish(run_mkr);
-  ground_pub_.publish(run_mkr);
+  // ground_pub_.publish(run_mkr);
   run_mkr.id++;
   sleep(0.05);
   // run_mkr.points.clear(); // this is bad. don't clear this
@@ -197,7 +197,7 @@ void rrtPlotter::displayMap(map_s map)
   NED_s r4(p.y, p.x, -p.z);
   run_mkr2.points.push_back(p);
   marker_pub_.publish(run_mkr2);
-  ground_pub_.publish(run_mkr2);
+  // ground_pub_.publish(run_mkr2);
   run_mkr2.id++;
   sleep(0.05);
   // run_mkr.points.clear();
