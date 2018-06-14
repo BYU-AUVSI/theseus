@@ -1,4 +1,5 @@
 <launch>
+  <node name="mission_controller" pkg="ros_groundstation" type="mission_controller.py" output="screen"/>
   <group ns="theseus">
     <rosparam command="load" file="$(find theseus)/param/path_planning.yaml"  />
     <!-- WEBSTER FIELD -->
@@ -9,9 +10,8 @@
     <param name="testing/init_references" value="false"/>
     <param name="testing/N_init" value="0.0"/>
     <param name="testing/E_init" value="0.0"/>
-    <param name="testing/D_init" value="-6.0"/>
+    <param name="testing/D_init" value="-6.7056"/>
     <node name="pathplanner" pkg="theseus" type="theseus_path_planner" output="screen"/>
-    <!-- <node name="rotation_ping" pkg="theseus" type="theseus_rotation" output="screen"/> -->
     <node name="rviz_path_planner" pkg="rviz" type="rviz" args="-d $(find theseus)/viz/path_planner.rviz" required="true"/>
   </group>
 </launch>
