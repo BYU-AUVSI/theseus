@@ -7,7 +7,7 @@
     <param name="lon_ref" value="-76.428007"/>
     <param name="h_ref" value="0.0"/>
 
-    <param name="testing/init_references" value="false"/>
+    <param name="testing/init_references" value="true"/>
     <param name="testing/N_init" value="0.0"/>
     <param name="testing/E_init" value="0.0"/>
     <param name="testing/D_init" value="-6.7056"/>

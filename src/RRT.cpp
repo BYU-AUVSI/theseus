@@ -70,6 +70,7 @@ bool RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
     setupBombWps();
   bool last_wp_safe_to_loiter = true;
   secondary_wps_indx_ = map_.wps.size();
+  ROS_WARN("secondary_wps_indx_ = %i", secondary_wps_indx_);
   bool add_loiter_point = true;
   if (landing == false && add_loiter_point == true)
   {
@@ -136,6 +137,15 @@ bool RRT::solveStatic(NED_s pos, float chi0, bool direct_hit, bool landing, bool
     ROS_INFO("Finding route to waypoint %lu", i + (long unsigned int) 1);
     path_clearance_        = input_file_.clearance;
     bool direct_connection = tryDirectConnect(root_ptrs_[i], root_ptrs_[i + 1], i);
+    if (dropping_bomb_ && (i == 1 || i == 2) && direct_connection == false)
+    {
+      ROS_ERROR("Bomb drop line failed, pushing anyway");
+      root_ptrs_[i]->cost        = root_ptrs_[i]->cost + (root_ptrs_[i + 1]->p - root_ptrs_[i]->p).norm();
+      root_ptrs_[i]->connects2wp = true;
+      root_ptrs_[i]->children.push_back(root_ptrs_[i + 1]);
+      most_recent_node_          = root_ptrs_[i + 1];
+      direct_connection = true;
+    }
     ROS_INFO("trying to connect to N %f, E %f, D %f", root_ptrs_[i + 1]->p.N, root_ptrs_[i + 1]->p.E, root_ptrs_[i + 1]->p.D);
     if (direct_connection == false)
     {

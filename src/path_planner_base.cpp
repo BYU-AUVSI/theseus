@@ -98,10 +98,19 @@ bool PathPlannerBase::planMission(uav_msgs::GeneratePath::Request &req, uav_msgs
   cyl_s cyl;
   for (int i = 0; i < num_waypoints; i++)
   {
-    lat = req.mission.waypoints[i].point.latitude;
-    lon = req.mission.waypoints[i].point.longitude;
-    alt = req.mission.waypoints[i].point.altitude;
-    gps_converter_.gps2ned(lat, lon, alt, ned.N, ned.E, ned.D);
+    if (req.mission.mission_type != req.mission.MISSION_TYPE_LAND)
+    {
+      lat = req.mission.waypoints[i].point.latitude;
+      lon = req.mission.waypoints[i].point.longitude;
+      alt = req.mission.waypoints[i].point.altitude;
+      gps_converter_.gps2ned(lat, lon, alt, ned.N, ned.E, ned.D);
+    }
+    else // special case for landing
+    {
+      ned.N =  req.mission.waypoints[i].point.latitude;
+      ned.E =  req.mission.waypoints[i].point.longitude;
+      ned.D = -req.mission.waypoints[i].point.altitude;
+    }
     mission_map.wps.push_back(ned);
     ROS_INFO("waypoints:: %f %f %f", ned.N, ned.E, ned.D);
   }
@@ -705,12 +714,12 @@ void PathPlannerBase::getInitialMap()
   ROS_INFO("seed: %i", seed);
   mapper myWorld(seed, &input_file_);
   cyl_s cyl;
-  nh_.param<double>("flight_tent_N", cyl.N, 60.0);
-  nh_.param<double>("flight_tent_E", cyl.E, -5.0);
-  nh_.param<double>("flight_tent_R", cyl.R, 20.0);
-  nh_.param<double>("flight_tent_H", cyl.H, 230.0);
-  myWorld.map.cylinders.push_back(cyl);
-  ROS_WARN("FLIGHT TENT cylinder:: %f %f", cyl.N, cyl.E);
+  // nh_.param<double>("flight_tent_N", cyl.N, 60.0);
+  // nh_.param<double>("flight_tent_E", cyl.E, -5.0);
+  // nh_.param<double>("flight_tent_R", cyl.R, 20.0);
+  // nh_.param<double>("flight_tent_H", cyl.H, 230.0);
+  // myWorld.map.cylinders.push_back(cyl);
+  // ROS_WARN("FLIGHT TENT cylinder:: %f %f", cyl.N, cyl.E);
   myWorld_ = myWorld.map;
   rrt_obj_.newMap(myWorld_);
   has_map_ = true;
