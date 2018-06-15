@@ -534,6 +534,8 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
       new_waypoint.set_current = false;
     new_waypoint.clear_wp_list = false;
     srv.request.waypoints.push_back(new_waypoint);
+
+
   }
   if (srv.request.waypoints.back().loiter_point == true)
   {
@@ -550,7 +552,20 @@ bool PathPlannerBase::sendWaypointsCore(bool now)
     // ROS_DEBUG("in_front N: %f, E: %f, D: %f", in_front.N, in_front.E, in_front.D);
     new_waypoint.priority = 3;
     if (rrt_obj_.loiter_mission_)
+    {
+      NED_s behind_of;
+      if (rrt_obj_.all_wps_.size() > 2)
+        behind_of = rrt_obj_.all_wps_[last_idx] - \
+                   ((rrt_obj_.all_wps_[last_idx] - rrt_obj_.all_wps_[last_idx - 1]).normalize())*input_file_.turn_radius;
+      else
+      behind_of = rrt_obj_.all_wps_[last_idx] - \
+                 ((rrt_obj_.all_wps_[last_idx] - odometry_).normalize())*input_file_.turn_radius;
+      srv.request.waypoints.back().w[0] = behind_of.N;
+      srv.request.waypoints.back().w[1] = behind_of.E;
+      srv.request.waypoints.back().w[2] = behind_of.D;
+
       new_waypoint.priority = 4;
+    }
     new_waypoint.w[0] = in_front.N;
     new_waypoint.w[1] = in_front.E;
     new_waypoint.w[2] = in_front.D;
