@@ -37,7 +37,7 @@ Visualization Manager:
       Draw Behind: true
       Dynamically reload: true
       Enabled: true
-      Frame Convention: XYZ -> ENU
+      Frame Convention: XYZ -> NWU
       Name: AerialMapDisplay
       Object URI: https://api.mapbox.com/styles/v1/mapbox/satellite-v9/tiles/256/{z}/{x}/{y}?access_token=pk.eyJ1IjoiYXVzdGluaHVyc3QiLCJhIjoiY2ppOXc5c2l0MTEzcjNrbW5penE0OGlvOCJ9.U4WScDKKWuw3t9hbZGqpLA
       Robot frame: local_ENU
@@ -64,7 +64,7 @@ Visualization Manager:
       Enabled: true
       Length: 100
       Name: Axes
-      Radius: 10
+      Radius: 3
       Reference Frame: local_ENU
       Value: true
   Enabled: true

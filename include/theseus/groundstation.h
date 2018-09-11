@@ -8,6 +8,8 @@
 #include <uav_msgs/MovingObstacleCollection.h>
 #include <visualization_msgs/Marker.h>
 #include <theseus/gps_struct.h>
+#include <geometry_msgs/Pose.h>
+#include <tf/tf.h>
 
 namespace theseus
 {
@@ -28,9 +30,10 @@ private:
   void stateCallback(const rosplane_msgs::State &msg);
   void movingObsCallback(const uav_msgs::MovingObstacleCollection &msg);
 private:
-  NED_s ending_point_;
+  // NED_s ending_point_;
   float ending_chi_;
-  NED_s odometry_;
+  // NED_s odometry_;
+  geometry_msgs::Pose odometry_;
   //***************** CALLBACKS AND TIMERS *****************//
   ros::WallTimer update_viz_timer_;
   void updateViz(const ros::WallTimerEvent&);

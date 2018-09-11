@@ -1,7 +1,11 @@
 <launch>
   <group ns="theseus">
+    <!-- This node appears to make the plane and path appear superimposed over the rviz base -->
     <node name="groundstation" pkg="theseus" type="theseus_groundstation" output="screen"/>
+
     <node pkg="rostopic" type="rostopic" name="fake_gps_fix" args="pub /groundstation/fake/gps sensor_msgs/NavSatFix --latch --file=$(find theseus)/viz/webster_field.gps" output="screen"/>
+
+    <!-- This node appears to launch the rviz gui base, with the map and axes -->
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find theseus)/viz/gs.rviz"/>
   </group>
 </launch>
