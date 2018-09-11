@@ -19,6 +19,7 @@ catkin_make
 Download the repositories.
 ```
 cd src
+git clone https://github.com/BYU-AUVSI/auvsi_mission.git
 git clone https://github.com/BYU-AUVSI/theseus.git
 git clone https://github.com/BYU-AUVSI/rosplane.git
 git clone --recurse-submodules https://github.com/BYU-AUVSI/rosflight.git
@@ -41,6 +42,10 @@ catkin_make
 That build took forever! You mine as well download the firmware and inertial_sense_ros repos from the BYU-AUVSI site as well if you will be working with the NAZE or INS.
 
 ## Using the Repository
+Simulation packages are launched with a single launch file:
+```
+roslaunch auvsi_mission sim.launch 
+```
 The repository is used by launching the following launch file:
 ```
 roslaunch theseus rospathplanner.launch
