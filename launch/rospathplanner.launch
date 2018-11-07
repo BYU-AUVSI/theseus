@@ -12,6 +12,6 @@
     <param name="testing/E_init" value="0.0"/>
     <param name="testing/D_init" value="-6.7056"/>
     <node name="pathplanner" pkg="theseus" type="theseus_path_planner" output="screen"/>
-    <!-- <node name="rviz_path_planner" pkg="rviz" type="rviz" args="-d $(find theseus)/viz/path_planner.rviz" required="true"/> -->
+    <node name="rviz_path_planner" pkg="rviz" type="rviz" args="-d $(find theseus)/viz/path_planner.rviz" required="true"/>
   </group>
 </launch>

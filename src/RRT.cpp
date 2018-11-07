@@ -17,7 +17,7 @@ RRT::RRT()
 }
 void RRT::setup()
 {
-  animating_              = false;
+  animating_              = true;
   emergency_priority_     = 5;
   mission_priority_       = 4;
   landing_priority_       = 4;
