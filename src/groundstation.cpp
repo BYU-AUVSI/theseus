@@ -98,8 +98,8 @@ void Groundstation::movingObsCallback(const uav_msgs::MovingObstacleCollection &
     mobs_mkr_.scale.x         = radius[i]*2.0f;
     mobs_mkr_.scale.y         = radius[i]*2.0f;
     mobs_mkr_.scale.z         = radius[i]*2.0f;
-    mobs_mkr_.pose.position.x = points[i].N; //points[i].E;
-    mobs_mkr_.pose.position.y = -points[i].E; //points[i].N;
+    mobs_mkr_.pose.position.x = points[i].E;
+    mobs_mkr_.pose.position.y = points[i].N;
     mobs_mkr_.pose.position.z = -points[i].D;
     mobs_mkr_.id = i;
     ground_pub_.publish(mobs_mkr_);
@@ -110,8 +110,8 @@ void Groundstation::movingObsCallback(const uav_msgs::MovingObstacleCollection &
 void Groundstation::stateCallback(const rosplane_msgs::State &msg)
 {
   // Extract position data from NED
-  odometry_.position.x = msg.position[0];//msg.position[1];
-  odometry_.position.y = -msg.position[1];//msg.position[0];
+  odometry_.position.x = msg.position[1];
+  odometry_.position.y = msg.position[0];
   odometry_.position.z = -msg.position[2];
   // odometry_.N = msg.position[0];
   // odometry_.E = msg.position[1];
@@ -119,7 +119,7 @@ void Groundstation::stateCallback(const rosplane_msgs::State &msg)
 
   // Extract orientation data from phi, theta, psi
   double phi = msg.phi;
-  double theta = -msg.theta;
+  double theta = msg.theta;
   double psi = -msg.psi;// + 1.570796;
   tf::Quaternion q = tf::createQuaternionFromRPY(phi, theta, psi);
   odometry_.orientation.x = q[0];
