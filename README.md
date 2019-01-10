@@ -41,10 +41,16 @@ catkin_make
 ```
 That build took forever! You mine as well download the firmware and inertial_sense_ros repos from the BYU-AUVSI site as well if you will be working with the NAZE or INS.
 
+You will probably also need to install the following python packages:
+```
+pip install pyproj
+pip install requests
+pip install shapely
+```
 ## Using the Repository
 Simulation packages are launched with a single launch file:
 ```
-roslaunch auvsi_mission sim.launch 
+roslaunch auvsi_mission sim.launch
 ```
 The repository is used by launching the following launch file:
 ```
