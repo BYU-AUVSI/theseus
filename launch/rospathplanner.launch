@@ -3,9 +3,14 @@
   <group ns="theseus">
     <rosparam command="load" file="$(find theseus)/param/path_planning.yaml"  />
     <!-- WEBSTER FIELD -->
+    <!--
     <param name="lat_ref" value="38.144692"/>
     <param name="lon_ref" value="-76.428007"/>
-    <param name="h_ref" value="0.0"/>
+    <param name="h_ref" value="0.0"/> -->
+    <!-- Utah County Airfield -->
+    <param name="~lat_ref" value="40.3633433"/>
+    <param name="~lon_ref" value="-111.9019076"/>
+    <param name="~h_ref" value="0.0"/>
 
     <param name="testing/init_references" value="false"/>
     <param name="testing/N_init" value="0.0"/>
