@@ -30,7 +30,7 @@ git clone https://github.com/BYU-AUVSI/rviz_satellite.git
 git clone https://github.com/BYU-AUVSI/ros_groundstation.git
 git clone https://github.com/BYU-AUVSI/vision_pkg.git
 
-git clone https://github.com/hardkernel/wiringPi
+git clone https://github.com/BYU-AUVSI/wiringPi
 cd wiringPi
 ./build
 cd ../..
